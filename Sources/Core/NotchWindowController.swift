@@ -1,0 +1,132 @@
+import AppKit
+import SwiftUI
+
+/// Owns the island panel: positions it on the notch, resizes the window in
+/// step with the state machine, and survives display configuration changes.
+@MainActor
+final class NotchWindowController: NSObject {
+    private let panel = NotchPanel()
+    private let viewModel = NotchViewModel()
+    private var closedSize: CGSize = NotchMetrics.fallbackClosedSize
+    /// Target state — the controller's source of truth. May be one tick
+    /// ahead of viewModel.state (see requestState).
+    private var targetState: NotchState = .closed
+    private var collapseTask: Task<Void, Never>?
+    private var expandTask: Task<Void, Never>?
+    private var mouseMonitors: [Any] = []
+
+    override init() {
+        super.init()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenParametersDidChange),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
+
+        attachToScreen()
+        setUpMouseTracking()
+    }
+
+    /// SwiftUI `.onHover` does not fire in a non-activating agent app, so
+    /// hover is computed manually from the global cursor position.
+    private func setUpMouseTracking() {
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: { _ in
+            MainActor.assumeIsolated {
+                NotchWindowControllerRegistry.shared?.updateHover()
+            }
+        }) {
+            mouseMonitors.append(global)
+        }
+        let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in
+            MainActor.assumeIsolated {
+                NotchWindowControllerRegistry.shared?.updateHover()
+            }
+            return event
+        }
+        if let local {
+            mouseMonitors.append(local)
+        }
+        NotchWindowControllerRegistry.shared = self
+    }
+
+    private func updateHover() {
+        guard let screen = NotchGeometry.targetScreen else { return }
+        let location = NSEvent.mouseLocation
+        let hoverZone = frame(for: targetState == .expanded ? .expanded : .closed, on: screen)
+        requestState(hoverZone.contains(location) ? .expanded : .closed)
+    }
+
+    /// Single entry point for state changes: prepare the window frame first,
+    /// then run the animation.
+    private func requestState(_ newState: NotchState) {
+        guard newState != targetState else { return }
+        targetState = newState
+        collapseTask?.cancel()
+        expandTask?.cancel()
+        guard let screen = NotchGeometry.targetScreen else { return }
+
+        switch newState {
+        case .expanded:
+            // Grow the window silently first: the island is pinned to the top
+            // center and does not visually move. The animation starts on the
+            // next tick, once the window's coordinate space is stable —
+            // otherwise the growth starts from shifted coordinates and looks
+            // like a widget sliding onto the notch from the side.
+            panel.setFrame(frame(for: .expanded, on: screen), display: true)
+            expandTask = Task { [weak self] in
+                guard !Task.isCancelled else { return }
+                self?.viewModel.setState(.expanded)
+            }
+        case .closed, .compact:
+            viewModel.setState(newState)
+            // Shrink the window only after SwiftUI has finished the close
+            // animation, otherwise the window would clip the capsule mid-flight.
+            collapseTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+                guard !Task.isCancelled, let self,
+                      let screen = NotchGeometry.targetScreen else { return }
+                self.panel.setFrame(self.frame(for: .closed, on: screen), display: true)
+            }
+        }
+    }
+
+    private func attachToScreen() {
+        guard let screen = NotchGeometry.targetScreen else { return }
+        closedSize = NotchGeometry.closedSize(on: screen)
+
+        let rootView = NotchRootView(viewModel: viewModel, closedSize: closedSize)
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = .clear
+        panel.contentView = hostingView
+
+        panel.setFrame(frame(for: viewModel.state, on: screen), display: true)
+        panel.orderFrontRegardless()
+    }
+
+    private func frame(for state: NotchState, on screen: NSScreen) -> NSRect {
+        let size: CGSize = switch state {
+        case .expanded: NotchMetrics.expandedSize
+        case .closed, .compact: closedSize
+        }
+        return NSRect(
+            x: screen.frame.midX - size.width / 2,
+            y: screen.frame.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    @objc private func screenParametersDidChange() {
+        viewModel.setState(.closed)
+        attachToScreen()
+    }
+}
+
+/// Bridge between non-isolated NSEvent monitor callbacks and the MainActor controller.
+@MainActor
+enum NotchWindowControllerRegistry {
+    static weak var shared: NotchWindowController?
+}
