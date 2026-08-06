@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import SwiftUI
 
 /// Owns the island panel: positions it on the notch, resizes the window in
@@ -19,6 +20,8 @@ final class NotchWindowController: NSObject {
     private let powerMonitor = PowerSourceMonitor()
     private let audioMonitor = AudioSystemMonitor()
     private let mediaCenter = MediaCenter()
+    private let calendarService = CalendarService()
+    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
 
     override init() {
         super.init()
@@ -44,6 +47,21 @@ final class NotchWindowController: NSObject {
         mediaCenter.onPlaybackChanged = { [weak self] in
             self?.refreshIdleState()
         }
+        viewModel.onTabChange = { [weak self] tab in
+            self?.log.info("tab -> \(tab.rawValue, privacy: .public)")
+        }
+    }
+
+    /// Screen rect of the *visible* island — smaller than the window while
+    /// expanded, since the window is sized for the largest tab.
+    private func islandFrame(on screen: NSScreen) -> NSRect {
+        let size = NotchMetrics.expandedSize(for: viewModel.selectedTab)
+        return NSRect(
+            x: screen.frame.midX - size.width / 2,
+            y: screen.frame.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
     }
 
     /// The island's resting state: compact while something is playing,
@@ -125,7 +143,8 @@ final class NotchWindowController: NSObject {
         guard let screen = NotchGeometry.targetScreen else { return }
         let location = NSEvent.mouseLocation
         let hoverZone: NSRect = if targetState == .expanded {
-            frame(for: .expanded, on: screen)
+            // Follow the visible capsule, not the oversized transparent window.
+            islandFrame(on: screen)
         } else if viewModel.activeEvent != nil {
             eventFrame(on: screen)
         } else {
@@ -138,6 +157,7 @@ final class NotchWindowController: NSObject {
     /// then run the animation.
     private func requestState(_ newState: NotchState) {
         guard newState != targetState else { return }
+        log.info("state -> \(String(describing: newState), privacy: .public) mouse=\(NSStringFromPoint(NSEvent.mouseLocation), privacy: .public)")
         targetState = newState
         collapseTask?.cancel()
         expandTask?.cancel()
@@ -181,9 +201,10 @@ final class NotchWindowController: NSObject {
             power: powerMonitor,
             audio: audioMonitor,
             media: mediaCenter,
+            calendar: calendarService,
             closedSize: closedSize
         )
-        let hostingView = NSHostingView(rootView: rootView)
+        let hostingView = NotchHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
         panel.contentView = hostingView
@@ -195,7 +216,7 @@ final class NotchWindowController: NSObject {
     private func frame(for state: NotchState, on screen: NSScreen) -> NSRect {
         let size: CGSize = switch state {
         case .expanded:
-            NotchMetrics.expandedSize
+            NotchMetrics.expandedWindowSize
         case .compact:
             CGSize(
                 width: closedSize.width + NotchMetrics.compactSideWidth * 2,

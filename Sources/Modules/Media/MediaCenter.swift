@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import OSLog
 
 /// Aggregates every playback context on the machine, polls the selected one
 /// and exposes observable state for the UI.
@@ -32,6 +33,8 @@ final class MediaCenter {
     @ObservationIgnored private var pinnedSource: MediaSourceKind?
     /// Bundle ID of the app MediaRemote currently reports as now-playing.
     @ObservationIgnored private var activeClientBundleID: String?
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "media")
+    @ObservationIgnored private var lastLoggedSources: [String] = []
 
     init() {
         pollTask = Task { [weak self] in
@@ -108,6 +111,16 @@ final class MediaCenter {
 
         availableSources = await discoverSources()
         resolveActiveSource(systemIsPlaying: systemTrack?.isPlaying ?? false)
+
+        let ids = availableSources.map(\.id)
+        if ids != lastLoggedSources {
+            lastLoggedSources = ids
+            log.info("""
+            sources=[\(ids.joined(separator: ","), privacy: .public)] \
+            active=\(self.activeSource?.id ?? "nil", privacy: .public) \
+            systemClient=\(self.activeClientBundleID ?? "nil", privacy: .public)
+            """)
+        }
 
         guard let activeSource else {
             apply(nil)

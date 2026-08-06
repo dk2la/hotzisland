@@ -18,6 +18,8 @@ targets:
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Danila Kozlov"
         NSAppleEventsUsageDescription: "HotzIsland controls your music players (Spotify, Apple Music) to show and manage playback from the island."
+        NSCalendarsUsageDescription: "HotzIsland shows your upcoming events in the island."
+        NSCalendarsFullAccessUsageDescription: "HotzIsland shows your upcoming events in the island."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland

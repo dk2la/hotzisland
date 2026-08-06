@@ -17,6 +17,8 @@ enum Theme {
     static let iconMuted = Color.white.opacity(0.7)
 
     static let accentPositive = Color.green
+    /// Today's marker in the calendar grid.
+    static let accentToday = Color.red
 
     // MARK: - Shape
 
@@ -31,6 +33,8 @@ enum Theme {
     static let headlineFont = Font.system(size: 13, weight: .semibold)
     static let bodyFont = Font.system(size: 11, weight: .medium)
     static let captionFont = Font.system(size: 10)
+    /// Day numbers in the calendar grid.
+    static let dayFont = Font.system(size: 11, weight: .medium, design: .rounded)
 
     static let iconFont = Font.system(size: 14, weight: .semibold)
     static let iconSmallFont = Font.system(size: 12, weight: .semibold)
