@@ -28,6 +28,7 @@ enum Theme {
     static let valueFont = Font.system(size: 20, weight: .bold, design: .rounded)
     /// Small numeric value (e.g. percent in a live event).
     static let smallValueFont = Font.system(size: 12, weight: .semibold, design: .rounded)
+    static let headlineFont = Font.system(size: 13, weight: .semibold)
     static let bodyFont = Font.system(size: 11, weight: .medium)
     static let captionFont = Font.system(size: 10)
 
@@ -35,6 +36,11 @@ enum Theme {
     static let iconSmallFont = Font.system(size: 12, weight: .semibold)
     static let iconLargeFont = Font.system(size: 22, weight: .medium)
     static let tabIconFont = Font.system(size: 13, weight: .semibold)
+
+    /// Semibold icon at an arbitrary size (transport controls etc.).
+    static func iconFont(size: CGFloat) -> Font {
+        .system(size: size, weight: .semibold)
+    }
 
     // MARK: - Motion
 

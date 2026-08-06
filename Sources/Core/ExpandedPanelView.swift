@@ -6,6 +6,7 @@ struct ExpandedPanelView: View {
     var viewModel: NotchViewModel
     var power: PowerSourceMonitor
     var audio: AudioSystemMonitor
+    var media: MediaCenter
     let notchHeight: CGFloat
 
     var body: some View {
@@ -25,7 +26,9 @@ struct ExpandedPanelView: View {
         switch viewModel.selectedTab {
         case .devices:
             DevicesModuleView(power: power, audio: audio)
-        case .media, .calendar:
+        case .media:
+            MediaModuleView(media: media)
+        case .calendar:
             VStack(spacing: 6) {
                 Image(systemName: viewModel.selectedTab.icon)
                     .font(Theme.iconLargeFont)
