@@ -18,6 +18,7 @@ final class NotchWindowController: NSObject {
     private var mouseMonitors: [Any] = []
     private let powerMonitor = PowerSourceMonitor()
     private let audioMonitor = AudioSystemMonitor()
+    private let mediaCenter = MediaCenter()
 
     override init() {
         super.init()
@@ -40,6 +41,20 @@ final class NotchWindowController: NSObject {
         }
         powerMonitor.onEvent = handler
         audioMonitor.onEvent = handler
+        mediaCenter.onPlaybackChanged = { [weak self] in
+            self?.refreshIdleState()
+        }
+    }
+
+    /// The island's resting state: compact while something is playing,
+    /// fully closed otherwise.
+    private var idleState: NotchState {
+        mediaCenter.track?.isPlaying == true ? .compact : .closed
+    }
+
+    private func refreshIdleState() {
+        guard targetState != .expanded else { return }
+        requestState(idleState)
     }
 
     /// Shows a transient live event on the closed island. Repeated events
@@ -67,7 +82,7 @@ final class NotchWindowController: NSObject {
             try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
             guard !Task.isCancelled, self.targetState != .expanded,
                   let screen = NotchGeometry.targetScreen else { return }
-            self.panel.setFrame(self.frame(for: .closed, on: screen), display: true)
+            self.panel.setFrame(self.frame(for: self.idleState, on: screen), display: true)
         }
     }
 
@@ -114,9 +129,9 @@ final class NotchWindowController: NSObject {
         } else if viewModel.activeEvent != nil {
             eventFrame(on: screen)
         } else {
-            frame(for: .closed, on: screen)
+            frame(for: targetState, on: screen)
         }
-        requestState(hoverZone.contains(location) ? .expanded : .closed)
+        requestState(hoverZone.contains(location) ? .expanded : idleState)
     }
 
     /// Single entry point for state changes: prepare the window frame first,
@@ -152,7 +167,7 @@ final class NotchWindowController: NSObject {
                 try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
                 guard !Task.isCancelled, let self,
                       let screen = NotchGeometry.targetScreen else { return }
-                self.panel.setFrame(self.frame(for: .closed, on: screen), display: true)
+                self.panel.setFrame(self.frame(for: newState, on: screen), display: true)
             }
         }
     }
@@ -165,6 +180,7 @@ final class NotchWindowController: NSObject {
             viewModel: viewModel,
             power: powerMonitor,
             audio: audioMonitor,
+            media: mediaCenter,
             closedSize: closedSize
         )
         let hostingView = NSHostingView(rootView: rootView)
@@ -178,8 +194,15 @@ final class NotchWindowController: NSObject {
 
     private func frame(for state: NotchState, on screen: NSScreen) -> NSRect {
         let size: CGSize = switch state {
-        case .expanded: NotchMetrics.expandedSize
-        case .closed, .compact: closedSize
+        case .expanded:
+            NotchMetrics.expandedSize
+        case .compact:
+            CGSize(
+                width: closedSize.width + NotchMetrics.compactSideWidth * 2,
+                height: closedSize.height
+            )
+        case .closed:
+            closedSize
         }
         return NSRect(
             x: screen.frame.midX - size.width / 2,

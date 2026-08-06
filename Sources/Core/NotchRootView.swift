@@ -4,6 +4,7 @@ struct NotchRootView: View {
     var viewModel: NotchViewModel
     var power: PowerSourceMonitor
     var audio: AudioSystemMonitor
+    var media: MediaCenter
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
@@ -13,6 +14,12 @@ struct NotchRootView: View {
         if viewModel.activeEvent != nil {
             return CGSize(
                 width: closedSize.width + NotchMetrics.eventSideWidth * 2,
+                height: closedSize.height
+            )
+        }
+        if viewModel.state == .compact, media.track != nil {
+            return CGSize(
+                width: closedSize.width + NotchMetrics.compactSideWidth * 2,
                 height: closedSize.height
             )
         }
@@ -44,6 +51,9 @@ struct NotchRootView: View {
                 } else if let event = viewModel.activeEvent {
                     LiveEventView(event: event)
                         .transition(.opacity)
+                } else if viewModel.state == .compact, let track = media.track {
+                    CompactMediaView(track: track, artwork: media.artwork)
+                        .transition(.opacity)
                 }
             }
             .clipShape(shape)
@@ -57,6 +67,7 @@ struct NotchRootView: View {
             viewModel: viewModel,
             power: power,
             audio: audio,
+            media: media,
             notchHeight: closedSize.height
         )
     }

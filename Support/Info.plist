@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>HotzIsland controls your music players (Spotify, Apple Music) to show and manage playback from the island.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Danila Kozlov</string>
 </dict>
