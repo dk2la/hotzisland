@@ -1,0 +1,56 @@
+import SwiftUI
+
+/// Content of the expanded island: module area + tab bar. The top strip is
+/// kept clear of the camera housing.
+struct ExpandedPanelView: View {
+    var viewModel: NotchViewModel
+    var power: PowerSourceMonitor
+    var audio: AudioSystemMonitor
+    let notchHeight: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: notchHeight)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+            tabBar
+                .padding(.bottom, 10)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch viewModel.selectedTab {
+        case .devices:
+            DevicesModuleView(power: power, audio: audio)
+        case .media, .calendar:
+            VStack(spacing: 6) {
+                Image(systemName: viewModel.selectedTab.icon)
+                    .font(Theme.iconLargeFont)
+                    .foregroundStyle(Theme.textQuaternary)
+                Text("\(viewModel.selectedTab.title) — coming soon")
+                    .font(Theme.bodyFont)
+                    .foregroundStyle(Theme.textQuaternary)
+            }
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 22) {
+            ForEach(NotchTab.allCases) { tab in
+                Button {
+                    viewModel.selectedTab = tab
+                } label: {
+                    Image(systemName: tab.icon)
+                        .font(Theme.tabIconFont)
+                        .foregroundStyle(viewModel.selectedTab == tab ? Theme.textPrimary : Theme.textQuaternary)
+                        .frame(width: 28, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}

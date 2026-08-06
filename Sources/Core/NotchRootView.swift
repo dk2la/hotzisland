@@ -2,12 +2,21 @@ import SwiftUI
 
 struct NotchRootView: View {
     var viewModel: NotchViewModel
+    var power: PowerSourceMonitor
+    var audio: AudioSystemMonitor
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
 
     private var islandSize: CGSize {
-        isExpanded ? NotchMetrics.expandedSize : closedSize
+        if isExpanded { return NotchMetrics.expandedSize }
+        if viewModel.activeEvent != nil {
+            return CGSize(
+                width: closedSize.width + NotchMetrics.eventSideWidth * 2,
+                height: closedSize.height
+            )
+        }
+        return closedSize
     }
 
     private var shape: NotchShape {
@@ -27,31 +36,28 @@ struct NotchRootView: View {
 
     private var island: some View {
         shape
-            .fill(.black)
+            .fill(Theme.islandFill)
             .overlay {
                 if isExpanded {
                     expandedContent
                         .transition(.opacity.combined(with: .scale(scale: 0.85, anchor: .top)))
+                } else if let event = viewModel.activeEvent {
+                    LiveEventView(event: event)
+                        .transition(.opacity)
                 }
             }
             .clipShape(shape)
             .frame(width: islandSize.width, height: islandSize.height)
-            .animation(.spring(response: 0.38, dampingFraction: 0.78), value: viewModel.state)
+            .animation(Theme.stateSpring, value: viewModel.state)
+            .animation(Theme.eventSpring, value: viewModel.activeEvent)
     }
 
-    /// Expanded panel placeholder — will be replaced by modules in later phases.
     private var expandedContent: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "capsule.portrait.fill")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
-            Text("HotzIsland")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white)
-            Text("Modules coming soon")
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.4))
-        }
-        .padding(.top, closedSize.height / 2)
+        ExpandedPanelView(
+            viewModel: viewModel,
+            power: power,
+            audio: audio,
+            notchHeight: closedSize.height
+        )
     }
 }
