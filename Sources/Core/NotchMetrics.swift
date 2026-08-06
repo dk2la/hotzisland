@@ -9,6 +9,22 @@ enum NotchMetrics {
     static let expandedBottomRadius: CGFloat = 28
 
     static let expandedSize = CGSize(width: 480, height: 200)
+    /// The calendar needs a taller, wider panel than the other modules.
+    static let calendarExpandedSize = CGSize(width: 560, height: 300)
+
+    /// Visible island size for a tab — animated by SwiftUI.
+    static func expandedSize(for tab: NotchTab) -> CGSize {
+        tab == .calendar ? calendarExpandedSize : expandedSize
+    }
+
+    /// The window is always sized for the largest tab while expanded, so
+    /// switching tabs animates purely inside SwiftUI. Resizing the window
+    /// mid-animation resets the layout and reads as a redraw instead of a
+    /// smooth expansion.
+    static let expandedWindowSize = CGSize(
+        width: max(expandedSize.width, calendarExpandedSize.width),
+        height: max(expandedSize.height, calendarExpandedSize.height)
+    )
 
     /// Capsule size on Macs without a physical notch.
     static let fallbackClosedSize = CGSize(width: 196, height: 32)

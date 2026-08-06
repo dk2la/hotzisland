@@ -9,7 +9,16 @@ final class NotchViewModel {
     var activeEvent: LiveEvent?
 
     /// Selected tab of the expanded panel. Survives close/open cycles.
-    var selectedTab: NotchTab = .devices
+    private(set) var selectedTab: NotchTab = .devices
+
+    /// Tabs have different panel sizes — the window controller resizes on change.
+    @ObservationIgnored var onTabChange: ((NotchTab) -> Void)?
+
+    func selectTab(_ tab: NotchTab) {
+        guard tab != selectedTab else { return }
+        selectedTab = tab
+        onTabChange?(tab)
+    }
 
     func setState(_ newState: NotchState) {
         guard newState != state else { return }

@@ -5,12 +5,13 @@ struct NotchRootView: View {
     var power: PowerSourceMonitor
     var audio: AudioSystemMonitor
     var media: MediaCenter
+    var calendar: CalendarService
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
 
     private var islandSize: CGSize {
-        if isExpanded { return NotchMetrics.expandedSize }
+        if isExpanded { return NotchMetrics.expandedSize(for: viewModel.selectedTab) }
         if viewModel.activeEvent != nil {
             return CGSize(
                 width: closedSize.width + NotchMetrics.eventSideWidth * 2,
@@ -59,6 +60,7 @@ struct NotchRootView: View {
             .clipShape(shape)
             .frame(width: islandSize.width, height: islandSize.height)
             .animation(Theme.stateSpring, value: viewModel.state)
+            .animation(Theme.stateSpring, value: viewModel.selectedTab)
             .animation(Theme.eventSpring, value: viewModel.activeEvent)
     }
 
@@ -68,6 +70,7 @@ struct NotchRootView: View {
             power: power,
             audio: audio,
             media: media,
+            calendar: calendar,
             notchHeight: closedSize.height
         )
     }

@@ -7,6 +7,7 @@ struct ExpandedPanelView: View {
     var power: PowerSourceMonitor
     var audio: AudioSystemMonitor
     var media: MediaCenter
+    var calendar: CalendarService
     let notchHeight: CGFloat
 
     var body: some View {
@@ -29,14 +30,7 @@ struct ExpandedPanelView: View {
         case .media:
             MediaModuleView(media: media)
         case .calendar:
-            VStack(spacing: 6) {
-                Image(systemName: viewModel.selectedTab.icon)
-                    .font(Theme.iconLargeFont)
-                    .foregroundStyle(Theme.textQuaternary)
-                Text("\(viewModel.selectedTab.title) — coming soon")
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textQuaternary)
-            }
+            CalendarModuleView(service: calendar)
         }
     }
 
@@ -44,7 +38,7 @@ struct ExpandedPanelView: View {
         HStack(spacing: 22) {
             ForEach(NotchTab.allCases) { tab in
                 Button {
-                    viewModel.selectedTab = tab
+                    viewModel.selectTab(tab)
                 } label: {
                     Image(systemName: tab.icon)
                         .font(Theme.tabIconFont)
