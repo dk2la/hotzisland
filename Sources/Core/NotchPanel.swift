@@ -13,13 +13,15 @@ final class NotchPanel: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = .screenSaver
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         isMovable = false
         isFloatingPanel = true
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         animationBehavior = .none
+        // Must come after `isFloatingPanel`, which silently resets the level
+        // to `.floating` — otherwise the island ends up below menu bar icons.
+        level = .screenSaver
     }
 
     override var canBecomeKey: Bool { false }
