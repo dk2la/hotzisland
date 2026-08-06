@@ -15,4 +15,10 @@ enum NotchMetrics {
 
     /// Delay before shrinking the window after the close animation (ms).
     static let windowCollapseDelayMilliseconds = 450
+
+    /// Width of each content area on the sides of the notch during a live event.
+    static let eventSideWidth: CGFloat = 90
+
+    /// How long a live event stays visible before auto-dismissing (ms).
+    static let eventDisplayMilliseconds = 2500
 }
