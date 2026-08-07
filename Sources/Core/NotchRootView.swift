@@ -10,6 +10,7 @@ struct NotchRootView: View {
     var shelf: ShelfStore
     var clipboard: ClipboardStore
     var timer: TimerService
+    var settings: AppSettings
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
@@ -46,9 +47,27 @@ struct NotchRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
+    /// Island shell per theme. Glass keeps a dark scrim over the material so
+    /// content stays readable on bright wallpapers; Glow tints its ring with
+    /// the artwork's average color.
+    @ViewBuilder
+    private var islandShell: some View {
+        switch settings.theme {
+        case .stealth:
+            shape.fill(Theme.islandFill)
+        case .glass:
+            shape.fill(.ultraThinMaterial)
+                .overlay(shape.fill(Theme.islandFill.opacity(0.45)))
+        case .glow:
+            let accent = media.artworkAccent ?? Theme.textQuaternary
+            shape.fill(Theme.islandFill)
+                .overlay(shape.stroke(accent.opacity(0.9), lineWidth: 1).blur(radius: 2.5))
+                .overlay(shape.stroke(accent.opacity(0.7), lineWidth: 1))
+        }
+    }
+
     private var island: some View {
-        shape
-            .fill(Theme.islandFill)
+        islandShell
             .overlay {
                 if isExpanded {
                     expandedContent
@@ -92,6 +111,7 @@ struct NotchRootView: View {
             shelf: shelf,
             clipboard: clipboard,
             timer: timer,
+            settings: settings,
             notchHeight: closedSize.height
         )
     }
