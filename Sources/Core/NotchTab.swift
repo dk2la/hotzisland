@@ -6,6 +6,9 @@ enum NotchTab: String, CaseIterable, Identifiable {
     case media
     case calendar
     case metrics
+    case shelf
+    case clipboard
+    case timer
 
     var id: String { rawValue }
 
@@ -15,6 +18,9 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .media: "music.note"
         case .calendar: "calendar"
         case .metrics: "gauge"
+        case .shelf: "tray"
+        case .clipboard: "doc.on.clipboard"
+        case .timer: "timer"
         }
     }
 
@@ -24,6 +30,9 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .media: "Media"
         case .calendar: "Calendar"
         case .metrics: "System"
+        case .shelf: "Shelf"
+        case .clipboard: "Clipboard"
+        case .timer: "Timer"
         }
     }
 }

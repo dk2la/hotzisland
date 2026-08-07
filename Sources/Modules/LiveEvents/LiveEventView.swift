@@ -32,6 +32,10 @@ struct LiveEventView: View {
             Image(systemName: level <= 0.001 ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(Theme.tabIconFont)
                 .foregroundStyle(Theme.textPrimary)
+        case .timerFinished:
+            Image(systemName: "timer")
+                .font(Theme.iconFont)
+                .foregroundStyle(Theme.accentWarning)
         }
     }
 
@@ -55,6 +59,10 @@ struct LiveEventView: View {
                     .frame(width: max(0, 58 * level))
             }
             .frame(width: 58, height: 4)
+        case .timerFinished:
+            Text("Done!")
+                .font(Theme.smallValueFont)
+                .foregroundStyle(Theme.accentWarning)
         }
     }
 }

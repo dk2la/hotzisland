@@ -9,6 +9,9 @@ struct ExpandedPanelView: View {
     var media: MediaCenter
     var calendar: CalendarService
     var stats: SystemStatsService
+    var shelf: ShelfStore
+    var clipboard: ClipboardStore
+    var timer: TimerService
     let notchHeight: CGFloat
 
     var body: some View {
@@ -34,6 +37,12 @@ struct ExpandedPanelView: View {
             CalendarModuleView(service: calendar)
         case .metrics:
             MetricsModuleView(stats: stats)
+        case .shelf:
+            ShelfModuleView(shelf: shelf)
+        case .clipboard:
+            ClipboardModuleView(clipboard: clipboard)
+        case .timer:
+            TimerModuleView(timer: timer)
         }
     }
 

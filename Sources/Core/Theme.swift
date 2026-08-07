@@ -32,6 +32,8 @@ enum Theme {
 
     /// Large numeric value (e.g. battery percent).
     static let valueFont = Font.system(size: 20, weight: .bold, design: .rounded)
+    /// The big countdown readout in the timer tab.
+    static let timerFont = Font.system(size: 40, weight: .bold, design: .rounded).monospacedDigit()
     /// Small numeric value (e.g. percent in a live event).
     static let smallValueFont = Font.system(size: 12, weight: .semibold, design: .rounded)
     static let headlineFont = Font.system(size: 13, weight: .semibold)

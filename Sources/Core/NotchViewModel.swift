@@ -14,6 +14,10 @@ final class NotchViewModel {
     /// Tabs have different panel sizes — the window controller resizes on change.
     @ObservationIgnored var onTabChange: ((NotchTab) -> Void)?
 
+    /// Fired when a file drag hovers over the island — the controller
+    /// expands it onto the shelf tab.
+    @ObservationIgnored var onDragTargeted: (() -> Void)?
+
     func selectTab(_ tab: NotchTab) {
         guard tab != selectedTab else { return }
         selectedTab = tab

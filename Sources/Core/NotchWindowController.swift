@@ -22,6 +22,9 @@ final class NotchWindowController: NSObject {
     private let mediaCenter = MediaCenter()
     private let calendarService = CalendarService()
     private let statsService = SystemStatsService()
+    private let shelfStore = ShelfStore()
+    private let clipboardStore = ClipboardStore()
+    private let timerService = TimerService()
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
 
     override init() {
@@ -51,6 +54,18 @@ final class NotchWindowController: NSObject {
         viewModel.onTabChange = { [weak self] tab in
             self?.log.info("tab -> \(tab.rawValue, privacy: .public)")
         }
+        timerService.onRunningChanged = { [weak self] in
+            self?.refreshIdleState()
+        }
+        timerService.onFinished = { [weak self] in
+            self?.present(.timerFinished)
+        }
+        // A file dragged over the island opens the shelf to receive it.
+        viewModel.onDragTargeted = { [weak self] in
+            guard let self, self.targetState != .expanded else { return }
+            self.viewModel.selectTab(.shelf)
+            self.requestState(.expanded)
+        }
     }
 
     /// Screen rect of the *visible* island — smaller than the window while
@@ -65,10 +80,13 @@ final class NotchWindowController: NSObject {
         )
     }
 
-    /// The island's resting state: compact while something is playing,
-    /// fully closed otherwise.
+    /// The island's resting state: compact while a timer runs or something
+    /// is playing, fully closed otherwise.
     private var idleState: NotchState {
-        mediaCenter.track?.isPlaying == true ? .compact : .closed
+        if timerService.isRunning || mediaCenter.track?.isPlaying == true {
+            return .compact
+        }
+        return .closed
     }
 
     private func refreshIdleState() {
@@ -204,6 +222,9 @@ final class NotchWindowController: NSObject {
             media: mediaCenter,
             calendar: calendarService,
             stats: statsService,
+            shelf: shelfStore,
+            clipboard: clipboardStore,
+            timer: timerService,
             closedSize: closedSize
         )
         let hostingView = NotchHostingView(rootView: rootView)
