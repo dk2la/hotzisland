@@ -19,6 +19,10 @@ enum Theme {
     static let accentPositive = Color.green
     /// Today's marker in the calendar grid.
     static let accentToday = Color.red
+    /// Elevated but not critical load (60–85%).
+    static let accentWarning = Color.orange
+    /// Critical load (85%+).
+    static let accentCritical = Color.red
 
     // MARK: - Shape
 
