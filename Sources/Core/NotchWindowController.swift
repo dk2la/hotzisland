@@ -25,10 +25,16 @@ final class NotchWindowController: NSObject {
     private let shelfStore = ShelfStore()
     private let clipboardStore = ClipboardStore()
     private let timerService = TimerService()
+    private let settings: AppSettings
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
 
-    override init() {
+    init(settings: AppSettings) {
+        self.settings = settings
         super.init()
+
+        settings.onChange = { [weak self] in
+            self?.refreshIdleState()
+        }
 
         NotificationCenter.default.addObserver(
             self,
@@ -81,8 +87,10 @@ final class NotchWindowController: NSObject {
     }
 
     /// The island's resting state: compact while a timer runs or something
-    /// is playing, fully closed otherwise.
+    /// is playing, fully closed otherwise. "Invisible" idle mode always
+    /// closes fully.
     private var idleState: NotchState {
+        guard settings.idleMode == .compact else { return .closed }
         if timerService.isRunning || mediaCenter.track?.isPlaying == true {
             return .compact
         }
@@ -225,6 +233,7 @@ final class NotchWindowController: NSObject {
             shelf: shelfStore,
             clipboard: clipboardStore,
             timer: timerService,
+            settings: settings,
             closedSize: closedSize
         )
         let hostingView = NotchHostingView(rootView: rootView)

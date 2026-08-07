@@ -1,6 +1,8 @@
 import AppKit
+import CoreImage
 import Observation
 import OSLog
+import SwiftUI
 
 /// Aggregates every playback context on the machine, polls the selected one
 /// and exposes observable state for the UI.
@@ -14,6 +16,8 @@ import OSLog
 final class MediaCenter {
     private(set) var track: MediaTrack?
     private(set) var artwork: NSImage?
+    /// Average artwork color — feeds the Glow theme's accent ring.
+    private(set) var artworkAccent: Color?
     private(set) var availableSources: [MediaSourceKind] = []
     private(set) var activeSource: MediaSourceKind?
 
@@ -210,15 +214,47 @@ final class MediaCenter {
                     let image = await source.fetchArtwork(for: newTrack)
                     guard !Task.isCancelled else { return }
                     self?.artwork = image
+                    self?.artworkAccent = image?.averageColor
                 }
             }
         } else {
             artwork = nil
+            artworkAccent = nil
             lastArtworkKey = nil
         }
 
         if playbackChanged {
             onPlaybackChanged?()
         }
+    }
+}
+
+private extension NSImage {
+    /// 1x1 CIAreaAverage reduction — cheap enough to run on artwork changes.
+    var averageColor: Color? {
+        guard let tiff = tiffRepresentation,
+              let ciImage = CIImage(data: tiff),
+              let filter = CIFilter(name: "CIAreaAverage", parameters: [
+                  kCIInputImageKey: ciImage,
+                  kCIInputExtentKey: CIVector(cgRect: ciImage.extent),
+              ]),
+              let output = filter.outputImage
+        else { return nil }
+
+        var bitmap = [UInt8](repeating: 0, count: 4)
+        let context = CIContext(options: [.workingColorSpace: NSNull()])
+        context.render(
+            output,
+            toBitmap: &bitmap,
+            rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8,
+            colorSpace: nil
+        )
+        return Color(
+            red: Double(bitmap[0]) / 255,
+            green: Double(bitmap[1]) / 255,
+            blue: Double(bitmap[2]) / 255
+        )
     }
 }

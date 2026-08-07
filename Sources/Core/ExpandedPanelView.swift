@@ -12,7 +12,20 @@ struct ExpandedPanelView: View {
     var shelf: ShelfStore
     var clipboard: ClipboardStore
     var timer: TimerService
+    var settings: AppSettings
     let notchHeight: CGFloat
+
+    private var enabledTabs: [NotchTab] {
+        NotchTab.allCases.filter { settings.isEnabled($0) }
+    }
+
+    /// The selected tab may have been disabled in settings — fall back to
+    /// the first enabled one.
+    private var effectiveTab: NotchTab {
+        settings.isEnabled(viewModel.selectedTab)
+            ? viewModel.selectedTab
+            : (enabledTabs.first ?? .devices)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +41,7 @@ struct ExpandedPanelView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch viewModel.selectedTab {
+        switch effectiveTab {
         case .devices:
             DevicesModuleView(power: power, audio: audio)
         case .media:
@@ -48,13 +61,13 @@ struct ExpandedPanelView: View {
 
     private var tabBar: some View {
         HStack(spacing: 22) {
-            ForEach(NotchTab.allCases) { tab in
+            ForEach(enabledTabs) { tab in
                 Button {
                     viewModel.selectTab(tab)
                 } label: {
                     Image(systemName: tab.icon)
                         .font(Theme.tabIconFont)
-                        .foregroundStyle(viewModel.selectedTab == tab ? Theme.textPrimary : Theme.textQuaternary)
+                        .foregroundStyle(effectiveTab == tab ? Theme.textPrimary : Theme.textQuaternary)
                         .frame(width: 28, height: 22)
                         .contentShape(Rectangle())
                 }
