@@ -21,6 +21,7 @@ final class NotchWindowController: NSObject {
     private let audioMonitor = AudioSystemMonitor()
     private let mediaCenter = MediaCenter()
     private let calendarService = CalendarService()
+    private let statsService = SystemStatsService()
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
 
     override init() {
@@ -202,6 +203,7 @@ final class NotchWindowController: NSObject {
             audio: audioMonitor,
             media: mediaCenter,
             calendar: calendarService,
+            stats: statsService,
             closedSize: closedSize
         )
         let hostingView = NotchHostingView(rootView: rootView)

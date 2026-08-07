@@ -8,6 +8,7 @@ struct ExpandedPanelView: View {
     var audio: AudioSystemMonitor
     var media: MediaCenter
     var calendar: CalendarService
+    var stats: SystemStatsService
     let notchHeight: CGFloat
 
     var body: some View {
@@ -31,6 +32,8 @@ struct ExpandedPanelView: View {
             MediaModuleView(media: media)
         case .calendar:
             CalendarModuleView(service: calendar)
+        case .metrics:
+            MetricsModuleView(stats: stats)
         }
     }
 

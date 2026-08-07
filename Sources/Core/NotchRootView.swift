@@ -6,6 +6,7 @@ struct NotchRootView: View {
     var audio: AudioSystemMonitor
     var media: MediaCenter
     var calendar: CalendarService
+    var stats: SystemStatsService
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
@@ -71,6 +72,7 @@ struct NotchRootView: View {
             audio: audio,
             media: media,
             calendar: calendar,
+            stats: stats,
             notchHeight: closedSize.height
         )
     }
