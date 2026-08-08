@@ -3,13 +3,14 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
+    private let playbookStore = PlaybookStore()
     private var statusItem: NSStatusItem?
     private var notchController: NotchWindowController?
     private var settingsWindow: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
-        notchController = NotchWindowController(settings: settings)
+        notchController = NotchWindowController(settings: settings, playbooks: playbookStore)
 
         // Developer convenience: `open HotzIsland.app --args --settings`.
         if CommandLine.arguments.contains("--settings") {
@@ -47,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettings() {
         if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(settings: settings)
+            settingsWindow = SettingsWindowController(settings: settings, playbooks: playbookStore)
         }
         settingsWindow?.show()
     }

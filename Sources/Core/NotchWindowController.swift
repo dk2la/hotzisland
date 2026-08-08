@@ -26,14 +26,28 @@ final class NotchWindowController: NSObject {
     private let clipboardStore = ClipboardStore()
     private let timerService = TimerService()
     private let settings: AppSettings
+    private let playbookStore: PlaybookStore
+    private let playbookRunner: PlaybookRunner
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, playbooks: PlaybookStore) {
         self.settings = settings
+        self.playbookStore = playbooks
+        self.playbookRunner = PlaybookRunner(timer: timerService)
         super.init()
 
+        playbookRunner.onFinished = { [weak self] playbook, _ in
+            self?.present(.playbookRan(name: playbook.name))
+        }
+
         settings.onChange = { [weak self] in
-            self?.refreshIdleState()
+            guard let self else { return }
+            self.refreshIdleState()
+            // Live window resize while the user drags the panel grip.
+            if self.targetState == .expanded, let screen = NotchGeometry.targetScreen {
+                self.collapseTask?.cancel()
+                self.panel.setFrame(self.frame(for: .expanded, on: screen), display: true)
+            }
         }
 
         NotificationCenter.default.addObserver(
@@ -72,18 +86,6 @@ final class NotchWindowController: NSObject {
             self.viewModel.selectTab(.shelf)
             self.requestState(.expanded)
         }
-    }
-
-    /// Screen rect of the *visible* island — smaller than the window while
-    /// expanded, since the window is sized for the largest tab.
-    private func islandFrame(on screen: NSScreen) -> NSRect {
-        let size = NotchMetrics.expandedSize(for: viewModel.selectedTab)
-        return NSRect(
-            x: screen.frame.midX - size.width / 2,
-            y: screen.frame.maxY - size.height,
-            width: size.width,
-            height: size.height
-        )
     }
 
     /// The island's resting state: compact while a timer runs or something
@@ -167,11 +169,13 @@ final class NotchWindowController: NSObject {
     }
 
     private func updateHover() {
+        // Dragging the resize grip may momentarily put the cursor outside
+        // the shrinking panel — never collapse mid-resize.
+        if viewModel.isResizingPanel, targetState == .expanded { return }
         guard let screen = NotchGeometry.targetScreen else { return }
         let location = NSEvent.mouseLocation
         let hoverZone: NSRect = if targetState == .expanded {
-            // Follow the visible capsule, not the oversized transparent window.
-            islandFrame(on: screen)
+            frame(for: .expanded, on: screen)
         } else if viewModel.activeEvent != nil {
             eventFrame(on: screen)
         } else {
@@ -234,6 +238,8 @@ final class NotchWindowController: NSObject {
             clipboard: clipboardStore,
             timer: timerService,
             settings: settings,
+            playbooks: playbookStore,
+            playbookRunner: playbookRunner,
             closedSize: closedSize
         )
         let hostingView = NotchHostingView(rootView: rootView)
@@ -248,7 +254,9 @@ final class NotchWindowController: NSObject {
     private func frame(for state: NotchState, on screen: NSScreen) -> NSRect {
         let size: CGSize = switch state {
         case .expanded:
-            NotchMetrics.expandedWindowSize
+            // Already clamped (including to the screen) by AppSettings — the
+            // window and the SwiftUI island must always agree on this size.
+            settings.expandedPanelSize
         case .compact:
             CGSize(
                 width: closedSize.width + NotchMetrics.compactSideWidth * 2,
@@ -267,6 +275,7 @@ final class NotchWindowController: NSObject {
 
     @objc private func screenParametersDidChange() {
         viewModel.setState(.closed)
+        settings.revalidatePanelSize()
         attachToScreen()
     }
 }

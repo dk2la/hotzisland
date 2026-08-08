@@ -18,6 +18,10 @@ final class NotchViewModel {
     /// expands it onto the shelf tab.
     @ObservationIgnored var onDragTargeted: (() -> Void)?
 
+    /// True while the user drags the panel's resize grip — hover collapse
+    /// is suppressed for the duration.
+    @ObservationIgnored var isResizingPanel = false
+
     func selectTab(_ tab: NotchTab) {
         guard tab != selectedTab else { return }
         selectedTab = tab

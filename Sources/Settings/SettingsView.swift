@@ -4,9 +4,29 @@ import SwiftUI
 /// island panel), so standard controls behave normally here.
 struct SettingsView: View {
     @Bindable var settings: AppSettings
+    var playbooks: PlaybookStore
+    @State private var editingPlaybook: Playbook?
+    @State private var creatingPlaybook = false
 
     var body: some View {
         Form {
+            Section {
+                ForEach(playbooks.playbooks) { playbook in
+                    HStack {
+                        Label(playbook.name, systemImage: playbook.icon)
+                        Spacer()
+                        Button("Edit") { editingPlaybook = playbook }
+                    }
+                }
+                Button("Add Playbook…") { creatingPlaybook = true }
+            } header: {
+                Text("Playbooks")
+            } footer: {
+                Text("One-tap scenarios: open a set of apps, close the rest, switch Focus via a Shortcut, start a timer.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Picker("Theme", selection: $settings.theme) {
                     ForEach(IslandTheme.allCases) { theme in
@@ -53,6 +73,16 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)
+        .sheet(item: $editingPlaybook) { playbook in
+            PlaybookEditorView(store: playbooks, existing: playbook) {
+                editingPlaybook = nil
+            }
+        }
+        .sheet(isPresented: $creatingPlaybook) {
+            PlaybookEditorView(store: playbooks, existing: nil) {
+                creatingPlaybook = false
+            }
+        }
     }
 
     private func toggleBinding(for tab: NotchTab) -> Binding<Bool> {

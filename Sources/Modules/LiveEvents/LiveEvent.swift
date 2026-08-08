@@ -6,4 +6,5 @@ enum LiveEvent: Equatable {
     case audioDevice(name: String)
     case volume(level: Double)
     case timerFinished
+    case playbookRan(name: String)
 }

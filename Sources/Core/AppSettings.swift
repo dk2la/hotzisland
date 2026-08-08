@@ -64,6 +64,15 @@ final class AppSettings {
         }
     }
 
+    /// User-chosen size of the expanded panel (dragged by the corner grip).
+    private(set) var expandedPanelSize: CGSize {
+        didSet {
+            defaults.set(Double(expandedPanelSize.width), forKey: Self.panelWidthKey)
+            defaults.set(Double(expandedPanelSize.height), forKey: Self.panelHeightKey)
+            onChange?()
+        }
+    }
+
     private(set) var enabledTabs: Set<NotchTab> {
         didSet {
             defaults.set(enabledTabs.map(\.rawValue).sorted(), forKey: Self.tabsKey)
@@ -78,10 +87,21 @@ final class AppSettings {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    @ObservationIgnored private static let tabsKey = "settings.enabledTabs"
+    // v2: bumped when the playbooks tab was added — a stored v1 set would
+    // silently hide new tabs, since "missing" is indistinguishable from
+    // "disabled by the user".
+    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v2"
+    @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
+    @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
 
     init() {
         let defaults = UserDefaults.standard
+        let storedWidth = defaults.double(forKey: Self.panelWidthKey)
+        let storedHeight = defaults.double(forKey: Self.panelHeightKey)
+        expandedPanelSize = Self.clampPanelSize(CGSize(
+            width: storedWidth > 0 ? storedWidth : NotchMetrics.expandedMinSize.width,
+            height: storedHeight > 0 ? storedHeight : NotchMetrics.expandedMinSize.height
+        ))
         theme = defaults.string(forKey: Self.themeKey)
             .flatMap(IslandTheme.init(rawValue:)) ?? .stealth
         idleMode = defaults.string(forKey: Self.idleKey)
@@ -97,6 +117,36 @@ final class AppSettings {
         idle=\(self.idleMode.rawValue, privacy: .public) \
         tabs=\(self.enabledTabs.count, privacy: .public)
         """)
+    }
+
+    func setPanelSize(_ raw: CGSize) {
+        let clamped = Self.clampPanelSize(raw)
+        guard clamped != expandedPanelSize else { return }
+        log.info("panel size -> \(Int(clamped.width), privacy: .public)x\(Int(clamped.height), privacy: .public)")
+        expandedPanelSize = clamped
+    }
+
+    /// The single authority on panel size limits. The screen bound lives
+    /// here too: if the window were clamped separately from the stored size,
+    /// SwiftUI would draw an island larger than its window and the bottom
+    /// strip — including the resize grip — would be clipped into
+    /// unreachability.
+    private static func clampPanelSize(_ size: CGSize) -> CGSize {
+        var maxSize = NotchMetrics.expandedMaxSize
+        if let screen = NotchGeometry.targetScreen {
+            maxSize.width = min(maxSize.width, screen.frame.width - 40)
+            maxSize.height = min(maxSize.height, screen.frame.height * 2 / 3)
+        }
+        return CGSize(
+            width: min(max(size.width, NotchMetrics.expandedMinSize.width), maxSize.width),
+            height: min(max(size.height, NotchMetrics.expandedMinSize.height), maxSize.height)
+        )
+    }
+
+    /// Re-clamp after display changes (a smaller screen may no longer fit
+    /// the stored size).
+    func revalidatePanelSize() {
+        setPanelSize(expandedPanelSize)
     }
 
     func isEnabled(_ tab: NotchTab) -> Bool {

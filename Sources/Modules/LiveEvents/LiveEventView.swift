@@ -36,6 +36,10 @@ struct LiveEventView: View {
             Image(systemName: "timer")
                 .font(Theme.iconFont)
                 .foregroundStyle(Theme.accentWarning)
+        case .playbookRan:
+            Image(systemName: "bolt.fill")
+                .font(Theme.iconFont)
+                .foregroundStyle(Theme.accentPositive)
         }
     }
 
@@ -63,6 +67,11 @@ struct LiveEventView: View {
             Text("Done!")
                 .font(Theme.smallValueFont)
                 .foregroundStyle(Theme.accentWarning)
+        case .playbookRan(let name):
+            Text(name)
+                .font(Theme.smallValueFont)
+                .lineLimit(1)
+                .foregroundStyle(Theme.textSecondary)
         }
     }
 }
