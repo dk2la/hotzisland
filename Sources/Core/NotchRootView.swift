@@ -11,12 +11,14 @@ struct NotchRootView: View {
     var clipboard: ClipboardStore
     var timer: TimerService
     var settings: AppSettings
+    var playbooks: PlaybookStore
+    var playbookRunner: PlaybookRunner
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
 
     private var islandSize: CGSize {
-        if isExpanded { return NotchMetrics.expandedSize(for: viewModel.selectedTab) }
+        if isExpanded { return settings.expandedPanelSize }
         if viewModel.activeEvent != nil {
             return CGSize(
                 width: closedSize.width + NotchMetrics.eventSideWidth * 2,
@@ -112,6 +114,8 @@ struct NotchRootView: View {
             clipboard: clipboard,
             timer: timer,
             settings: settings,
+            playbooks: playbooks,
+            playbookRunner: playbookRunner,
             notchHeight: closedSize.height
         )
     }

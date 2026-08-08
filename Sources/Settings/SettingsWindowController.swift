@@ -8,8 +8,10 @@ import SwiftUI
 final class SettingsWindowController {
     private let window: NSWindow
 
-    init(settings: AppSettings) {
-        let hosting = NSHostingController(rootView: SettingsView(settings: settings))
+    init(settings: AppSettings, playbooks: PlaybookStore) {
+        let hosting = NSHostingController(
+            rootView: SettingsView(settings: settings, playbooks: playbooks)
+        )
         window = NSWindow(contentViewController: hosting)
         window.title = "HotzIsland Settings"
         window.styleMask = [.titled, .closable]
@@ -19,6 +21,9 @@ final class SettingsWindowController {
 
     func show() {
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
+        // An LSUIElement agent is refused cooperative activation on modern
+        // macOS — without the forced variant, keystrokes keep going to the
+        // previously active app and text fields appear dead.
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
