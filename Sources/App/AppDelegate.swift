@@ -7,14 +7,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var notchController: NotchWindowController?
     private var settingsWindow: SettingsWindowController?
+    private let onboarding = OnboardingWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         notchController = NotchWindowController(settings: settings, playbooks: playbookStore)
 
+        // Island UI (e.g. the "+ new" playbook card) asks for the settings
+        // window through this notification.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(openSettings),
+            name: .hotzOpenSettings,
+            object: nil
+        )
+
         // Developer convenience: `open HotzIsland.app --args --settings`.
         if CommandLine.arguments.contains("--settings") {
             openSettings()
+        }
+
+        let defaults = UserDefaults.standard
+        if !defaults.bool(forKey: "onboarding.completed")
+            || CommandLine.arguments.contains("--onboarding") {
+            onboarding.show(settings: settings) {
+                defaults.set(true, forKey: "onboarding.completed")
+            }
         }
     }
 

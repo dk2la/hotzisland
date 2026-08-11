@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import OSLog
+import ServiceManagement
 
 /// Island shell appearance.
 enum IslandTheme: String, CaseIterable, Identifiable {
@@ -80,6 +81,22 @@ final class AppSettings {
         }
     }
 
+    /// User-arranged channel order (onboarding step 3 / settings → Модули).
+    private(set) var tabOrder: [NotchTab] {
+        didSet {
+            defaults.set(tabOrder.map(\.rawValue), forKey: Self.tabOrderKey)
+            onChange?()
+        }
+    }
+
+    /// Launch-at-login through SMAppService; mirrored here for observation.
+    private(set) var launchAtLogin: Bool
+
+    /// Channels in user order, disabled ones filtered out.
+    var orderedEnabledTabs: [NotchTab] {
+        tabOrder.filter { enabledTabs.contains($0) }
+    }
+
     /// The window controller re-evaluates the island's idle state on changes.
     @ObservationIgnored var onChange: (() -> Void)?
 
@@ -93,6 +110,7 @@ final class AppSettings {
     @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v2"
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
+    @ObservationIgnored private static let tabOrderKey = "settings.tabOrder"
 
     init() {
         let defaults = UserDefaults.standard
@@ -112,6 +130,14 @@ final class AppSettings {
         } else {
             enabledTabs = Set(NotchTab.allCases)
         }
+        // Stored order, with any newly introduced tabs appended at the end.
+        var order = (defaults.stringArray(forKey: Self.tabOrderKey) ?? [])
+            .compactMap(NotchTab.init(rawValue:))
+        for tab in NotchTab.allCases where !order.contains(tab) {
+            order.append(tab)
+        }
+        tabOrder = order
+        launchAtLogin = SMAppService.mainApp.status == .enabled
         log.info("""
         loaded theme=\(self.theme.rawValue, privacy: .public) \
         idle=\(self.idleMode.rawValue, privacy: .public) \
@@ -147,6 +173,24 @@ final class AppSettings {
     /// the stored size).
     func revalidatePanelSize() {
         setPanelSize(expandedPanelSize)
+    }
+
+    func moveTabs(fromOffsets source: IndexSet, toOffset destination: Int) {
+        tabOrder.move(fromOffsets: source, toOffset: destination)
+    }
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        } catch {
+            log.error("launch-at-login toggle failed: \(error, privacy: .public)")
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
     }
 
     func isEnabled(_ tab: NotchTab) -> Bool {

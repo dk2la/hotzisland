@@ -8,8 +8,15 @@ import OSLog
 @MainActor
 @Observable
 final class PlaybookRunner {
+    struct RunRecord {
+        let playbook: Playbook
+        let result: PlaybookRunResult
+    }
+
     private(set) var isRunning = false
     private(set) var lastResult: PlaybookRunResult?
+    /// Latest completed run — shown as the amber "run" register in the tab.
+    private(set) var lastRun: RunRecord?
 
     /// Fired after a run completes — the window controller shows the
     /// confirmation event on the island.
@@ -54,6 +61,7 @@ final class PlaybookRunner {
         failures=\(result.failures.joined(separator: ","), privacy: .public)
         """)
         lastResult = result
+        lastRun = RunRecord(playbook: playbook, result: result)
         isRunning = false
         onFinished?(playbook, result)
     }

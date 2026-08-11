@@ -72,20 +72,17 @@ struct CalendarModuleView: View {
     private var modeSwitcher: some View {
         HStack(spacing: 2) {
             ForEach(CalendarDisplayMode.allCases) { mode in
+                let isActive = service.displayMode == mode
                 Button {
                     service.setDisplayMode(mode)
                 } label: {
                     Image(systemName: mode.icon)
                         .font(Theme.iconSmallFont)
-                        .foregroundStyle(service.displayMode == mode ? Theme.textPrimary : Theme.textQuaternary)
+                        .foregroundStyle(isActive ? Theme.amber : Theme.textQuaternary)
                         .frame(width: 22, height: 20)
-                        .background(
-                            service.displayMode == mode ? Theme.surface : .clear,
-                            in: RoundedRectangle(cornerRadius: 5)
-                        )
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
             }
         }
     }
@@ -139,14 +136,16 @@ struct CalendarModuleView: View {
                 .foregroundStyle(Theme.textQuaternary)
             if let action {
                 Button(action: action.run) {
-                    Text(action.title)
-                        .font(Theme.captionFont)
-                        .foregroundStyle(Theme.textPrimary)
+                    InstrumentLabel(action.title, color: Theme.amber)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Theme.surface, in: Capsule())
+                        .padding(.vertical, 5)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.controlRadius)
+                                .stroke(Theme.amberBorder, lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

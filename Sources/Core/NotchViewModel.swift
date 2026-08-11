@@ -9,7 +9,7 @@ final class NotchViewModel {
     var activeEvent: LiveEvent?
 
     /// Selected tab of the expanded panel. Survives close/open cycles.
-    private(set) var selectedTab: NotchTab = .devices
+    private(set) var selectedTab: NotchTab = .playbooks
 
     /// Tabs have different panel sizes — the window controller resizes on change.
     @ObservationIgnored var onTabChange: ((NotchTab) -> Void)?

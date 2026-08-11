@@ -1,8 +1,8 @@
 import OSLog
 import SwiftUI
 
-/// Content of the expanded island: module area + tab bar. The top strip is
-/// kept clear of the camera housing.
+/// Content of the expanded island: channel-selector tab row on top (under
+/// the camera housing), module content below.
 struct ExpandedPanelView: View {
     var viewModel: NotchViewModel
     var power: PowerSourceMonitor
@@ -18,8 +18,11 @@ struct ExpandedPanelView: View {
     var playbookRunner: PlaybookRunner
     let notchHeight: CGFloat
 
+    @State private var resizeStartSize: CGSize?
+    @State private var resizeStartGlobal: CGPoint?
+
     private var enabledTabs: [NotchTab] {
-        NotchTab.allCases.filter { settings.isEnabled($0) }
+        settings.orderedEnabledTabs
     }
 
     /// The selected tab may have been disabled in settings — fall back to
@@ -27,41 +30,86 @@ struct ExpandedPanelView: View {
     private var effectiveTab: NotchTab {
         settings.isEnabled(viewModel.selectedTab)
             ? viewModel.selectedTab
-            : (enabledTabs.first ?? .devices)
+            : (enabledTabs.first ?? .metrics)
     }
-
-    @State private var resizeStartSize: CGSize?
 
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: notchHeight)
+            channelSelector
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
-            tabBar
+                .padding(.horizontal, Theme.panelInset)
+                .padding(.top, Theme.panelInset)
                 .padding(.bottom, 10)
         }
         .overlay(alignment: .bottomTrailing) {
             resizeGrip
                 // Kept clear of the capsule's rounded corner: clipShape also
-                // clips hit-testing, so a grip in the corner curve is
-                // unclickable.
-                .padding(.trailing, 18)
-                .padding(.bottom, 7)
+                // clips hit-testing.
+                .padding(.trailing, 16)
+                .padding(.bottom, 6)
         }
     }
 
-    @State private var resizeStartGlobal: CGPoint?
+    /// Tab row styled as a hardware channel selector: mono caps, the active
+    /// channel is amber with a 2px underline; hairline under the whole row.
+    private var channelSelector: some View {
+        HStack(spacing: 0) {
+            ForEach(enabledTabs) { tab in
+                let isActive = effectiveTab == tab
+                Button {
+                    viewModel.selectTab(tab)
+                } label: {
+                    Text(tab.channelLabel.uppercased())
+                        .font(Theme.labelFont)
+                        .kerning(1.1)
+                        .foregroundStyle(isActive ? Theme.amber : Theme.textQuaternary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 9)
+                        .overlay(alignment: .bottom) {
+                            Rectangle()
+                                .fill(isActive ? Theme.amber : .clear)
+                                .frame(height: 2)
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .overlay(alignment: .bottom) {
+            Hairline(color: Theme.hairline)
+        }
+    }
 
-    /// Corner grip: drag to resize the panel like an app window. Width grows
-    /// symmetrically (the island stays centered under the notch). Tracking
+    @ViewBuilder
+    private var content: some View {
+        switch effectiveTab {
+        case .playbooks:
+            PlaybooksModuleView(store: playbooks, runner: playbookRunner)
+        case .media:
+            MediaModuleView(media: media)
+        case .calendar:
+            CalendarModuleView(service: calendar)
+        case .metrics:
+            MetricsModuleView(stats: stats, power: power, audio: audio)
+        case .shelf:
+            ShelfModuleView(shelf: shelf)
+        case .clipboard:
+            ClipboardModuleView(clipboard: clipboard)
+        case .timer:
+            TimerModuleView(timer: timer)
+        }
+    }
+
+    /// Corner grip: drag to resize the panel like an app window. Tracking
     /// uses the global cursor position — the window moves mid-drag, so local
     /// gesture coordinates would feed back into themselves.
     private var resizeGrip: some View {
         Image(systemName: "arrow.up.left.and.arrow.down.right")
             .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(Theme.textQuaternary)
+            .foregroundStyle(Theme.textFaint)
             .frame(width: 22, height: 22)
             .contentShape(Rectangle())
             .gesture(
@@ -72,8 +120,6 @@ struct ExpandedPanelView: View {
                             resizeStartGlobal = now
                             resizeStartSize = settings.expandedPanelSize
                             viewModel.isResizingPanel = true
-                            Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
-                                .info("grip drag began")
                             return
                         }
                         // Cocoa coordinates: dragging down means decreasing y.
@@ -88,44 +134,5 @@ struct ExpandedPanelView: View {
                         viewModel.isResizingPanel = false
                     }
             )
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch effectiveTab {
-        case .playbooks:
-            PlaybooksModuleView(store: playbooks, runner: playbookRunner)
-        case .devices:
-            DevicesModuleView(power: power, audio: audio)
-        case .media:
-            MediaModuleView(media: media)
-        case .calendar:
-            CalendarModuleView(service: calendar)
-        case .metrics:
-            MetricsModuleView(stats: stats)
-        case .shelf:
-            ShelfModuleView(shelf: shelf)
-        case .clipboard:
-            ClipboardModuleView(clipboard: clipboard)
-        case .timer:
-            TimerModuleView(timer: timer)
-        }
-    }
-
-    private var tabBar: some View {
-        HStack(spacing: 22) {
-            ForEach(enabledTabs) { tab in
-                Button {
-                    viewModel.selectTab(tab)
-                } label: {
-                    Image(systemName: tab.icon)
-                        .font(Theme.tabIconFont)
-                        .foregroundStyle(effectiveTab == tab ? Theme.textPrimary : Theme.textQuaternary)
-                        .frame(width: 28, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
     }
 }

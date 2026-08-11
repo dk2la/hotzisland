@@ -56,9 +56,9 @@ struct MonthGridView: View {
         } label: {
             ZStack {
                 if isToday {
-                    Circle().fill(Theme.accentToday)
+                    Circle().fill(Theme.amber)
                 } else if isSelected {
-                    Circle().stroke(Theme.textTertiary, lineWidth: 1)
+                    Circle().stroke(Theme.hairline, lineWidth: 1)
                 }
                 Text("\(calendar.component(.day, from: day))")
                     .font(Theme.dayFont)
@@ -68,7 +68,7 @@ struct MonthGridView: View {
             .overlay(alignment: .bottom) {
                 if service.hasEvents(on: day), !isToday {
                     Circle()
-                        .fill(Theme.textTertiary)
+                        .fill(Theme.textQuaternary)
                         .frame(width: 3, height: 3)
                         .offset(y: 3)
                 }
@@ -80,7 +80,8 @@ struct MonthGridView: View {
     }
 
     private func dayColor(isToday: Bool, inMonth: Bool) -> Color {
-        if isToday { return Theme.textPrimary }
+        // Amber fill needs a dark numeral.
+        if isToday { return Theme.islandFill }
         return inMonth ? Theme.textPrimary : Theme.textQuaternary
     }
 }

@@ -1,39 +1,39 @@
 import SwiftUI
 
-/// "Clipboard" tab: recent text snippets; click puts one back on the
-/// pasteboard.
+/// "Clip" channel: history as data registers — relative age, mono content,
+/// type tag. Click puts an entry back on the pasteboard.
 struct ClipboardModuleView: View {
     var clipboard: ClipboardStore
     @State private var copiedID: UUID?
 
     var body: some View {
         if clipboard.entries.isEmpty {
-            VStack(spacing: 6) {
-                Image(systemName: "doc.on.clipboard")
-                    .font(Theme.iconLargeFont)
-                    .foregroundStyle(Theme.textQuaternary)
-                Text("Copied text will appear here")
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textQuaternary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            DashedZone(label: "no signal", sublabel: "Скопированный текст появится здесь")
+                .frame(maxHeight: 100)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 0) {
                         ForEach(clipboard.entries) { entry in
                             row(entry)
+                            if entry.id != clipboard.entries.last?.id {
+                                Hairline()
+                            }
                         }
                     }
                 }
-                Button {
-                    clipboard.clear()
-                } label: {
-                    Text("Clear")
-                        .font(Theme.captionFont)
-                        .foregroundStyle(Theme.textTertiary)
+                HStack {
+                    InstrumentLabel("in-memory only · concealed types skipped", color: Theme.textFaint)
+                    Spacer(minLength: 0)
+                    Button {
+                        clipboard.clear()
+                    } label: {
+                        InstrumentLabel("clear", color: Theme.textQuaternary)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressableStyle())
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -47,23 +47,36 @@ struct ClipboardModuleView: View {
                 if copiedID == entry.id { copiedID = nil }
             }
         } label: {
-            HStack(spacing: 8) {
-                Text(entry.text)
-                    .font(Theme.captionFont)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .foregroundStyle(Theme.textSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(Self.age(of: entry))
+                    .font(Theme.labelFont)
+                    .foregroundStyle(Theme.textFaint)
+                    .frame(width: 40, alignment: .leading)
+                Text(entry.text.replacingOccurrences(of: "\n", with: " "))
+                    .font(Theme.readoutSFont)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(Theme.textPrimary.opacity(0.8))
                 Spacer(minLength: 0)
-                Image(systemName: copiedID == entry.id ? "checkmark" : "doc.on.doc")
-                    .font(Theme.captionFont)
-                    .foregroundStyle(copiedID == entry.id ? Theme.accentPositive : Theme.textQuaternary)
+                InstrumentLabel(
+                    copiedID == entry.id ? "ok" : Self.kind(of: entry),
+                    color: copiedID == entry.id ? Theme.amber : Theme.textFaint
+                )
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 7))
+            .padding(.vertical, 10)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+    }
+
+    private static func age(of entry: ClipboardStore.Entry) -> String {
+        let minutes = Int(Date().timeIntervalSince(entry.copiedAt) / 60)
+        if minutes < 1 { return "now" }
+        if minutes < 60 { return "−\(minutes)m" }
+        return "−\(minutes / 60)h"
+    }
+
+    private static func kind(of entry: ClipboardStore.Entry) -> String {
+        entry.text.hasPrefix("http://") || entry.text.hasPrefix("https://") ? "url" : "txt"
     }
 }
