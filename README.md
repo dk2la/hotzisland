@@ -8,8 +8,6 @@ A Dynamic Island for macOS — a living notch with one-tap workspace playbooks, 
 ![Swift](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-3FFF00)
 
-<!-- TODO: hero screenshot / GIF — docs/hero.gif (expanded island, Play tab) -->
-
 ## What it does
 
 Hover the notch and it expands into a panel with seven channels:
@@ -25,8 +23,6 @@ Hover the notch and it expands into a panel with seven channels:
 | **Timer** | Pomodoro presets, wall-clock accurate, big mono countdown. Runs in the compact island while you work. |
 
 While the island is closed it stays quiet: a small indicator with a mono readout for a playing track or a running timer, and short live events for charging, headphones and volume. **The norm is darkness** — light means something is happening.
-
-<!-- TODO: screenshots row — docs/media.png · docs/sys.png · docs/playbooks.png -->
 
 ## Playbooks
 
@@ -68,19 +64,9 @@ Everything is optional — without access a module hides instead of nagging:
 
 Nothing leaves your Mac. No analytics, no network calls except artwork downloads from Spotify's CDN.
 
-## Honest limitations
-
 - **Browser media (YouTube etc.) can't be shown or controlled.** Apple locked the private MediaRemote framework to entitled apps in macOS 15.4+ — third-party apps can no longer read the system's now-playing. Media works through AppleScript, which only Spotify and Apple Music provide.
 - Focus modes have no public API — playbooks switch them through a Shortcuts shortcut you create once.
 - The app is unsigned for now: macOS will warn on first launch of a downloaded build. Building from source avoids this entirely.
-
-## Roadmap
-
-- Global hotkeys (open/close the island from the keyboard)
-- LLM assistant — bring your own Claude/OpenAI key, drive playbooks and timers by chat or voice
-- A tamagotchi living in the notch (yes)
-- User-defined custom panels from instrument blocks
-- Switchable design systems
 
 ## Development
 
