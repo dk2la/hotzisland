@@ -16,6 +16,8 @@ final class SystemStatsService {
     /// Bytes per second.
     private(set) var downloadRate: Double = 0
     private(set) var uploadRate: Double = 0
+    /// Last 16 CPU samples for the Sys history strip.
+    private(set) var cpuHistory: [Double] = []
 
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var previousTicks: (busy: UInt64, total: UInt64)?
@@ -80,6 +82,10 @@ final class SystemStatsService {
             let busyDelta = Double(busy - previous.busy)
             let totalDelta = Double(total - previous.total)
             cpuUsage = totalDelta > 0 ? min(1, busyDelta / totalDelta) : 0
+            cpuHistory.append(cpuUsage)
+            if cpuHistory.count > 16 {
+                cpuHistory.removeFirst(cpuHistory.count - 16)
+            }
         }
         previousTicks = (busy, total)
     }

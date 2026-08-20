@@ -1,9 +1,9 @@
 import Foundation
 
-/// Tabs of the expanded island panel.
+/// Channels of the expanded island panel. Per the Instrument DS, battery
+/// and audio live inside Sys — there is no separate Devices tab.
 enum NotchTab: String, CaseIterable, Identifiable {
     case playbooks
-    case devices
     case media
     case calendar
     case metrics
@@ -13,29 +13,41 @@ enum NotchTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var icon: String {
+    /// Channel-selector label (mono caps row on top of the panel).
+    var channelLabel: String {
         switch self {
-        case .playbooks: "bolt.fill"
-        case .devices: "laptopcomputer"
-        case .media: "music.note"
-        case .calendar: "calendar"
-        case .metrics: "gauge"
-        case .shelf: "tray"
-        case .clipboard: "doc.on.clipboard"
-        case .timer: "timer"
+        case .playbooks: "Play"
+        case .media: "Media"
+        case .calendar: "Cal"
+        case .metrics: "Sys"
+        case .shelf: "Shelf"
+        case .clipboard: "Clip"
+        case .timer: "Timer"
         }
     }
 
+    /// Full name for the settings window.
     var title: String {
         switch self {
         case .playbooks: "Playbooks"
-        case .devices: "Devices"
         case .media: "Media"
         case .calendar: "Calendar"
         case .metrics: "System"
         case .shelf: "Shelf"
         case .clipboard: "Clipboard"
         case .timer: "Timer"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .playbooks: "bolt.fill"
+        case .media: "music.note"
+        case .calendar: "calendar"
+        case .metrics: "gauge"
+        case .shelf: "tray"
+        case .clipboard: "doc.on.clipboard"
+        case .timer: "timer"
         }
     }
 }

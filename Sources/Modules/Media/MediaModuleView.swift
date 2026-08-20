@@ -1,55 +1,60 @@
 import SwiftUI
 
-/// "Media" tab of the expanded panel: artwork, track info, transport
-/// controls and playback-context switching.
+/// "Media" channel: tape-deck aesthetic — bordered artwork, amber source
+/// tag, segmented progress and mechanical transport keys.
 struct MediaModuleView: View {
     var media: MediaCenter
 
     var body: some View {
         if let track = media.track {
-            HStack(spacing: 14) {
+            HStack(alignment: .center, spacing: 16) {
                 artworkView
-                VStack(alignment: .leading, spacing: 5) {
-                    if media.availableSources.count > 1 {
-                        sourceChips
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(track.title)
+                            .font(Theme.titleFont)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .foregroundStyle(Theme.textPrimary)
+                        Spacer(minLength: 12)
+                        sourceTag
                     }
-                    Text(track.title)
-                        .font(Theme.headlineFont)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundStyle(Theme.textPrimary)
                     if !track.artist.isEmpty {
                         Text(track.artist)
-                            .font(Theme.captionFont)
+                            .font(Theme.subFont)
                             .lineLimit(1)
                             .foregroundStyle(Theme.textTertiary)
+                            .padding(.top, 3)
                     }
-                    progress(for: track)
-                    controls
+                    SegmentBar(
+                        fraction: track.duration > 0 ? track.position / track.duration : 0,
+                        segments: 15,
+                        fillColor: Theme.accent
+                    )
+                    .padding(.top, 14)
+                    HStack {
+                        Text(TimeFormat.mmss(track.position))
+                        Spacer()
+                        Text("−" + TimeFormat.mmss(track.duration - track.position))
+                    }
+                    .font(Theme.readoutSFont)
+                    .foregroundStyle(Theme.textQuaternary)
+                    .padding(.top, 7)
+                    transport(for: track)
+                        .padding(.top, 10)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 if media.availableSources.count > 1 {
-                    sourceChips
+                    sourceSwitcher
                 }
-                Image(systemName: "music.note")
-                    .font(Theme.iconLargeFont)
-                    .foregroundStyle(Theme.textQuaternary)
-                Text(idleMessage)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textQuaternary)
+                DashedZone(label: "no signal", sublabel: idleMessage)
+                    .frame(maxHeight: 110)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-    }
-
-    /// An inactive browser context cannot be queried — say so instead of
-    /// pretending nothing is playing.
-    private var idleMessage: String {
-        if let active = media.activeSource, !media.canControl(active) {
-            return "\(media.label(for: active)) is idle"
-        }
-        return "Nothing playing"
     }
 
     private var artworkView: some View {
@@ -60,88 +65,77 @@ struct MediaModuleView: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Theme.surface
-                    Image(systemName: "music.note")
-                        .font(Theme.iconLargeFont)
-                        .foregroundStyle(Theme.textTertiary)
+                    Theme.cardFill
+                    InstrumentLabel("no art")
                 }
             }
         }
         .frame(width: 96, height: 96)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.surfaceRadius))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.cardRadius)
+                .stroke(Theme.islandBorder, lineWidth: 1)
+        )
     }
 
-    private var sourceChips: some View {
-        HStack(spacing: 6) {
+    /// "● spotify" — amber when the context is controllable, dim otherwise.
+    @ViewBuilder
+    private var sourceTag: some View {
+        if media.availableSources.count > 1 {
+            sourceSwitcher
+        } else if let active = media.activeSource {
+            tagView(for: active, isActive: true)
+        }
+    }
+
+    private var sourceSwitcher: some View {
+        HStack(spacing: 10) {
             ForEach(media.availableSources) { kind in
                 Button {
                     media.select(kind)
                 } label: {
-                    Text(media.label(for: kind))
-                        .font(Theme.captionFont)
-                        .foregroundStyle(media.activeSource == kind ? Theme.islandFill : Theme.textSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            media.activeSource == kind ? Theme.textPrimary : Theme.surface,
-                            in: Capsule()
-                        )
+                    tagView(for: kind, isActive: media.activeSource == kind)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
             }
         }
     }
 
-    private func progress(for track: MediaTrack) -> some View {
-        VStack(spacing: 3) {
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.track)
-                    Capsule().fill(Theme.textPrimary)
-                        .frame(width: track.duration > 0
-                            ? geometry.size.width * min(1, track.position / track.duration)
-                            : 0)
-                }
-            }
-            .frame(height: 3)
-            HStack {
-                Text(TimeFormat.mmss(track.position))
-                Spacer()
-                Text("-" + TimeFormat.mmss(track.duration - track.position))
-            }
-            .font(Theme.captionFont.monospacedDigit())
-            .foregroundStyle(Theme.textTertiary)
+    private func tagView(for kind: MediaSourceKind, isActive: Bool) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(isActive ? Theme.accent : Theme.segmentOff)
+                .frame(width: 5, height: 5)
+            InstrumentLabel(
+                media.label(for: kind),
+                color: isActive ? Theme.accent : Theme.textQuaternary
+            )
         }
     }
 
-    private var controls: some View {
-        HStack(spacing: 22) {
-            transportButton("backward.fill") { media.previous() }
-            transportButton(media.track?.isPlaying == true ? "pause.fill" : "play.fill", size: 18) {
+    private func transport(for track: MediaTrack) -> some View {
+        HStack(spacing: 8) {
+            KeyButton(label: "◀◀", enabled: media.canControlActive) { media.previous() }
+            KeyButton(
+                label: track.isPlaying ? "❚❚" : "▶",
+                isPrimary: true,
+                enabled: media.canControlActive
+            ) {
                 media.togglePlayPause()
             }
-            transportButton("forward.fill") { media.next() }
-            Spacer()
+            KeyButton(label: "▶▶", enabled: media.canControlActive) { media.next() }
+            Spacer(minLength: 0)
             if media.supportsLike {
-                transportButton("heart") { media.like() }
+                KeyButton(label: "LIKE", enabled: media.canControlActive) { media.like() }
             }
         }
-        .opacity(media.canControlActive ? 1 : 0.35)
-        .disabled(!media.canControlActive)
     }
 
-    private func transportButton(
-        _ symbol: String,
-        size: CGFloat = 13,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(Theme.iconFont(size: size))
-                .foregroundStyle(Theme.textPrimary)
-                .frame(width: 26, height: 24)
-                .contentShape(Rectangle())
+    private var idleMessage: String {
+        if let active = media.activeSource, !media.canControl(active) {
+            return "\(media.label(for: active)) молчит"
         }
-        .buttonStyle(.plain)
+        return "Ничего не играет"
     }
 }
