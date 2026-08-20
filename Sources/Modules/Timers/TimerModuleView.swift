@@ -16,7 +16,7 @@ struct TimerModuleView: View {
                         ? 1 - timer.remaining / timer.duration
                         : 0,
                     segments: 10,
-                    fillColor: Theme.amber
+                    fillColor: Theme.accent
                 )
                 .padding(.top, 10)
                 InstrumentLabel("pomodoro · wall-clock")
@@ -59,7 +59,7 @@ struct TimerModuleView: View {
                 .foregroundStyle(Color(red: 0.043, green: 0.043, blue: 0.039))
                 .padding(.horizontal, 18)
                 .padding(.vertical, 8)
-                .background(Theme.amber, in: RoundedRectangle(cornerRadius: 6))
+                .background(Theme.accent, in: RoundedRectangle(cornerRadius: 6))
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())

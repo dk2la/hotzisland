@@ -35,21 +35,22 @@ enum Theme {
     /// Island edge (top edge is masked off at the notch seam).
     static let islandBorder = textPrimary.opacity(0.10)
 
-    /// accent/amber — oklch(0.78 0.16 75). The only chromatic accent.
-    static let amber = Color(red: 0.94, green: 0.66, blue: 0.18)
+    /// The only chromatic accent — neon green #3FFF00 (user's pick over the
+    /// DS's original amber).
+    static let accent = Color(red: 0.247, green: 1.0, blue: 0.0)
     /// state/critical — oklch(0.62 0.19 25). Critical only, never decoration.
     static let critical = Color(red: 0.84, green: 0.29, blue: 0.22)
 
-    static let amberBorder = amber.opacity(0.35)
-    static let amberWash = amber.opacity(0.07)
+    static let accentBorder = accent.opacity(0.35)
+    static let accentWash = accent.opacity(0.07)
 
     // MARK: - Severity
 
-    /// White below 60%, amber from 60%, red from 85% — instrument rules.
+    /// White below 60%, accent from 60%, red from 85% — instrument rules.
     static func severity(_ fraction: Double) -> Color {
         switch fraction {
         case ..<0.6: segmentOn
-        case ..<0.85: amber
+        case ..<0.85: accent
         default: critical
         }
     }

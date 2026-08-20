@@ -64,12 +64,12 @@ struct ExpandedPanelView: View {
                     Text(tab.channelLabel.uppercased())
                         .font(Theme.labelFont)
                         .kerning(1.1)
-                        .foregroundStyle(isActive ? Theme.amber : Theme.textQuaternary)
+                        .foregroundStyle(isActive ? Theme.accent : Theme.textQuaternary)
                         .padding(.horizontal, 11)
                         .padding(.vertical, 9)
                         .overlay(alignment: .bottom) {
                             Rectangle()
-                                .fill(isActive ? Theme.amber : .clear)
+                                .fill(isActive ? Theme.accent : .clear)
                                 .frame(height: 2)
                         }
                         .contentShape(Rectangle())

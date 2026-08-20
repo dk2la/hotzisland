@@ -26,24 +26,24 @@ struct LiveEventView: View {
                 } else {
                     Circle().fill(Theme.segmentOff).frame(width: 5, height: 5)
                 }
-                InstrumentLabel("pwr", color: plugged ? Theme.amber : Theme.textQuaternary)
+                InstrumentLabel("pwr", color: plugged ? Theme.accent : Theme.textQuaternary)
             }
         case .audioDevice:
             HStack(spacing: 6) {
-                Circle().fill(Theme.amber).frame(width: 5, height: 5)
-                InstrumentLabel("out", color: Theme.amber)
+                Circle().fill(Theme.accent).frame(width: 5, height: 5)
+                InstrumentLabel("out", color: Theme.accent)
             }
         case .volume:
             InstrumentLabel("vol", color: Theme.textPrimary.opacity(0.45))
         case .timerFinished:
             HStack(spacing: 6) {
                 BlinkingDot(size: 5)
-                InstrumentLabel("timer", color: Theme.amber)
+                InstrumentLabel("timer", color: Theme.accent)
             }
         case .playbookRan:
             HStack(spacing: 6) {
                 BlinkingDot(size: 5)
-                InstrumentLabel("run", color: Theme.amber)
+                InstrumentLabel("run", color: Theme.accent)
             }
         }
     }
@@ -54,7 +54,7 @@ struct LiveEventView: View {
         case .charging(let percent, let plugged):
             Text(plugged ? "\(percent)% charging" : "\(percent)%")
                 .font(Theme.readoutSFont)
-                .foregroundStyle(plugged ? Theme.amber : Theme.textPrimary.opacity(0.8))
+                .foregroundStyle(plugged ? Theme.accent : Theme.textPrimary.opacity(0.8))
                 .lineLimit(1)
         case .audioDevice(let name):
             Text(name)
@@ -74,7 +74,7 @@ struct LiveEventView: View {
         case .timerFinished:
             Text("done")
                 .font(Theme.readoutSFont)
-                .foregroundStyle(Theme.amber)
+                .foregroundStyle(Theme.accent)
         case .playbookRan(let name):
             Text(name)
                 .font(Theme.readoutSFont)

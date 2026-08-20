@@ -164,8 +164,13 @@ final class CalendarService {
 
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: active)
         var grouped: [Date: [CalendarEvent]] = [:]
+        // The same meeting often exists in several calendars (work Exchange +
+        // Google invite) — deduplicate by title and exact time.
+        var seen = Set<String>()
         for event in store.events(matching: predicate) {
             guard let start = event.startDate else { continue }
+            let dedupKey = "\(event.title ?? "")|\(start.timeIntervalSince1970)|\(event.endDate?.timeIntervalSince1970 ?? 0)"
+            guard seen.insert(dedupKey).inserted else { continue }
             let day = calendar.startOfDay(for: start)
             grouped[day, default: []].append(
                 CalendarEvent(

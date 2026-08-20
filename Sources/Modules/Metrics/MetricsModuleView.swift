@@ -113,7 +113,7 @@ struct MetricsModuleView: View {
         HStack(alignment: .bottom, spacing: 2) {
             ForEach(Array(stats.cpuHistory.enumerated()), id: \.offset) { _, sample in
                 Rectangle()
-                    .fill(sample >= 0.85 ? Theme.critical : (sample >= 0.6 ? Theme.amber : Theme.textPrimary.opacity(0.25)))
+                    .fill(sample >= 0.85 ? Theme.critical : (sample >= 0.6 ? Theme.accent : Theme.textPrimary.opacity(0.25)))
                     .frame(height: max(2, 36 * sample))
             }
             if stats.cpuHistory.isEmpty {

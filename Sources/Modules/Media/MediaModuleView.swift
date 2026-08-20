@@ -29,7 +29,7 @@ struct MediaModuleView: View {
                     SegmentBar(
                         fraction: track.duration > 0 ? track.position / track.duration : 0,
                         segments: 15,
-                        fillColor: Theme.amber
+                        fillColor: Theme.accent
                     )
                     .padding(.top, 14)
                     HStack {
@@ -105,11 +105,11 @@ struct MediaModuleView: View {
     private func tagView(for kind: MediaSourceKind, isActive: Bool) -> some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(isActive ? Theme.amber : Theme.segmentOff)
+                .fill(isActive ? Theme.accent : Theme.segmentOff)
                 .frame(width: 5, height: 5)
             InstrumentLabel(
                 media.label(for: kind),
-                color: isActive ? Theme.amber : Theme.textQuaternary
+                color: isActive ? Theme.accent : Theme.textQuaternary
             )
         }
     }

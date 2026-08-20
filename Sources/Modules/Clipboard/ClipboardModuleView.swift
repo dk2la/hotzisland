@@ -24,8 +24,10 @@ struct ClipboardModuleView: View {
                     }
                 }
                 HStack {
-                    InstrumentLabel("in-memory only · concealed types skipped", color: Theme.textFaint)
-                    Spacer(minLength: 0)
+                    InstrumentLabel("in-memory · secrets skipped", color: Theme.textFaint)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 8)
                     Button {
                         clipboard.clear()
                     } label: {
@@ -60,7 +62,7 @@ struct ClipboardModuleView: View {
                 Spacer(minLength: 0)
                 InstrumentLabel(
                     copiedID == entry.id ? "ok" : Self.kind(of: entry),
-                    color: copiedID == entry.id ? Theme.amber : Theme.textFaint
+                    color: copiedID == entry.id ? Theme.accent : Theme.textFaint
                 )
             }
             .padding(.vertical, 10)

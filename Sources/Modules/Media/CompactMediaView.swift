@@ -9,7 +9,7 @@ struct CompactMediaView: View {
     var body: some View {
         HStack {
             Circle()
-                .fill(track.isPlaying ? Theme.amber : Theme.segmentOff)
+                .fill(track.isPlaying ? Theme.accent : Theme.segmentOff)
                 .frame(width: 6, height: 6)
             Spacer(minLength: 0)
             Text("−" + TimeFormat.mmss(track.duration - track.position))

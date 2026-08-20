@@ -78,7 +78,7 @@ struct CalendarModuleView: View {
                 } label: {
                     Image(systemName: mode.icon)
                         .font(Theme.iconSmallFont)
-                        .foregroundStyle(isActive ? Theme.amber : Theme.textQuaternary)
+                        .foregroundStyle(isActive ? Theme.accent : Theme.textQuaternary)
                         .frame(width: 22, height: 20)
                         .contentShape(Rectangle())
                 }
@@ -136,12 +136,12 @@ struct CalendarModuleView: View {
                 .foregroundStyle(Theme.textQuaternary)
             if let action {
                 Button(action: action.run) {
-                    InstrumentLabel(action.title, color: Theme.amber)
+                    InstrumentLabel(action.title, color: Theme.accent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .overlay(
                             RoundedRectangle(cornerRadius: Theme.controlRadius)
-                                .stroke(Theme.amberBorder, lineWidth: 1)
+                                .stroke(Theme.accentBorder, lineWidth: 1)
                         )
                         .contentShape(Rectangle())
                 }

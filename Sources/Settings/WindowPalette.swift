@@ -24,8 +24,8 @@ struct WindowPalette {
         ink40: Theme.textPrimary.opacity(0.4),
         hairline: Theme.textPrimary.opacity(0.09),
         border: Theme.textPrimary.opacity(0.16),
-        accent: Theme.amber,
-        accentWash: Theme.amber.opacity(0.08)
+        accent: Theme.accent,
+        accentWash: Theme.accent.opacity(0.08)
     )
 
     /// 10 — Paper: white surfaces, warm desk, amber-ink accent.
@@ -38,8 +38,9 @@ struct WindowPalette {
         ink40: Color(red: 0.102, green: 0.098, blue: 0.09).opacity(0.4),
         hairline: Color.black.opacity(0.08),
         border: Color.black.opacity(0.16),
-        accent: Color(red: 0.58, green: 0.42, blue: 0.11),    // amber-ink oklch(.58 .14 75)
-        accentWash: Color(red: 0.58, green: 0.42, blue: 0.11).opacity(0.08)
+        // Neon green is unreadable on paper — darkened to green-ink.
+        accent: Color(red: 0.16, green: 0.52, blue: 0.0),
+        accentWash: Color(red: 0.16, green: 0.52, blue: 0.0).opacity(0.08)
     )
 
     static func current(_ scheme: ColorScheme) -> WindowPalette {

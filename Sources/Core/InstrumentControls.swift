@@ -31,7 +31,7 @@ struct InstrumentLabel: View {
 /// Blinking indicator dot — the only permitted "animation of data":
 /// hardware-style 2s pulse.
 struct BlinkingDot: View {
-    var color: Color = Theme.amber
+    var color: Color = Theme.accent
     var size: CGFloat = 6
     @State private var dimmed = false
 
@@ -106,19 +106,19 @@ struct KeyButton: View {
 
     private var foreground: Color {
         if isPrimary { return Color(red: 0.043, green: 0.043, blue: 0.039) }
-        if isActive { return Theme.amber }
+        if isActive { return Theme.accent }
         return Theme.textPrimary.opacity(0.7)
     }
 
     private var background: Color {
-        if isPrimary { return Theme.amber }
+        if isPrimary { return Theme.accent }
         if isActive { return Theme.raisedFill }
         return Theme.raisedFill.opacity(0.75)
     }
 
     private var border: Color {
         if isPrimary { return .clear }
-        if isActive { return Theme.amber.opacity(0.5) }
+        if isActive { return Theme.accent.opacity(0.5) }
         return Theme.controlBorder
     }
 }

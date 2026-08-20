@@ -51,7 +51,7 @@ struct PlaybooksModuleView: View {
             .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cardRadius)
-                    .stroke(isLastRun ? Theme.amberBorder : Theme.hairline, lineWidth: 1)
+                    .stroke(isLastRun ? Theme.accentBorder : Theme.hairline, lineWidth: 1)
             )
             .contentShape(Rectangle())
         }
@@ -92,7 +92,7 @@ struct PlaybooksModuleView: View {
     private func runRegister(_ last: PlaybookRunner.RunRecord) -> some View {
         HStack(spacing: 10) {
             BlinkingDot(size: 6)
-            InstrumentLabel("run", color: Theme.amber)
+            InstrumentLabel("run", color: Theme.accent)
             Text(summary(last))
                 .font(Theme.subFont)
                 .lineLimit(1)
@@ -101,10 +101,10 @@ struct PlaybooksModuleView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(Theme.amberWash, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .background(Theme.accentWash, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
         .overlay(
             RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .stroke(Theme.amberBorder, lineWidth: 1)
+                .stroke(Theme.accentBorder, lineWidth: 1)
         )
     }
 

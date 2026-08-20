@@ -9,10 +9,15 @@ struct EventListView: View {
 
     private var events: [CalendarEvent] { service.events(forDay: day) }
 
-    /// The first upcoming event today — its annotation counts down in amber.
+    /// The first upcoming-or-ongoing event today. The countdown only lights
+    /// up when it is close (≤2h) — "T−775m" is noise, not a readout.
     private var nextEvent: CalendarEvent? {
         guard service.calendar.isDateInToday(day) else { return nil }
-        return events.first { !$0.isAllDay && $0.end > Date() }
+        let now = Date()
+        return events.first { event in
+            guard !event.isAllDay, event.end > now else { return false }
+            return event.start.timeIntervalSince(now) <= 2 * 3600
+        }
     }
 
     var body: some View {
@@ -48,7 +53,7 @@ struct EventListView: View {
             ) {
                 Text(annotation(for: event, isNext: isNext))
                     .font(Theme.readoutSFont)
-                    .foregroundStyle(isNext ? Theme.amber : Theme.textPrimary.opacity(0.35))
+                    .foregroundStyle(isNext ? Theme.accent : Theme.textPrimary.opacity(0.35))
             }
             .contentShape(Rectangle())
         }
@@ -58,7 +63,13 @@ struct EventListView: View {
     private func annotation(for event: CalendarEvent, isNext: Bool) -> String {
         if isNext {
             let minutes = max(0, Int(event.start.timeIntervalSinceNow / 60))
-            let countdown = event.start > Date() ? "T−\(minutes)m" : "now"
+            let countdown: String = if event.start <= Date() {
+                "now"
+            } else if minutes < 60 {
+                "T−\(minutes)m"
+            } else {
+                String(format: "T−%dh%02dm", minutes / 60, minutes % 60)
+            }
             return event.joinURL != nil ? "\(countdown) · join" : countdown
         }
         if event.isAllDay { return "all day" }

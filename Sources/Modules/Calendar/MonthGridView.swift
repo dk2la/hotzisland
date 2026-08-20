@@ -56,7 +56,7 @@ struct MonthGridView: View {
         } label: {
             ZStack {
                 if isToday {
-                    Circle().fill(Theme.amber)
+                    Circle().fill(Theme.accent)
                 } else if isSelected {
                     Circle().stroke(Theme.hairline, lineWidth: 1)
                 }
@@ -66,7 +66,9 @@ struct MonthGridView: View {
             }
             .frame(width: 22, height: 22)
             .overlay(alignment: .bottom) {
-                if service.hasEvents(on: day), !isToday {
+                // Only current-month days get event dots — a busy person has
+                // events every day, and dots on the neighbours read as noise.
+                if service.hasEvents(on: day), !isToday, inMonth {
                     Circle()
                         .fill(Theme.textQuaternary)
                         .frame(width: 3, height: 3)
