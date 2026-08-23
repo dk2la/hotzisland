@@ -17,31 +17,29 @@ final class NotchWindowController: NSObject {
     private var eventShowTask: Task<Void, Never>?
     private var eventDismissTask: Task<Void, Never>?
     private var mouseMonitors: [Any] = []
-    private let powerMonitor = PowerSourceMonitor()
-    private let audioMonitor = AudioSystemMonitor()
-    private let mediaCenter = MediaCenter()
-    private let calendarService = CalendarService()
-    private let statsService = SystemStatsService()
-    private let shelfStore = ShelfStore()
-    private let clipboardStore = ClipboardStore()
-    private let timerService = TimerService()
+    private let services: ModuleServices
     private let settings: AppSettings
     private let playbookStore: PlaybookStore
-    private let playbookRunner: PlaybookRunner
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
 
-    init(settings: AppSettings, playbooks: PlaybookStore) {
+    init(settings: AppSettings, services: ModuleServices, playbooks: PlaybookStore) {
         self.settings = settings
+        self.services = services
         self.playbookStore = playbooks
-        self.playbookRunner = PlaybookRunner(timer: timerService)
         super.init()
 
-        playbookRunner.onFinished = { [weak self] playbook, _ in
+        services.playbookRunner.onFinished = { [weak self] playbook, _ in
             self?.present(.playbookRan(name: playbook.name))
         }
 
-        settings.onChange = { [weak self] in
+        settings.addChangeHandler { [weak self] in
             guard let self else { return }
+            // Switching to widget mode moves the modules off the notch —
+            // collapse an open panel (refreshIdleState alone won't: it
+            // deliberately never touches the expanded state).
+            if self.settings.displayMode == .widget, self.targetState == .expanded {
+                self.requestState(self.idleState)
+            }
             self.refreshIdleState()
             // Live window resize while the user drags the panel grip.
             if self.targetState == .expanded, let screen = NotchGeometry.targetScreen {
@@ -66,23 +64,25 @@ final class NotchWindowController: NSObject {
         let handler: (LiveEvent) -> Void = { [weak self] event in
             self?.present(event)
         }
-        powerMonitor.onEvent = handler
-        audioMonitor.onEvent = handler
-        mediaCenter.onPlaybackChanged = { [weak self] in
+        services.powerMonitor.onEvent = handler
+        services.audioMonitor.onEvent = handler
+        services.mediaCenter.onPlaybackChanged = { [weak self] in
             self?.refreshIdleState()
         }
         viewModel.onTabChange = { [weak self] tab in
             self?.log.info("tab -> \(tab.rawValue, privacy: .public)")
         }
-        timerService.onRunningChanged = { [weak self] in
+        services.timerService.onRunningChanged = { [weak self] in
             self?.refreshIdleState()
         }
-        timerService.onFinished = { [weak self] in
+        services.timerService.onFinished = { [weak self] in
             self?.present(.timerFinished)
         }
         // A file dragged over the island opens the shelf to receive it.
+        // In widget mode the shelf lives in the widget — never expand here.
         viewModel.onDragTargeted = { [weak self] in
-            guard let self, self.targetState != .expanded else { return }
+            guard let self, self.settings.displayMode == .island,
+                  self.targetState != .expanded else { return }
             self.viewModel.selectTab(.shelf)
             self.requestState(.expanded)
         }
@@ -93,7 +93,7 @@ final class NotchWindowController: NSObject {
     /// closes fully.
     private var idleState: NotchState {
         guard settings.idleMode == .compact else { return .closed }
-        if timerService.isRunning || mediaCenter.track?.isPlaying == true {
+        if services.timerService.isRunning || services.mediaCenter.track?.isPlaying == true {
             return .compact
         }
         return .closed
@@ -110,6 +110,7 @@ final class NotchWindowController: NSObject {
     func present(_ event: LiveEvent) {
         guard targetState != .expanded,
               let screen = NotchGeometry.targetScreen else { return }
+        log.info("event \(String(describing: event), privacy: .public)")
         collapseTask?.cancel()
         eventShowTask?.cancel()
         eventDismissTask?.cancel()
@@ -169,6 +170,9 @@ final class NotchWindowController: NSObject {
     }
 
     private func updateHover() {
+        // In widget mode the modules live in the edge widget — hovering the
+        // notch must not expand it. Live events keep their own timers.
+        guard settings.displayMode == .island else { return }
         // Dragging the resize grip may momentarily put the cursor outside
         // the shrinking panel — never collapse mid-resize.
         if viewModel.isResizingPanel, targetState == .expanded { return }
@@ -229,17 +233,9 @@ final class NotchWindowController: NSObject {
 
         let rootView = NotchRootView(
             viewModel: viewModel,
-            power: powerMonitor,
-            audio: audioMonitor,
-            media: mediaCenter,
-            calendar: calendarService,
-            stats: statsService,
-            shelf: shelfStore,
-            clipboard: clipboardStore,
-            timer: timerService,
+            services: services,
             settings: settings,
             playbooks: playbookStore,
-            playbookRunner: playbookRunner,
             closedSize: closedSize
         )
         let hostingView = NotchHostingView(rootView: rootView)

@@ -122,6 +122,21 @@ struct SettingsView: View {
             }
             Hairline(color: palette.hairline)
             SettingRow(
+                title: "Режим отображения",
+                subtitle: "Модули у выреза или виджетом у края экрана — live-события всегда на вырезе",
+                palette: palette
+            ) {
+                WindowSegmented(
+                    options: [(DisplayMode.island, "Остров"), (DisplayMode.widget, "Виджет")],
+                    selection: Binding(
+                        get: { settings.displayMode },
+                        set: { settings.displayMode = $0 }
+                    ),
+                    palette: palette
+                )
+            }
+            Hairline(color: palette.hairline)
+            SettingRow(
                 title: "Режим покоя",
                 subtitle: "Что видно, когда ничего не происходит",
                 palette: palette

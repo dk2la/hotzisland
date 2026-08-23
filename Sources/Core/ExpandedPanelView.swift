@@ -5,17 +5,9 @@ import SwiftUI
 /// the camera housing), module content below.
 struct ExpandedPanelView: View {
     var viewModel: NotchViewModel
-    var power: PowerSourceMonitor
-    var audio: AudioSystemMonitor
-    var media: MediaCenter
-    var calendar: CalendarService
-    var stats: SystemStatsService
-    var shelf: ShelfStore
-    var clipboard: ClipboardStore
-    var timer: TimerService
+    var services: ModuleServices
     var settings: AppSettings
     var playbooks: PlaybookStore
-    var playbookRunner: PlaybookRunner
     let notchHeight: CGFloat
 
     @State private var resizeStartSize: CGSize?
@@ -83,24 +75,8 @@ struct ExpandedPanelView: View {
         }
     }
 
-    @ViewBuilder
     private var content: some View {
-        switch effectiveTab {
-        case .playbooks:
-            PlaybooksModuleView(store: playbooks, runner: playbookRunner)
-        case .media:
-            MediaModuleView(media: media)
-        case .calendar:
-            CalendarModuleView(service: calendar)
-        case .metrics:
-            MetricsModuleView(stats: stats, power: power, audio: audio)
-        case .shelf:
-            ShelfModuleView(shelf: shelf)
-        case .clipboard:
-            ClipboardModuleView(clipboard: clipboard)
-        case .timer:
-            TimerModuleView(timer: timer)
-        }
+        ModuleContentView(tab: effectiveTab, services: services, playbooks: playbooks)
     }
 
     /// Corner grip: drag to resize the panel like an app window. Tracking

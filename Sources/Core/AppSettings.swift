@@ -45,6 +45,22 @@ enum IdleMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// Where the module panel lives: attached to the notch or as a free
+/// edge-docked widget. Live events stay on the notch in both modes.
+enum DisplayMode: String, CaseIterable, Identifiable {
+    case island
+    case widget
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .island: "Island"
+        case .widget: "Widget"
+        }
+    }
+}
+
 /// User preferences, persisted to UserDefaults.
 @MainActor
 @Observable
@@ -53,7 +69,7 @@ final class AppSettings {
         didSet {
             defaults.set(theme.rawValue, forKey: Self.themeKey)
             log.info("theme -> \(self.theme.rawValue, privacy: .public)")
-            onChange?()
+            notifyChange()
         }
     }
 
@@ -61,7 +77,32 @@ final class AppSettings {
         didSet {
             defaults.set(idleMode.rawValue, forKey: Self.idleKey)
             log.info("idleMode -> \(self.idleMode.rawValue, privacy: .public)")
-            onChange?()
+            notifyChange()
+        }
+    }
+
+    var displayMode: DisplayMode {
+        didSet {
+            defaults.set(displayMode.rawValue, forKey: Self.displayModeKey)
+            log.info("displayMode -> \(self.displayMode.rawValue, privacy: .public)")
+            notifyChange()
+            onDisplayModeChange?(displayMode)
+        }
+    }
+
+    /// Edge the widget strip is docked to (widget mode only).
+    private(set) var widgetEdge: WidgetEdge {
+        didSet {
+            defaults.set(widgetEdge.rawValue, forKey: Self.widgetEdgeKey)
+            notifyChange()
+        }
+    }
+
+    /// Normalized 0…1 position of the strip's center along its edge.
+    private(set) var widgetOffset: Double {
+        didSet {
+            defaults.set(widgetOffset, forKey: Self.widgetOffsetKey)
+            notifyChange()
         }
     }
 
@@ -70,14 +111,14 @@ final class AppSettings {
         didSet {
             defaults.set(Double(expandedPanelSize.width), forKey: Self.panelWidthKey)
             defaults.set(Double(expandedPanelSize.height), forKey: Self.panelHeightKey)
-            onChange?()
+            notifyChange()
         }
     }
 
     private(set) var enabledTabs: Set<NotchTab> {
         didSet {
             defaults.set(enabledTabs.map(\.rawValue).sorted(), forKey: Self.tabsKey)
-            onChange?()
+            notifyChange()
         }
     }
 
@@ -85,7 +126,7 @@ final class AppSettings {
     private(set) var tabOrder: [NotchTab] {
         didSet {
             defaults.set(tabOrder.map(\.rawValue), forKey: Self.tabOrderKey)
-            onChange?()
+            notifyChange()
         }
     }
 
@@ -97,8 +138,22 @@ final class AppSettings {
         tabOrder.filter { enabledTabs.contains($0) }
     }
 
-    /// The window controller re-evaluates the island's idle state on changes.
-    @ObservationIgnored var onChange: (() -> Void)?
+    /// Both window controllers react to changes — the notch re-evaluates its
+    /// idle state, the widget re-derives its layout. Handlers are append-only.
+    @ObservationIgnored private var changeHandlers: [() -> Void] = []
+
+    /// The AppDelegate creates/tears down the widget window on mode switches.
+    @ObservationIgnored var onDisplayModeChange: ((DisplayMode) -> Void)?
+
+    func addChangeHandler(_ handler: @escaping () -> Void) {
+        changeHandlers.append(handler)
+    }
+
+    private func notifyChange() {
+        for handler in changeHandlers {
+            handler()
+        }
+    }
 
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
@@ -111,6 +166,9 @@ final class AppSettings {
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
     @ObservationIgnored private static let tabOrderKey = "settings.tabOrder"
+    @ObservationIgnored private static let displayModeKey = "settings.displayMode"
+    @ObservationIgnored private static let widgetEdgeKey = "settings.widgetEdge"
+    @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
 
     init() {
         let defaults = UserDefaults.standard
@@ -124,6 +182,12 @@ final class AppSettings {
             .flatMap(IslandTheme.init(rawValue:)) ?? .stealth
         idleMode = defaults.string(forKey: Self.idleKey)
             .flatMap(IdleMode.init(rawValue:)) ?? .compact
+        displayMode = defaults.string(forKey: Self.displayModeKey)
+            .flatMap(DisplayMode.init(rawValue:)) ?? .island
+        widgetEdge = defaults.string(forKey: Self.widgetEdgeKey)
+            .flatMap(WidgetEdge.init(rawValue:)) ?? .right
+        let storedOffset = defaults.object(forKey: Self.widgetOffsetKey) as? Double
+        widgetOffset = min(max(storedOffset ?? 0.5, 0), 1)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {
             let tabs = Set(stored.compactMap(NotchTab.init(rawValue:)))
             enabledTabs = tabs.isEmpty ? Set(NotchTab.allCases) : tabs
@@ -141,8 +205,17 @@ final class AppSettings {
         log.info("""
         loaded theme=\(self.theme.rawValue, privacy: .public) \
         idle=\(self.idleMode.rawValue, privacy: .public) \
+        mode=\(self.displayMode.rawValue, privacy: .public) \
         tabs=\(self.enabledTabs.count, privacy: .public)
         """)
+    }
+
+    func setWidgetPlacement(edge: WidgetEdge, offset: Double) {
+        let clamped = min(max(offset, 0), 1)
+        guard edge != widgetEdge || clamped != widgetOffset else { return }
+        log.info("widget placement -> \(edge.rawValue, privacy: .public) @ \(clamped, privacy: .public)")
+        widgetEdge = edge
+        widgetOffset = clamped
     }
 
     func setPanelSize(_ raw: CGSize) {

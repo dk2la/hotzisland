@@ -182,3 +182,28 @@ struct DataRow<Trailing: View>: View {
         .padding(.vertical, 10)
     }
 }
+
+/// Themed shell for any capsule surface — the notch island and the edge
+/// widget share the three treatments. Glass keeps a dark scrim over the
+/// material so content stays readable on bright wallpapers; Glow tints its
+/// ring with the artwork's average color.
+struct InstrumentShell<S: Shape>: View {
+    let shape: S
+    let theme: IslandTheme
+    var accent: Color?
+
+    var body: some View {
+        switch theme {
+        case .stealth:
+            shape.fill(Theme.islandFill)
+        case .glass:
+            shape.fill(.ultraThinMaterial)
+                .overlay(shape.fill(Theme.islandFill.opacity(0.45)))
+        case .glow:
+            let ring = accent ?? Theme.textQuaternary
+            shape.fill(Theme.islandFill)
+                .overlay(shape.stroke(ring.opacity(0.9), lineWidth: 1).blur(radius: 2.5))
+                .overlay(shape.stroke(ring.opacity(0.7), lineWidth: 1))
+        }
+    }
+}
