@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 /// Events of the selected day as data registers: mono time column, title,
-/// mono annotation. The next joinable event gets an amber countdown.
+/// mono annotation on the right, hairline separators. The next joinable
+/// event gets an accent countdown.
 struct EventListView: View {
     var service: CalendarService
     let day: Date
@@ -22,7 +23,7 @@ struct EventListView: View {
 
     var body: some View {
         if events.isEmpty {
-            DashedZone(label: "no events")
+            DashedZone(label: L10n.t(.calNoEvents))
                 .frame(maxHeight: 90)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -64,15 +65,15 @@ struct EventListView: View {
         if isNext {
             let minutes = max(0, Int(event.start.timeIntervalSinceNow / 60))
             let countdown: String = if event.start <= Date() {
-                "now"
+                L10n.t(.calNow)
             } else if minutes < 60 {
                 "T−\(minutes)m"
             } else {
                 String(format: "T−%dh%02dm", minutes / 60, minutes % 60)
             }
-            return event.joinURL != nil ? "\(countdown) · join" : countdown
+            return event.joinURL != nil ? "\(countdown) · \(L10n.t(.calJoin))" : countdown
         }
-        if event.isAllDay { return "all day" }
+        if event.isAllDay { return L10n.t(.calAllDay) }
         let minutes = Int(event.end.timeIntervalSince(event.start) / 60)
         return minutes >= 60 ? String(format: "%dh%02d", minutes / 60, minutes % 60) : "\(minutes)m"
     }

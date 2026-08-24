@@ -1,140 +1,94 @@
 import SwiftUI
 
-/// "Sys" channel: a 4-cell instrument grid (CPU · MEM · NET · PWR), a CPU
-/// history strip and a volume register. Battery and audio moved here from
-/// the removed Devices tab, per the Instrument DS.
+/// "System" module, V3: stat rows on raised glass — label left, value right,
+/// a thin severity bar underneath — plus a volume row. Values jump.
 struct MetricsModuleView: View {
     var stats: SystemStatsService
     var power: PowerSourceMonitor
     var audio: AudioSystemMonitor
 
     var body: some View {
-        VStack(spacing: 8) {
-            instrumentGrid
-            historyStrip
-            volumeRegister
+        VStack(spacing: 6) {
+            statRow(label: "CPU", value: percentText(stats.cpuUsage), fraction: stats.cpuUsage)
+            statRow(
+                label: L10n.t(.sysMemory),
+                value: percentText(memoryFraction),
+                fraction: memoryFraction
+            )
+            statRow(label: L10n.t(.sysNetwork), value: netText, fraction: nil)
+            powerRow
+            volumeRow
             Spacer(minLength: 0)
         }
     }
 
-    // MARK: - Instrument cells
-
-    private var instrumentGrid: some View {
-        HStack(spacing: 1) {
-            percentCell(label: "CPU", fraction: stats.cpuUsage)
-            percentCell(
-                label: "MEM",
-                fraction: stats.memoryTotal > 0
-                    ? Double(stats.memoryUsed) / Double(stats.memoryTotal)
-                    : 0
-            )
-            netCell
-            powerCell
-        }
-        .background(Theme.hairlineSoft)
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .stroke(Theme.hairlineSoft, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
-        .fixedSize(horizontal: false, vertical: true)
+    private var memoryFraction: Double {
+        stats.memoryTotal > 0 ? Double(stats.memoryUsed) / Double(stats.memoryTotal) : 0
     }
 
-    private func percentCell(label: String, fraction: Double) -> some View {
-        cell {
-            InstrumentLabel(label)
-            readout(percent: fraction)
-            SegmentBar(fraction: fraction, segments: 8)
-        }
+    private func percentText(_ fraction: Double) -> String {
+        "\(Int((fraction * 100).rounded()))%"
     }
 
-    private var netCell: some View {
-        cell {
-            InstrumentLabel("NET")
-            rateRow("↓", stats.downloadRate)
-            rateRow("↑", stats.uploadRate)
-        }
+    private var netText: String {
+        "↓ \(Self.rate(stats.downloadRate))  ↑ \(Self.rate(stats.uploadRate))"
     }
 
-    private var powerCell: some View {
-        cell {
-            InstrumentLabel("PWR")
-            readout(percent: Double(power.percent) / 100, colored: false)
-            HStack(spacing: 6) {
-                if power.isPlugged {
-                    BlinkingDot(size: 5)
-                    InstrumentLabel("charging", color: Theme.textPrimary.opacity(0.45))
-                } else {
-                    Circle()
-                        .fill(Theme.segmentOff)
-                        .frame(width: 5, height: 5)
-                    InstrumentLabel("battery", color: Theme.textPrimary.opacity(0.45))
+    // MARK: - Rows
+
+    private func statRow(label: String, value: String, fraction: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer(minLength: 8)
+                Text(value)
+                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
+            }
+            if let fraction {
+                GlassProgressBar(fraction: fraction, fillColor: Theme.severity(fraction))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+    }
+
+    private var powerRow: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline) {
+                HStack(spacing: 6) {
+                    Text(L10n.t(.sysBattery))
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Theme.textSecondary)
+                    if power.isPlugged {
+                        HStack(spacing: 4) {
+                            BlinkingDot(size: 5)
+                            Text(L10n.t(.sysCharging))
+                                .font(Theme.subFont)
+                                .foregroundStyle(Theme.textTertiary)
+                        }
+                    }
                 }
+                Spacer(minLength: 8)
+                Text("\(power.percent)%")
+                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
             }
+            GlassProgressBar(fraction: Double(power.percent) / 100)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
     }
 
-    private func cell(@ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            content()
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.cardFill)
-    }
-
-    private func readout(percent fraction: Double, colored: Bool = true) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 1) {
-            Text("\(Int((fraction * 100).rounded()))")
-                .font(Theme.readoutLFont)
-                .foregroundStyle(colored ? Theme.severity(fraction) : Theme.textPrimary)
-            Text("%")
-                .font(Theme.readoutSFont)
-                .foregroundStyle(Theme.textFaint)
-        }
-    }
-
-    private func rateRow(_ arrow: String, _ rate: Double) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text("\(arrow) \(Self.rateValue(rate))")
-                .font(Theme.readoutMFont)
-                .foregroundStyle(Theme.textPrimary)
-            Text(Self.rateUnit(rate))
-                .font(Theme.readoutSFont)
-                .foregroundStyle(Theme.textFaint)
-        }
-    }
-
-    // MARK: - History
-
-    /// Last 16 CPU samples as an instrument bar strip. Bars jump — data is
-    /// never animated.
-    private var historyStrip: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(Array(stats.cpuHistory.enumerated()), id: \.offset) { _, sample in
-                Rectangle()
-                    .fill(sample >= 0.85 ? Theme.critical : (sample >= 0.6 ? Theme.accent : Theme.textPrimary.opacity(0.25)))
-                    .frame(height: max(2, 36 * sample))
-            }
-            if stats.cpuHistory.isEmpty {
-                Rectangle().fill(.clear).frame(height: 2)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 38, alignment: .bottom)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .stroke(Theme.hairlineSoft, lineWidth: 1)
-        )
-    }
-
-    // MARK: - Volume
-
-    private var volumeRegister: some View {
+    private var volumeRow: some View {
         HStack(spacing: 12) {
-            InstrumentLabel("VOL")
+            Text(L10n.t(.sysVolume))
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
             Slider(
                 value: Binding(
                     get: { audio.volume },
@@ -145,28 +99,21 @@ struct MetricsModuleView: View {
             .controlSize(.mini)
             Text("\(Int(audio.volume * 100))")
                 .font(Theme.readoutSFont)
-                .foregroundStyle(Theme.textPrimary)
+                .foregroundStyle(Theme.textPrimary.opacity(0.9))
                 .frame(width: 26, alignment: .trailing)
         }
-        .padding(.horizontal, 2)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Formatting
 
-    private static func rateValue(_ rate: Double) -> String {
+    private static func rate(_ rate: Double) -> String {
         switch rate {
-        case ..<1_000: "0"
-        case ..<1_000_000: String(format: "%.0f", rate / 1_000)
-        case ..<1_000_000_000: String(format: "%.1f", rate / 1_000_000)
-        default: String(format: "%.1f", rate / 1_000_000_000)
-        }
-    }
-
-    private static func rateUnit(_ rate: Double) -> String {
-        switch rate {
-        case ..<1_000_000: "KB/s"
-        case ..<1_000_000_000: "MB/s"
-        default: "GB/s"
+        case ..<1_000: "0 KB/s"
+        case ..<1_000_000: String(format: "%.0f KB/s", rate / 1_000)
+        case ..<1_000_000_000: String(format: "%.1f MB/s", rate / 1_000_000)
+        default: String(format: "%.1f GB/s", rate / 1_000_000_000)
         }
     }
 }

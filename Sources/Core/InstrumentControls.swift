@@ -70,7 +70,8 @@ struct SegmentBar: View {
     }
 }
 
-/// Mechanical key cap: raised surface, 1px border with a 2px bottom edge.
+/// V3 key: glass capsule. Primary is a solid white surface with a dark
+/// label; active keeps a bright ring on raised glass.
 struct KeyButton: View {
     let label: String
     var isPrimary = false
@@ -81,23 +82,14 @@ struct KeyButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(Theme.readoutSFont)
-                .kerning(0.5)
+                .font(.system(size: 11.5, weight: isPrimary ? .semibold : .medium))
+                .kerning(0.3)
                 .foregroundStyle(foreground)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(background, in: RoundedRectangle(cornerRadius: Theme.controlRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.controlRadius)
-                        .stroke(border, lineWidth: 1)
-                )
-                .background(
-                    // The thicker bottom edge of a physical key.
-                    RoundedRectangle(cornerRadius: Theme.controlRadius)
-                        .fill(border)
-                        .offset(y: 1)
-                )
-                .contentShape(Rectangle())
+                .padding(.horizontal, 13)
+                .padding(.vertical, 7)
+                .background(background, in: Capsule())
+                .overlay(Capsule().stroke(border, lineWidth: 1))
+                .contentShape(Capsule())
         }
         .buttonStyle(PressableStyle())
         .opacity(enabled ? 1 : 0.35)
@@ -105,8 +97,8 @@ struct KeyButton: View {
     }
 
     private var foreground: Color {
-        if isPrimary { return Color(red: 0.043, green: 0.043, blue: 0.039) }
-        if isActive { return Theme.accent }
+        if isPrimary { return Theme.inkOnAccent }
+        if isActive { return Theme.textPrimary }
         return Theme.textPrimary.opacity(0.7)
     }
 
@@ -118,8 +110,8 @@ struct KeyButton: View {
 
     private var border: Color {
         if isPrimary { return .clear }
-        if isActive { return Theme.accent.opacity(0.5) }
-        return Theme.controlBorder
+        if isActive { return Theme.accentBorder }
+        return .clear
     }
 }
 
@@ -150,8 +142,8 @@ struct DashedZone: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Theme.dashedBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            RoundedRectangle(cornerRadius: Theme.cardRadius)
+                .stroke(Theme.dashedBorder, style: StrokeStyle(lineWidth: 1, dash: [5, 6]))
         )
     }
 }
@@ -180,5 +172,29 @@ struct DataRow<Trailing: View>: View {
             trailing()
         }
         .padding(.vertical, 10)
+    }
+}
+
+/// Themed shell for any island surface — the three treatments of the notch.
+/// Glass is the V3 dark-glass recipe (system blur + black tint); Glow tints
+/// its ring with the artwork's average color.
+struct InstrumentShell<S: Shape>: View {
+    let shape: S
+    let theme: IslandTheme
+    var accent: Color?
+
+    var body: some View {
+        switch theme {
+        case .stealth:
+            shape.fill(Theme.islandFill)
+        case .glass:
+            shape.fill(.ultraThinMaterial)
+                .overlay(shape.fill(Theme.glassTintDark))
+        case .glow:
+            let ring = accent ?? Theme.textQuaternary
+            shape.fill(Theme.islandFill)
+                .overlay(shape.stroke(ring.opacity(0.9), lineWidth: 1).blur(radius: 2.5))
+                .overlay(shape.stroke(ring.opacity(0.7), lineWidth: 1))
+        }
     }
 }

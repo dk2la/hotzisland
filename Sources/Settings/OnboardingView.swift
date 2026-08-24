@@ -12,6 +12,7 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var calendarGranted =
         EKEventStore.authorizationStatus(for: .event) == .fullAccess
+    @State private var automationGranted = false
 
     private var palette: WindowPalette { WindowPalette.current(scheme) }
 
@@ -95,6 +96,21 @@ struct OnboardingView: View {
                 InstrumentLabel("later", color: palette.ink40)
             }
         }
+        // AEDeterminePermissionToAutomateTarget can block for as long as the
+        // target app ignores Apple Events — probe off the main thread, and
+        // keep polling so the row flips to "ok" after granting in System
+        // Settings.
+        .task {
+            let spotifyID = SpotifySource.bundleID
+            let musicID = MusicSource.bundleID
+            while !Task.isCancelled {
+                automationGranted = await Task.detached {
+                    AutomationPermission.status(towardsBundleID: spotifyID) == .granted
+                        || AutomationPermission.status(towardsBundleID: musicID) == .granted
+                }.value
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 
     private func permissionRow(
@@ -116,10 +132,6 @@ struct OnboardingView: View {
         }
     }
 
-    private var automationGranted: Bool {
-        AutomationPermission.status(towardsBundleID: SpotifySource.bundleID) == .granted
-            || AutomationPermission.status(towardsBundleID: MusicSource.bundleID) == .granted
-    }
 
     private func openAutomationSettings() {
         guard let url = URL(

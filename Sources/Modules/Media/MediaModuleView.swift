@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// "Media" channel: tape-deck aesthetic — bordered artwork, amber source
-/// tag, segmented progress and mechanical transport keys.
+/// "Music" module, V3: artwork tile, SF titles, thin progress with a knob,
+/// circular glass transport with a solid-white play button.
 struct MediaModuleView: View {
     var media: MediaCenter
 
@@ -12,10 +12,10 @@ struct MediaModuleView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(track.title)
-                            .font(Theme.titleFont)
+                            .font(.system(size: 16, weight: .semibold))
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .foregroundStyle(Theme.textPrimary)
+                            .foregroundStyle(Theme.textPrimary.opacity(0.95))
                         Spacer(minLength: 12)
                         sourceTag
                     }
@@ -24,22 +24,22 @@ struct MediaModuleView: View {
                             .font(Theme.subFont)
                             .lineLimit(1)
                             .foregroundStyle(Theme.textTertiary)
-                            .padding(.top, 3)
+                            .padding(.top, 2)
                     }
                     SegmentBar(
                         fraction: track.duration > 0 ? track.position / track.duration : 0,
                         segments: 15,
                         fillColor: Theme.accent
                     )
-                    .padding(.top, 14)
+                    .padding(.top, 12)
                     HStack {
                         Text(TimeFormat.mmss(track.position))
                         Spacer()
                         Text("−" + TimeFormat.mmss(track.duration - track.position))
                     }
                     .font(Theme.readoutSFont)
-                    .foregroundStyle(Theme.textQuaternary)
-                    .padding(.top, 7)
+                    .foregroundStyle(Theme.textTertiary)
+                    .padding(.top, 5)
                     transport(for: track)
                         .padding(.top, 10)
                 }
@@ -50,7 +50,7 @@ struct MediaModuleView: View {
                 if media.availableSources.count > 1 {
                     sourceSwitcher
                 }
-                DashedZone(label: "no signal", sublabel: idleMessage)
+                DashedZone(label: L10n.t(.mediaNoSignal), sublabel: idleMessage)
                     .frame(maxHeight: 110)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -65,20 +65,19 @@ struct MediaModuleView: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Theme.cardFill
-                    InstrumentLabel("no art")
+                    Theme.raisedFill
+                    Image(systemName: "music.note")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(Theme.textTertiary)
                 }
             }
         }
         .frame(width: 96, height: 96)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .stroke(Theme.islandBorder, lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
     }
 
-    /// "● spotify" — amber when the context is controllable, dim otherwise.
+    /// Source chip — a capsule with a status dot; tap to switch when several
+    /// players are around.
     @ViewBuilder
     private var sourceTag: some View {
         if media.availableSources.count > 1 {
@@ -89,13 +88,13 @@ struct MediaModuleView: View {
     }
 
     private var sourceSwitcher: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 6) {
             ForEach(media.availableSources) { kind in
                 Button {
                     media.select(kind)
                 } label: {
                     tagView(for: kind, isActive: media.activeSource == kind)
-                        .contentShape(Rectangle())
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(PressableStyle())
             }
@@ -116,26 +115,31 @@ struct MediaModuleView: View {
 
     private func transport(for track: MediaTrack) -> some View {
         HStack(spacing: 8) {
-            KeyButton(label: "◀◀", enabled: media.canControlActive) { media.previous() }
-            KeyButton(
-                label: track.isPlaying ? "❚❚" : "▶",
-                isPrimary: true,
-                enabled: media.canControlActive
+            CircleGlassButton(systemName: "backward.fill", size: 30) { media.previous() }
+                .disabled(!media.canControlActive)
+            CircleGlassButton(
+                systemName: track.isPlaying ? "pause.fill" : "play.fill",
+                size: 36,
+                solid: true
             ) {
                 media.togglePlayPause()
             }
-            KeyButton(label: "▶▶", enabled: media.canControlActive) { media.next() }
+            .disabled(!media.canControlActive)
+            CircleGlassButton(systemName: "forward.fill", size: 30) { media.next() }
+                .disabled(!media.canControlActive)
             Spacer(minLength: 0)
             if media.supportsLike {
-                KeyButton(label: "LIKE", enabled: media.canControlActive) { media.like() }
+                CircleGlassButton(systemName: "heart", size: 30) { media.like() }
+                    .disabled(!media.canControlActive)
             }
         }
+        .opacity(media.canControlActive ? 1 : 0.4)
     }
 
     private var idleMessage: String {
         if let active = media.activeSource, !media.canControl(active) {
-            return "\(media.label(for: active)) молчит"
+            return L10n.f(.mediaSilent, media.label(for: active))
         }
-        return "Ничего не играет"
+        return L10n.t(.mediaIdle)
     }
 }

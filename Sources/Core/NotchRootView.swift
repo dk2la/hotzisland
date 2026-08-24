@@ -2,17 +2,9 @@ import SwiftUI
 
 struct NotchRootView: View {
     var viewModel: NotchViewModel
-    var power: PowerSourceMonitor
-    var audio: AudioSystemMonitor
-    var media: MediaCenter
-    var calendar: CalendarService
-    var stats: SystemStatsService
-    var shelf: ShelfStore
-    var clipboard: ClipboardStore
-    var timer: TimerService
+    var services: ModuleServices
     var settings: AppSettings
     var playbooks: PlaybookStore
-    var playbookRunner: PlaybookRunner
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
@@ -25,7 +17,8 @@ struct NotchRootView: View {
                 height: closedSize.height
             )
         }
-        if viewModel.state == .compact, timer.isRunning || media.track != nil {
+        if viewModel.state == .compact,
+           services.timerService.isRunning || services.mediaCenter.track != nil {
             return CGSize(
                 width: closedSize.width + NotchMetrics.compactSideWidth * 2,
                 height: closedSize.height
@@ -49,27 +42,12 @@ struct NotchRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// Island shell per theme. Glass keeps a dark scrim over the material so
-    /// content stays readable on bright wallpapers; Glow tints its ring with
-    /// the artwork's average color.
-    @ViewBuilder
-    private var islandShell: some View {
-        switch settings.theme {
-        case .stealth:
-            shape.fill(Theme.islandFill)
-        case .glass:
-            shape.fill(.ultraThinMaterial)
-                .overlay(shape.fill(Theme.islandFill.opacity(0.45)))
-        case .glow:
-            let accent = media.artworkAccent ?? Theme.textQuaternary
-            shape.fill(Theme.islandFill)
-                .overlay(shape.stroke(accent.opacity(0.9), lineWidth: 1).blur(radius: 2.5))
-                .overlay(shape.stroke(accent.opacity(0.7), lineWidth: 1))
-        }
-    }
-
     private var island: some View {
-        islandShell
+        InstrumentShell(
+            shape: shape,
+            theme: settings.theme,
+            accent: services.mediaCenter.artworkAccent
+        )
             .overlay {
                 if isExpanded {
                     expandedContent
@@ -77,13 +55,13 @@ struct NotchRootView: View {
                 } else if let event = viewModel.activeEvent {
                     LiveEventView(event: event)
                         .transition(.opacity)
-                } else if viewModel.state == .compact, timer.isRunning {
+                } else if viewModel.state == .compact, services.timerService.isRunning {
                     // A running timer outranks media: it is the thing the
                     // user explicitly started and it has a deadline.
-                    CompactTimerView(timer: timer)
+                    CompactTimerView(timer: services.timerService)
                         .transition(.opacity)
-                } else if viewModel.state == .compact, let track = media.track {
-                    CompactMediaView(track: track, artwork: media.artwork)
+                } else if viewModel.state == .compact, let track = services.mediaCenter.track {
+                    CompactMediaView(track: track, artwork: services.mediaCenter.artwork)
                         .transition(.opacity)
                 }
             }
@@ -92,7 +70,7 @@ struct NotchRootView: View {
             .animation(Theme.stateSpring, value: viewModel.state)
             .animation(Theme.stateSpring, value: viewModel.selectedTab)
             .dropDestination(for: URL.self) { urls, _ in
-                shelf.add(urls)
+                services.shelfStore.add(urls)
                 return !urls.isEmpty
             } isTargeted: { targeted in
                 if targeted {
@@ -105,17 +83,9 @@ struct NotchRootView: View {
     private var expandedContent: some View {
         ExpandedPanelView(
             viewModel: viewModel,
-            power: power,
-            audio: audio,
-            media: media,
-            calendar: calendar,
-            stats: stats,
-            shelf: shelf,
-            clipboard: clipboard,
-            timer: timer,
+            services: services,
             settings: settings,
             playbooks: playbooks,
-            playbookRunner: playbookRunner,
             notchHeight: closedSize.height
         )
     }

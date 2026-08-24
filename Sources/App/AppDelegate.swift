@@ -3,15 +3,31 @@ import AppKit
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
+    private let services = ModuleServices()
     private let playbookStore = PlaybookStore()
     private var statusItem: NSStatusItem?
     private var notchController: NotchWindowController?
+    private var widgetController: WidgetWindowController?
     private var settingsWindow: SettingsWindowController?
     private let onboarding = OnboardingWindowController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
-        notchController = NotchWindowController(settings: settings, playbooks: playbookStore)
+        notchController = NotchWindowController(
+            settings: settings,
+            services: services,
+            playbooks: playbookStore
+        )
+
+        // The widget window lives only in widget mode; the notch window
+        // always exists (live events stay on the notch in both modes).
+        settings.onDisplayModeChange = { [weak self] mode in
+            self?.applyDisplayMode(mode)
+        }
+        settings.addChangeHandler { [weak self] in
+            self?.widgetController?.settingsDidChange()
+        }
+        applyDisplayMode(settings.displayMode)
 
         // Island UI (e.g. the "+ new" playbook card) asks for the settings
         // window through this notification.
@@ -62,6 +78,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.menu = menu
 
         statusItem = item
+    }
+
+    private func applyDisplayMode(_ mode: DisplayMode) {
+        switch mode {
+        case .island:
+            widgetController?.tearDown()
+            widgetController = nil
+        case .widget:
+            guard widgetController == nil else { return }
+            widgetController = WidgetWindowController(
+                settings: settings,
+                services: services,
+                playbooks: playbookStore
+            )
+        }
     }
 
     @objc private func openSettings() {
