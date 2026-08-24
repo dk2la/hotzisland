@@ -43,8 +43,9 @@ struct WindowPalette {
         accentWash: Color(red: 0.16, green: 0.52, blue: 0.0).opacity(0.08)
     )
 
+    /// V3: windows match the widget and the notch — always the dark rack.
     static func current(_ scheme: ColorScheme) -> WindowPalette {
-        scheme == .light ? .paper : .rack
+        .rack
     }
 }
 

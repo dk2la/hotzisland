@@ -39,6 +39,9 @@ final class MediaCenter {
     @ObservationIgnored private var activeClientBundleID: String?
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "media")
     @ObservationIgnored private var lastLoggedSources: [String] = []
+    /// Last known automation-permission statuses, refreshed off-thread.
+    @ObservationIgnored private var permissionCache: [String: AutomationPermission.Status] = [:]
+    @ObservationIgnored private var permissionProbe: Task<Void, Never>?
 
     init() {
         pollTask = Task { [weak self] in
@@ -162,15 +165,39 @@ final class MediaCenter {
         if music.isAvailable(), !sources.contains(.appleMusic) {
             sources.append(.appleMusic)
         }
+        refreshPermissionCache()
         return sources.filter { kind in
             switch kind {
             case .spotify:
-                AutomationPermission.status(towardsBundleID: SpotifySource.bundleID) != .denied
+                permissionCache[SpotifySource.bundleID, default: .undetermined] != .denied
             case .appleMusic:
-                AutomationPermission.status(towardsBundleID: MusicSource.bundleID) != .denied
+                permissionCache[MusicSource.bundleID, default: .undetermined] != .denied
             case .client:
                 true
             }
+        }
+    }
+
+    /// AEDeterminePermissionToAutomateTarget synchronously round-trips to
+    /// the target app and hangs indefinitely when that app is not servicing
+    /// Apple Events (observed with Spotify) — it must never run on the main
+    /// thread. At most one probe in flight; while an answer is pending the
+    /// cached (or undetermined) status keeps the source visible.
+    private func refreshPermissionCache() {
+        guard permissionProbe == nil else { return }
+        let spotifyID = SpotifySource.bundleID
+        let musicID = MusicSource.bundleID
+        permissionProbe = Task { [weak self] in
+            async let spotify = Task.detached {
+                AutomationPermission.status(towardsBundleID: spotifyID)
+            }.value
+            async let music = Task.detached {
+                AutomationPermission.status(towardsBundleID: musicID)
+            }.value
+            let statuses = await [spotifyID: spotify, musicID: music]
+            guard let self else { return }
+            self.permissionCache = statuses
+            self.permissionProbe = nil
         }
     }
 
