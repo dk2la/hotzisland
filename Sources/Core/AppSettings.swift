@@ -90,6 +90,25 @@ final class AppSettings {
         }
     }
 
+    /// Widget glass appearance (the island is always dark glass).
+    var glassAppearance: GlassAppearance {
+        didSet {
+            defaults.set(glassAppearance.rawValue, forKey: Self.glassAppearanceKey)
+            log.info("glassAppearance -> \(self.glassAppearance.rawValue, privacy: .public)")
+            notifyChange()
+        }
+    }
+
+    /// Interface language — translates the widget, island and settings.
+    var language: AppLanguage {
+        didSet {
+            defaults.set(language.rawValue, forKey: Self.languageKey)
+            L10n.shared.language = language
+            log.info("language -> \(self.language.rawValue, privacy: .public)")
+            notifyChange()
+        }
+    }
+
     /// Edge the widget strip is docked to (widget mode only).
     private(set) var widgetEdge: WidgetEdge {
         didSet {
@@ -167,6 +186,8 @@ final class AppSettings {
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
     @ObservationIgnored private static let tabOrderKey = "settings.tabOrder"
     @ObservationIgnored private static let displayModeKey = "settings.displayMode"
+    @ObservationIgnored private static let glassAppearanceKey = "settings.glassAppearance"
+    @ObservationIgnored private static let languageKey = "settings.language"
     @ObservationIgnored private static let widgetEdgeKey = "settings.widgetEdge"
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
 
@@ -184,15 +205,21 @@ final class AppSettings {
             .flatMap(IdleMode.init(rawValue:)) ?? .compact
         displayMode = defaults.string(forKey: Self.displayModeKey)
             .flatMap(DisplayMode.init(rawValue:)) ?? .island
+        glassAppearance = defaults.string(forKey: Self.glassAppearanceKey)
+            .flatMap(GlassAppearance.init(rawValue:)) ?? .dark
+        language = defaults.string(forKey: Self.languageKey)
+            .flatMap(AppLanguage.init(rawValue:)) ?? .system
         widgetEdge = defaults.string(forKey: Self.widgetEdgeKey)
             .flatMap(WidgetEdge.init(rawValue:)) ?? .right
         let storedOffset = defaults.object(forKey: Self.widgetOffsetKey) as? Double
         widgetOffset = min(max(storedOffset ?? 0.5, 0), 1)
+        // Coming-soon modules stay off until their services land.
+        let defaultEnabled = Set(NotchTab.allCases).subtracting(NotchTab.comingSoon)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {
             let tabs = Set(stored.compactMap(NotchTab.init(rawValue:)))
-            enabledTabs = tabs.isEmpty ? Set(NotchTab.allCases) : tabs
+            enabledTabs = tabs.isEmpty ? defaultEnabled : tabs
         } else {
-            enabledTabs = Set(NotchTab.allCases)
+            enabledTabs = defaultEnabled
         }
         // Stored order, with any newly introduced tabs appended at the end.
         var order = (defaults.stringArray(forKey: Self.tabOrderKey) ?? [])
@@ -202,6 +229,7 @@ final class AppSettings {
         }
         tabOrder = order
         launchAtLogin = SMAppService.mainApp.status == .enabled
+        L10n.shared.language = language
         log.info("""
         loaded theme=\(self.theme.rawValue, privacy: .public) \
         idle=\(self.idleMode.rawValue, privacy: .public) \

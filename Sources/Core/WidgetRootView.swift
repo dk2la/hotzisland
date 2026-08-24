@@ -1,16 +1,27 @@
 import SwiftUI
 
-/// Root of the widget window: an edge-docked icon strip plus, when a module
-/// is open, its panel beside the strip. Both are positioned by the
-/// controller in window-local coordinates.
+/// Root of the widget window: an edge-docked ornament (icon capsule) plus,
+/// when a module is open, its glass window beside it. Both are positioned by
+/// the controller in window-local coordinates. V3: visionOS glass material,
+/// circular cells, solid-white selected state.
 struct WidgetRootView: View {
     var viewModel: WidgetViewModel
     var services: ModuleServices
     var settings: AppSettings
+
+    @Environment(\.colorScheme) private var colorScheme
     var playbooks: PlaybookStore
 
-    private var shape: RoundedRectangle {
+    private var stripShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: WidgetMetrics.radius, style: .continuous)
+    }
+
+    private var panelShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.windowRadius, style: .continuous)
+    }
+
+    private var darkGlass: Bool {
+        settings.glassAppearance.resolvedDark(for: colorScheme)
     }
 
     var body: some View {
@@ -19,7 +30,7 @@ struct WidgetRootView: View {
                 panel(for: tab)
                     .frame(width: viewModel.panelFrame.width, height: viewModel.panelFrame.height)
                     .offset(x: viewModel.panelFrame.minX, y: viewModel.panelFrame.minY)
-                    .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: panelAnchor)))
+                    .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: panelAnchor)))
             }
             strip
                 .frame(width: viewModel.stripFrame.width, height: viewModel.stripFrame.height)
@@ -40,19 +51,26 @@ struct WidgetRootView: View {
         }
     }
 
-    // MARK: - Strip
+    // MARK: - Ornament strip
 
     private var strip: some View {
-        InstrumentShell(
-            shape: shape,
-            theme: settings.theme,
-            accent: services.mediaCenter.artworkAccent
-        )
-        .overlay(shape.stroke(Theme.islandBorder, lineWidth: 1))
-        .overlay { stripContent }
-        .clipShape(shape)
-        .contentShape(shape)
-        .gesture(dragGesture)
+        GlassSurface(shape: stripShape, dark: darkGlass)
+            .overlay { stripContent }
+            .clipShape(stripShape)
+            .contentShape(stripShape)
+            .gesture(dragGesture)
+            .contextMenu {
+                Button(L10n.t(.menuSettings)) {
+                    NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
+                }
+                Button(L10n.t(.menuIslandMode)) {
+                    settings.displayMode = .island
+                }
+                Divider()
+                Button(L10n.t(.menuQuit)) {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
     }
 
     private var stripContent: some View {
@@ -70,18 +88,16 @@ struct WidgetRootView: View {
 
     private func iconButton(for tab: NotchTab) -> some View {
         let isActive = viewModel.selectedTab == tab
+        let cellShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         return Button {
             viewModel.onTabTapped?(tab)
         } label: {
             Image(systemName: tab.icon)
-                .font(Theme.tabIconFont)
-                .foregroundStyle(isActive ? Theme.accent : Theme.textQuaternary)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(isActive ? Theme.accent : Theme.textPrimary.opacity(0.6))
                 .frame(width: WidgetMetrics.cell, height: WidgetMetrics.cell)
-                .background(
-                    isActive ? Theme.accentWash : .clear,
-                    in: RoundedRectangle(cornerRadius: Theme.cardRadius)
-                )
-                .contentShape(Rectangle())
+                .background(cellShape.fill(isActive ? Theme.accentWash : .clear))
+                .contentShape(cellShape)
         }
         .buttonStyle(PressableStyle())
     }
@@ -95,8 +111,8 @@ struct WidgetRootView: View {
         return layout {
             ForEach(0..<3, id: \.self) { _ in
                 Circle()
-                    .fill(Theme.textFaint)
-                    .frame(width: 2.5, height: 2.5)
+                    .fill(Theme.textPrimary.opacity(0.4))
+                    .frame(width: 3, height: 3)
             }
         }
         .frame(
@@ -112,33 +128,28 @@ struct WidgetRootView: View {
             .onEnded { _ in viewModel.onDragEnded?() }
     }
 
-    // MARK: - Panel
+    // MARK: - Panel window
 
     private func panel(for tab: NotchTab) -> some View {
-        InstrumentShell(
-            shape: shape,
-            theme: settings.theme,
-            accent: services.mediaCenter.artworkAccent
-        )
-        .overlay(shape.stroke(Theme.islandBorder, lineWidth: 1))
-        .overlay {
-            VStack(spacing: 0) {
-                panelHeader(for: tab)
-                ModuleContentView(tab: tab, services: services, playbooks: playbooks)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.horizontal, Theme.panelInset)
-                    .padding(.top, Theme.panelInset)
-                    .padding(.bottom, 10)
+        GlassSurface(shape: panelShape, dark: darkGlass)
+            .overlay {
+                VStack(spacing: 0) {
+                    panelHeader(for: tab)
+                    ModuleContentView(tab: tab, services: services, playbooks: playbooks)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, Theme.panelInset)
+                        .padding(.top, Theme.panelInset)
+                        .padding(.bottom, 10)
+                }
             }
-        }
-        .clipShape(shape)
+            .clipShape(panelShape)
     }
 
     private func panelHeader(for tab: NotchTab) -> some View {
         HStack(spacing: 0) {
-            Text(tab.channelLabel.uppercased())
+            Text(tab.title.uppercased())
                 .font(Theme.labelFont)
-                .kerning(1.1)
+                .kerning(1.2)
                 .foregroundStyle(Theme.accent)
             Spacer(minLength: 0)
             Button {
@@ -153,7 +164,8 @@ struct WidgetRootView: View {
             .buttonStyle(PressableStyle())
         }
         .padding(.horizontal, Theme.panelInset)
-        .padding(.vertical, 6)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
         .overlay(alignment: .bottom) {
             Hairline(color: Theme.hairline)
         }

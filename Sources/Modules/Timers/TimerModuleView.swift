@@ -1,16 +1,18 @@
 import SwiftUI
 
-/// "Timer" channel: big mono readout with a segmented progress strip on the
-/// left, mechanical preset keys and controls on the right.
+/// "Timer" module, V3: tracked caption, big SF countdown over a thin
+/// progress track, preset pills and capsule actions.
 struct TimerModuleView: View {
     var timer: TimerService
 
     var body: some View {
-        HStack(alignment: .center, spacing: 26) {
+        HStack(alignment: .center, spacing: 28) {
             VStack(alignment: .leading, spacing: 0) {
+                InstrumentLabel(L10n.t(timer.isRunning ? .focusRunning : .focusReady))
                 Text(TimeFormat.mmss(timer.remaining))
                     .font(Theme.timerFont)
-                    .foregroundStyle(Theme.textPrimary)
+                    .foregroundStyle(Theme.textPrimary.opacity(0.97))
+                    .padding(.top, 2)
                 SegmentBar(
                     fraction: timer.duration > 0
                         ? 1 - timer.remaining / timer.duration
@@ -18,9 +20,8 @@ struct TimerModuleView: View {
                     segments: 10,
                     fillColor: Theme.accent
                 )
+                .frame(width: 190)
                 .padding(.top, 10)
-                InstrumentLabel("pomodoro · wall-clock")
-                    .padding(.top, 8)
             }
             .fixedSize()
 
@@ -37,53 +38,26 @@ struct TimerModuleView: View {
                     }
                 }
                 HStack(spacing: 8) {
-                    primaryButton(timer.isRunning ? "Пауза" : "Старт") {
+                    GlassCapsuleButton(
+                        label: L10n.t(timer.isRunning ? .timerPause : .timerStart),
+                        isPrimary: true
+                    ) {
                         timer.isRunning ? timer.pause() : timer.start()
                     }
-                    secondaryButton("Сброс") {
+                    GlassCapsuleButton(label: L10n.t(.timerReset)) {
                         timer.reset()
                     }
                 }
                 .padding(.top, 14)
-                InstrumentLabel("done → live-event + sound", color: Theme.textFaint)
+                InstrumentLabel(L10n.t(.timerDoneNote), color: Theme.textFaint)
                     .padding(.top, 14)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func primaryButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(Theme.headlineFont)
-                .foregroundStyle(Color(red: 0.043, green: 0.043, blue: 0.039))
-                .padding(.horizontal, 18)
-                .padding(.vertical, 8)
-                .background(Theme.accent, in: RoundedRectangle(cornerRadius: 6))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-    }
-
-    private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(Theme.bodyFont)
-                .foregroundStyle(Theme.textPrimary)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Theme.textPrimary.opacity(0.22), lineWidth: 1)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-    }
 }
 
-/// Closed-island indicator while the timer runs: blinking amber dot,
-/// mono countdown.
+/// Closed-island indicator while the timer runs: blinking dot, countdown.
 struct CompactTimerView: View {
     var timer: TimerService
 

@@ -16,6 +16,10 @@ final class NotchWindowController: NSObject {
     private var expandTask: Task<Void, Never>?
     private var eventShowTask: Task<Void, Never>?
     private var eventDismissTask: Task<Void, Never>?
+    /// Set synchronously in `present` — guards the window frame against
+    /// idle-state churn during the one tick before `activeEvent` lands and
+    /// for as long as the event is on screen.
+    private var eventOwnsWindow = false
     private var mouseMonitors: [Any] = []
     private let services: ModuleServices
     private let settings: AppSettings
@@ -101,6 +105,9 @@ final class NotchWindowController: NSObject {
 
     private func refreshIdleState() {
         guard targetState != .expanded else { return }
+        // A live event owns the window frame — the dismiss task restores
+        // the idle state itself.
+        guard !eventOwnsWindow else { return }
         requestState(idleState)
     }
 
@@ -115,8 +122,14 @@ final class NotchWindowController: NSObject {
         eventShowTask?.cancel()
         eventDismissTask?.cancel()
 
+        // The flag goes up synchronously: callbacks that fire right after
+        // (e.g. the timer's onRunningChanged) must not reshape the window
+        // during the tick before `activeEvent` lands.
+        eventOwnsWindow = true
+
         // Same two-step as expansion: size the window silently first, run the
-        // grow animation on the next tick in a stable coordinate space.
+        // grow animation on the next tick in a stable coordinate space — the
+        // bulge then grows symmetrically out of the notch.
         panel.setFrame(eventFrame(on: screen), display: true)
         eventShowTask = Task { [weak self] in
             guard !Task.isCancelled else { return }
@@ -128,9 +141,15 @@ final class NotchWindowController: NSObject {
             guard !Task.isCancelled, let self else { return }
             self.viewModel.activeEvent = nil
             try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
-            guard !Task.isCancelled, self.targetState != .expanded,
-                  let screen = NotchGeometry.targetScreen else { return }
-            self.panel.setFrame(self.frame(for: self.idleState, on: screen), display: true)
+            guard !Task.isCancelled, let screen = NotchGeometry.targetScreen else { return }
+            self.eventOwnsWindow = false
+            guard self.targetState != .expanded else { return }
+            // Settle into the current idle state — the state machine was
+            // frozen while the event was on screen.
+            let idle = self.idleState
+            self.targetState = idle
+            self.viewModel.setState(idle)
+            self.panel.setFrame(self.frame(for: idle, on: screen), display: true)
         }
     }
 
@@ -203,6 +222,7 @@ final class NotchWindowController: NSObject {
             // Expansion takes over: a visible live event is dismissed.
             eventShowTask?.cancel()
             eventDismissTask?.cancel()
+            eventOwnsWindow = false
             viewModel.activeEvent = nil
             // Grow the window silently first: the island is pinned to the top
             // center and does not visually move. The animation starts on the
@@ -215,14 +235,32 @@ final class NotchWindowController: NSObject {
                 self?.viewModel.setState(.expanded)
             }
         case .closed, .compact:
-            viewModel.setState(newState)
-            // Shrink the window only after SwiftUI has finished the close
-            // animation, otherwise the window would clip the capsule mid-flight.
-            collapseTask = Task { [weak self] in
-                try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
-                guard !Task.isCancelled, let self,
-                      let screen = NotchGeometry.targetScreen else { return }
-                self.panel.setFrame(self.frame(for: newState, on: screen), display: true)
+            // While a live event is on screen it owns the window frame; only
+            // the logical state advances — the dismiss task settles the rest.
+            guard !eventOwnsWindow else {
+                viewModel.setState(newState)
+                return
+            }
+            let target = frame(for: newState, on: screen)
+            if target.width > panel.frame.width {
+                // Growing (closed → compact): widen the window silently
+                // first, animate on the next tick in a stable coordinate
+                // space — mirrors the expansion two-step.
+                panel.setFrame(target, display: true)
+                expandTask = Task { [weak self] in
+                    guard !Task.isCancelled else { return }
+                    self?.viewModel.setState(newState)
+                }
+            } else {
+                viewModel.setState(newState)
+                // Shrink the window only after SwiftUI has finished the close
+                // animation, otherwise it would clip the capsule mid-flight.
+                collapseTask = Task { [weak self] in
+                    try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+                    guard !Task.isCancelled, let self,
+                          let screen = NotchGeometry.targetScreen else { return }
+                    self.panel.setFrame(self.frame(for: newState, on: screen), display: true)
+                }
             }
         }
     }

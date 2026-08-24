@@ -44,35 +44,37 @@ struct ExpandedPanelView: View {
         }
     }
 
-    /// Tab row styled as a hardware channel selector: mono caps, the active
-    /// channel is amber with a 2px underline; hairline under the whole row.
+    /// V3 tab row: a glass segment capsule of circular icon cells. The
+    /// active module is a solid white circle with a dark glyph.
     private var channelSelector: some View {
         HStack(spacing: 0) {
-            ForEach(enabledTabs) { tab in
-                let isActive = effectiveTab == tab
-                Button {
-                    viewModel.selectTab(tab)
-                } label: {
-                    Text(tab.channelLabel.uppercased())
-                        .font(Theme.labelFont)
-                        .kerning(1.1)
-                        .foregroundStyle(isActive ? Theme.accent : Theme.textQuaternary)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 9)
-                        .overlay(alignment: .bottom) {
-                            Rectangle()
-                                .fill(isActive ? Theme.accent : .clear)
-                                .frame(height: 2)
-                        }
-                        .contentShape(Rectangle())
+            HStack(spacing: 4) {
+                ForEach(enabledTabs) { tab in
+                    let isActive = effectiveTab == tab
+                    let cellShape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    Button {
+                        viewModel.selectTab(tab)
+                    } label: {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundStyle(isActive ? Theme.accent : Theme.textPrimary.opacity(0.6))
+                            .frame(width: 40, height: 28)
+                            .background(cellShape.fill(isActive ? Theme.accentWash : .clear))
+                            .contentShape(cellShape)
+                    }
+                    .buttonStyle(PressableStyle())
+                    .help(tab.title)
                 }
-                .buttonStyle(PressableStyle())
             }
+            .padding(4)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardFill))
+            Spacer(minLength: 0)
+            Text(effectiveTab.title)
+                .font(Theme.headlineFont)
+                .foregroundStyle(Theme.textTertiary)
         }
-        .frame(maxWidth: .infinity)
-        .overlay(alignment: .bottom) {
-            Hairline(color: Theme.hairline)
-        }
+        .padding(.horizontal, Theme.panelInset)
+        .padding(.vertical, 8)
     }
 
     private var content: some View {

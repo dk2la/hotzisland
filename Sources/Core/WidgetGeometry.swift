@@ -12,16 +12,17 @@ enum WidgetEdge: String, CaseIterable {
 }
 
 enum WidgetMetrics {
-    /// Icon cell side.
+    /// Icon cell side (circular, visionOS ornament) — compact.
     static let cell: CGFloat = 36
-    static let spacing: CGFloat = 4
+    static let spacing: CGFloat = 6
     /// Strip thickness across its axis.
-    static let thickness: CGFloat = 48
+    static let thickness: CGFloat = 44
     /// Gap between the strip and the screen edge.
     static let edgeInset: CGFloat = 6
     /// Gap between the strip and the opened panel.
     static let panelGap: CGFloat = 8
-    static let radius: CGFloat = 10
+    /// Strip corner radius — squarish, matches the panel language.
+    static let radius: CGFloat = 14
     /// Drag-handle dots zone at the strip's leading end.
     static let gripSize: CGFloat = 14
     static let endPadding: CGFloat = 6
@@ -107,9 +108,11 @@ enum WidgetGeometry {
         case .bottom: CGSize(width: vf.width, height: vf.maxY - strip.maxY - gap - inset)
         case .top: CGSize(width: vf.width, height: strip.minY - gap - vf.minY - inset)
         }
+        // Side-docked strips: the panel matches the strip's height exactly,
+        // so the pair reads as one instrument. Only the width is user-sized.
         let size = CGSize(
             width: min(panelSize.width, available.width),
-            height: min(panelSize.height, available.height)
+            height: edge.isVertical ? strip.height : min(panelSize.height, available.height)
         )
 
         let panel: NSRect = switch edge {

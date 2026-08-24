@@ -27,6 +27,8 @@ struct ModuleContentView: View {
             ClipboardModuleView(clipboard: services.clipboardStore)
         case .timer:
             TimerModuleView(timer: services.timerService)
+        case .email, .notes, .chats:
+            ComingSoonModuleView(tab: tab)
         }
     }
 }

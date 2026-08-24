@@ -1,53 +1,77 @@
 import Foundation
+import SwiftUI
 
-/// Channels of the expanded island panel. Per the Instrument DS, battery
-/// and audio live inside Sys — there is no separate Devices tab.
+/// Modules of the panel — V3 set. Six ship enabled by default, four are
+/// optional; everything is replaceable in settings. Email, Notes and Chats
+/// are placeholders until their services land.
 enum NotchTab: String, CaseIterable, Identifiable {
     case playbooks
-    case media
     case calendar
-    case metrics
-    case shelf
+    case email
     case clipboard
+    case notes
+    case chats
+    case media
     case timer
+    case shelf
+    case metrics
 
     var id: String { rawValue }
 
-    /// Channel-selector label (mono caps row on top of the panel).
+    /// Modules enabled out of the box (still toggleable).
+    static let defaultTabs: [NotchTab] = [.playbooks, .calendar, .email, .clipboard, .notes, .chats]
+    /// Modules the user opts into from settings.
+    static let optionalTabs: [NotchTab] = [.media, .timer, .shelf, .metrics]
+    /// No backing service yet — shown as "soon", excluded from defaults.
+    static let comingSoon: Set<NotchTab> = [.email, .notes, .chats]
+
+    var isComingSoon: Bool { Self.comingSoon.contains(self) }
+
+    /// Short label (compact chrome).
     var channelLabel: String {
         switch self {
         case .playbooks: "Play"
-        case .media: "Media"
         case .calendar: "Cal"
-        case .metrics: "Sys"
-        case .shelf: "Shelf"
+        case .email: "Mail"
         case .clipboard: "Clip"
+        case .notes: "Notes"
+        case .chats: "Chats"
+        case .media: "Media"
         case .timer: "Timer"
+        case .shelf: "Shelf"
+        case .metrics: "Sys"
         }
     }
 
-    /// Full name for the settings window.
+    /// Full localized name for headers and the settings window.
+    @MainActor
     var title: String {
         switch self {
-        case .playbooks: "Playbooks"
-        case .media: "Media"
-        case .calendar: "Calendar"
-        case .metrics: "System"
-        case .shelf: "Shelf"
-        case .clipboard: "Clipboard"
-        case .timer: "Timer"
+        case .playbooks: L10n.t(.modPlaybooks)
+        case .calendar: L10n.t(.modCalendar)
+        case .email: L10n.t(.modEmail)
+        case .clipboard: L10n.t(.modClipboard)
+        case .notes: L10n.t(.modNotes)
+        case .chats: L10n.t(.modChats)
+        case .media: L10n.t(.modMusic)
+        case .timer: L10n.t(.modTimer)
+        case .shelf: L10n.t(.modShelf)
+        case .metrics: L10n.t(.modSystem)
         }
     }
 
     var icon: String {
         switch self {
         case .playbooks: "bolt.fill"
-        case .media: "music.note"
         case .calendar: "calendar"
-        case .metrics: "gauge"
-        case .shelf: "tray"
+        case .email: "envelope"
         case .clipboard: "doc.on.clipboard"
+        case .notes: "note.text"
+        case .chats: "bubble.left"
+        case .media: "music.note"
         case .timer: "timer"
+        case .shelf: "tray"
+        case .metrics: "gauge"
         }
     }
 }

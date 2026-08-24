@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// "Play" channel: playbook cards with status dots, a dashed "+ new" card
-/// and an amber run-confirmation register.
+/// "Playbooks" module, V3: raised-glass tiles — icon top-left, run circle
+/// top-right, name over meta — plus a ghost "new" tile and a run register.
 struct PlaybooksModuleView: View {
     var store: PlaybookStore
     var runner: PlaybookRunner
 
-    private let columns = [GridItem(.adaptive(minimum: 108), spacing: 8)]
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 8)]
 
     var body: some View {
         VStack(spacing: 10) {
@@ -30,30 +30,39 @@ struct PlaybooksModuleView: View {
             runner.run(playbook)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                if isLastRun {
-                    BlinkingDot(size: 6)
-                } else {
-                    Circle()
-                        .fill(Theme.textPrimary.opacity(0.25))
-                        .frame(width: 6, height: 6)
+                HStack {
+                    Image(systemName: playbook.icon)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.textPrimary.opacity(0.9))
+                    Spacer(minLength: 0)
+                    Image(systemName: isLastRun ? "checkmark" : "play.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(isLastRun ? Theme.inkOnAccent : Theme.textPrimary.opacity(0.75))
+                        .frame(width: 24, height: 24)
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(isLastRun ? Theme.accent : Theme.raisedFill))
                 }
                 Spacer(minLength: 0)
                 Text(playbook.name)
-                    .font(Theme.headlineFont)
+                    .font(.system(size: 13.5, weight: .semibold))
                     .lineLimit(1)
-                    .foregroundStyle(Theme.textPrimary)
-                InstrumentLabel(subtitle(for: playbook))
-                    .padding(.top, 3)
+                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
+                Text(subtitle(for: playbook))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.textQuaternary)
+                    .padding(.top, 2)
             }
-            .padding(11)
+            .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 84)
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.cardRadius)
-                    .stroke(isLastRun ? Theme.accentBorder : Theme.hairline, lineWidth: 1)
+            .frame(height: 92)
+            .background(
+                isLastRun ? Theme.accentWash : Theme.cardFill,
+                in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
             )
-            .contentShape(Rectangle())
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                    .stroke(isLastRun ? Theme.accentBorder : .clear, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         }
         .buttonStyle(PressableStyle())
         .disabled(runner.isRunning)
@@ -64,9 +73,18 @@ struct PlaybooksModuleView: View {
         Button {
             NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
         } label: {
-            DashedZone(label: "+ new")
-                .frame(height: 84)
-                .contentShape(Rectangle())
+            VStack(spacing: 6) {
+                Text(L10n.t(.playNew))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 92)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                    .stroke(Theme.dashedBorder, style: StrokeStyle(lineWidth: 1, dash: [5, 6]))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         }
         .buttonStyle(PressableStyle())
     }
@@ -85,35 +103,34 @@ struct PlaybooksModuleView: View {
         if let minutes = playbook.timerMinutes {
             parts.append("\(minutes)m")
         }
-        return parts.isEmpty ? "empty" : parts.joined(separator: " · ")
+        return parts.isEmpty ? L10n.t(.playEmpty) : parts.joined(separator: " · ")
     }
 
-    /// "run · «Работа» — закрыто 6, открыто 4"
+    /// "«Работа» — закрыто 6, открыто 4"
     private func runRegister(_ last: PlaybookRunner.RunRecord) -> some View {
         HStack(spacing: 10) {
             BlinkingDot(size: 6)
-            InstrumentLabel("run", color: Theme.accent)
             Text(summary(last))
                 .font(Theme.subFont)
                 .lineLimit(1)
-                .foregroundStyle(Theme.textPrimary.opacity(0.8))
+                .foregroundStyle(Theme.textPrimary.opacity(0.85))
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(Theme.accentWash, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+        .padding(.vertical, 10)
+        .background(Theme.accentWash, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Theme.cardRadius)
+            RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
                 .stroke(Theme.accentBorder, lineWidth: 1)
         )
     }
 
     private func summary(_ last: PlaybookRunner.RunRecord) -> String {
         var parts: [String] = []
-        if last.result.closed > 0 { parts.append("закрыто \(last.result.closed)") }
-        if last.result.opened > 0 { parts.append("открыто \(last.result.opened)") }
-        if !last.result.failures.isEmpty { parts.append("ошибок \(last.result.failures.count)") }
-        let detail = parts.isEmpty ? "выполнен" : parts.joined(separator: ", ")
+        if last.result.closed > 0 { parts.append(L10n.f(.playClosed, last.result.closed)) }
+        if last.result.opened > 0 { parts.append(L10n.f(.playOpened, last.result.opened)) }
+        if !last.result.failures.isEmpty { parts.append(L10n.f(.playErrors, last.result.failures.count)) }
+        let detail = parts.isEmpty ? L10n.t(.playDone) : parts.joined(separator: ", ")
         return "«\(last.playbook.name)» — \(detail)"
     }
 }
