@@ -23,7 +23,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
     /// Modules the user opts into from settings.
     static let optionalTabs: [NotchTab] = [.media, .timer, .shelf, .metrics]
     /// No backing service yet — shown as "soon", excluded from defaults.
-    static let comingSoon: Set<NotchTab> = [.email, .notes, .chats]
+    static let comingSoon: Set<NotchTab> = [.chats]
 
     var isComingSoon: Bool { Self.comingSoon.contains(self) }
 

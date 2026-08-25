@@ -13,6 +13,9 @@ final class ModuleServices {
     let shelfStore = ShelfStore()
     let clipboardStore = ClipboardStore()
     let timerService = TimerService()
+    let notesStore = NotesStore()
+    let speechCapture = SpeechCaptureService()
+    let emailService = EmailService()
     let playbookRunner: PlaybookRunner
 
     init() {

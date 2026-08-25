@@ -24,8 +24,34 @@ final class NotchPanel: NSPanel {
         level = .screenSaver
     }
 
-    override var canBecomeKey: Bool { false }
+    /// Text input (Notes editor, Email reply, Assistant composer) needs key
+    /// status. `.nonactivatingPanel` + key gives Spotlight-style typing: the
+    /// panel becomes key without activating the app. Controllers flip this
+    /// only while a module panel is open.
+    var allowsKeyFocus = false
+
+    override var canBecomeKey: Bool { allowsKeyFocus }
     override var canBecomeMain: Bool { false }
+
+    /// LSUIElement apps have no main menu, so ⌘C/⌘V/⌘A/⌘Z resolve to
+    /// nothing. Route the standard editing selectors to the responder chain.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command else {
+            return super.performKeyEquivalent(with: event)
+        }
+        let selector: Selector? = switch event.charactersIgnoringModifiers {
+        case "x": #selector(NSText.cut(_:))
+        case "c": #selector(NSText.copy(_:))
+        case "v": #selector(NSText.paste(_:))
+        case "a": #selector(NSText.selectAll(_:))
+        case "z": Selector(("undo:"))
+        default: nil
+        }
+        if let selector, NSApp.sendAction(selector, to: nil, from: self) {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 
     /// By default macOS keeps windows out of the menu bar territory —
     /// a window living in the notch must opt out of that constraint.

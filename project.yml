@@ -20,6 +20,8 @@ targets:
         NSAppleEventsUsageDescription: "HotzIsland controls your music players (Spotify, Apple Music) to show and manage playback from the island."
         NSCalendarsUsageDescription: "HotzIsland shows your upcoming events in the island."
         NSCalendarsFullAccessUsageDescription: "HotzIsland shows your upcoming events in the island."
+        NSMicrophoneUsageDescription: "HotzIsland records audio only while you dictate a note."
+        NSSpeechRecognitionUsageDescription: "HotzIsland transcribes your dictation into note text."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland

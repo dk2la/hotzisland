@@ -26,6 +26,22 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     var index: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 
+    /// Locale used for on-device dictation in this interface language.
+    var speechLocale: Locale {
+        switch self {
+        case .en: Locale(identifier: "en_US")
+        case .ru: Locale(identifier: "ru_RU")
+        case .fr: Locale(identifier: "fr_FR")
+        case .es: Locale(identifier: "es_ES")
+        case .zh: Locale(identifier: "zh_CN")
+        case .pt: Locale(identifier: "pt_BR")
+        case .de: Locale(identifier: "de_DE")
+        case .it: Locale(identifier: "it_IT")
+        case .ja: Locale(identifier: "ja_JP")
+        case .ko: Locale(identifier: "ko_KR")
+        }
+    }
+
     /// Best match for the user's system languages; falls back to English.
     static var system: AppLanguage {
         for pref in Locale.preferredLanguages {
@@ -80,6 +96,21 @@ enum L10nKey {
 
     // Calendar
     case calAllDay, calJoin, calNow, calNoEvents
+
+    // Notes
+    case notesEmptyTitle, notesEmptySub, notesQuickPlaceholder, notesNew, notesDone
+    case notesFolder, notesChange
+
+    // Speech
+    case speechListening, speechDenied, speechOpenSettings
+
+    // Email
+    case setAccounts
+    case mailSetupTitle, mailSetupSub, mailSetupAction
+    case mailInboxEmpty, mailOpenInApp, mailNoBody
+    case mailProvider, mailAddress, mailPassword, mailPasswordHint, mailOutlookWarning
+    case mailImapHost, mailSmtpHost
+    case mailCheck, mailChecking, mailCheckOk, mailSave, mailRemove
 
     // Playbooks
     case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playEdit, playAdd
@@ -145,6 +176,38 @@ enum L10nKey {
         case .calJoin: return ["join", "войти", "rejoindre", "unirse", "加入", "entrar", "beitreten", "entra", "参加", "참여"]
         case .calNow: return ["now", "сейчас", "maintenant", "ahora", "现在", "agora", "jetzt", "ora", "今", "지금"]
         case .calNoEvents: return ["no events", "нет событий", "aucun événement", "sin eventos", "没有日程", "sem eventos", "keine Termine", "nessun evento", "予定なし", "일정 없음"]
+
+        case .notesEmptyTitle: return ["no notes", "нет заметок", "aucune note", "sin notas", "没有备忘录", "sem notas", "keine Notizen", "nessuna nota", "メモなし", "메모 없음"]
+        case .notesEmptySub: return ["Type below — Enter saves a note", "Напишите ниже — Enter сохранит заметку", "Écrivez ci-dessous — Entrée enregistre", "Escribe abajo — Enter guarda la nota", "在下方输入 — 回车保存", "Escreva abaixo — Enter guarda a nota", "Unten tippen — Enter speichert", "Scrivi sotto — Invio salva la nota", "下に入力 — Enterで保存", "아래에 입력 — Enter로 저장"]
+        case .notesQuickPlaceholder: return ["Quick note…", "Быстрая заметка…", "Note rapide…", "Nota rápida…", "快速记录…", "Nota rápida…", "Schnellnotiz…", "Nota rapida…", "クイックメモ…", "빠른 메모…"]
+        case .notesNew: return ["New", "Новая", "Nouvelle", "Nueva", "新建", "Nova", "Neu", "Nuova", "新規", "새로 만들기"]
+        case .notesDone: return ["Done", "Готово", "Terminé", "Listo", "完成", "Concluído", "Fertig", "Fatto", "完了", "완료"]
+        case .notesFolder: return ["Notes folder", "Папка заметок", "Dossier des notes", "Carpeta de notas", "备忘录文件夹", "Pasta de notas", "Notizen-Ordner", "Cartella note", "メモフォルダ", "메모 폴더"]
+        case .notesChange: return ["Change…", "Изменить…", "Modifier…", "Cambiar…", "更改…", "Alterar…", "Ändern…", "Cambia…", "変更…", "변경…"]
+
+        case .speechListening: return ["Listening…", "Слушаю…", "J'écoute…", "Escuchando…", "正在聆听…", "A ouvir…", "Höre zu…", "In ascolto…", "聞き取り中…", "듣는 중…"]
+        case .speechDenied: return ["Microphone or speech recognition is not allowed", "Нет доступа к микрофону или распознаванию речи", "Micro ou reconnaissance vocale non autorisés", "Micrófono o reconocimiento de voz no permitidos", "麦克风或语音识别未授权", "Microfone ou reconhecimento de voz não autorizados", "Mikrofon oder Spracherkennung nicht erlaubt", "Microfono o riconoscimento vocale non consentiti", "マイクまたは音声認識が許可されていません", "마이크 또는 음성 인식이 허용되지 않음"]
+        case .speechOpenSettings: return ["Open System Settings", "Открыть настройки системы", "Ouvrir Réglages Système", "Abrir Ajustes del Sistema", "打开系统设置", "Abrir Definições do Sistema", "Systemeinstellungen öffnen", "Apri Impostazioni di Sistema", "システム設定を開く", "시스템 설정 열기"]
+
+        case .setAccounts: return ["Accounts", "Аккаунты", "Comptes", "Cuentas", "账户", "Contas", "Konten", "Account", "アカウント", "계정"]
+        case .mailSetupTitle: return ["no account", "нет аккаунта", "aucun compte", "sin cuenta", "未设置账户", "sem conta", "kein Konto", "nessun account", "アカウントなし", "계정 없음"]
+        case .mailSetupSub: return ["Connect your mailbox — it stays between your Mac and your provider", "Подключите ящик — данные ходят только между Mac и вашим провайдером", "Connectez votre boîte — tout reste entre votre Mac et votre fournisseur", "Conecta tu buzón — todo queda entre tu Mac y tu proveedor", "连接邮箱 — 数据仅在您的 Mac 与邮件服务商之间传输", "Ligue a sua caixa — tudo fica entre o Mac e o fornecedor", "Postfach verbinden — alles bleibt zwischen Mac und Anbieter", "Collega la casella — resta tra il tuo Mac e il provider", "メールボックスを接続 — データはMacとプロバイダ間のみ", "메일함 연결 — 데이터는 Mac과 제공업체 사이에만"]
+        case .mailSetupAction: return ["Set up account", "Настроить аккаунт", "Configurer le compte", "Configurar cuenta", "设置账户", "Configurar conta", "Konto einrichten", "Configura account", "アカウントを設定", "계정 설정"]
+        case .mailInboxEmpty: return ["inbox is empty", "входящие пусты", "boîte vide", "bandeja vacía", "收件箱为空", "caixa vazia", "Posteingang leer", "posta vuota", "受信トレイは空", "받은편지함 비어 있음"]
+        case .mailOpenInApp: return ["Open in Mail", "Открыть в почте", "Ouvrir dans Mail", "Abrir en Mail", "在邮件App中打开", "Abrir no Mail", "In Mail öffnen", "Apri in Mail", "メールで開く", "Mail에서 열기"]
+        case .mailNoBody: return ["(no text)", "(нет текста)", "(pas de texte)", "(sin texto)", "（无正文）", "(sem texto)", "(kein Text)", "(nessun testo)", "（本文なし）", "(본문 없음)"]
+        case .mailProvider: return ["Provider", "Провайдер", "Fournisseur", "Proveedor", "服务商", "Fornecedor", "Anbieter", "Provider", "プロバイダ", "제공업체"]
+        case .mailAddress: return ["Email address", "Адрес почты", "Adresse e-mail", "Dirección de correo", "邮箱地址", "Endereço de e-mail", "E-Mail-Adresse", "Indirizzo e-mail", "メールアドレス", "이메일 주소"]
+        case .mailPassword: return ["App password", "Пароль приложения", "Mot de passe d'application", "Contraseña de aplicación", "应用专用密码", "Palavra-passe de aplicação", "App-Passwort", "Password per le app", "アプリパスワード", "앱 암호"]
+        case .mailPasswordHint: return ["Issued by your provider for mail apps (2FA required) — not your main password", "Выдаётся провайдером для почтовых программ (нужна 2FA) — не основной пароль", "Fourni par votre fournisseur pour les apps mail (2FA requise) — pas votre mot de passe principal", "Lo emite tu proveedor para apps de correo (requiere 2FA) — no es tu contraseña principal", "由服务商为邮件应用签发（需要两步验证）— 不是主密码", "Emitida pelo fornecedor para apps de e-mail (requer 2FA) — não é a palavra-passe principal", "Vom Anbieter für Mail-Apps ausgestellt (2FA nötig) — nicht das Hauptpasswort", "Rilasciata dal provider per le app di posta (serve 2FA) — non la password principale", "プロバイダがメールアプリ用に発行（2FA必須）— メインのパスワードではありません", "메일 앱용으로 제공업체가 발급 (2FA 필요) — 기본 비밀번호가 아님"]
+        case .mailOutlookWarning: return ["Microsoft requires OAuth for personal accounts — a password will likely fail", "Microsoft требует OAuth для личных аккаунтов — пароль скорее всего не сработает", "Microsoft exige OAuth pour les comptes personnels — le mot de passe échouera probablement", "Microsoft exige OAuth para cuentas personales — la contraseña probablemente falle", "Microsoft 个人账户需要 OAuth — 密码很可能无法使用", "A Microsoft exige OAuth para contas pessoais — a palavra-passe deverá falhar", "Microsoft verlangt OAuth für Privatkonten — Passwort schlägt vermutlich fehl", "Microsoft richiede OAuth per gli account personali — la password probabilmente fallirà", "Microsoftの個人アカウントはOAuth必須 — パスワードは失敗する可能性大", "Microsoft 개인 계정은 OAuth 필요 — 비밀번호는 실패할 가능성 높음"]
+        case .mailImapHost: return ["IMAP server", "IMAP-сервер", "Serveur IMAP", "Servidor IMAP", "IMAP 服务器", "Servidor IMAP", "IMAP-Server", "Server IMAP", "IMAPサーバ", "IMAP 서버"]
+        case .mailSmtpHost: return ["SMTP server", "SMTP-сервер", "Serveur SMTP", "Servidor SMTP", "SMTP 服务器", "Servidor SMTP", "SMTP-Server", "Server SMTP", "SMTPサーバ", "SMTP 서버"]
+        case .mailCheck: return ["Check", "Проверить", "Vérifier", "Comprobar", "检查", "Verificar", "Prüfen", "Verifica", "確認", "확인"]
+        case .mailChecking: return ["Checking…", "Проверяю…", "Vérification…", "Comprobando…", "检查中…", "A verificar…", "Prüfe…", "Verifica…", "確認中…", "확인 중…"]
+        case .mailCheckOk: return ["Connected", "Подключено", "Connecté", "Conectado", "已连接", "Ligado", "Verbunden", "Connesso", "接続済み", "연결됨"]
+        case .mailSave: return ["Save", "Сохранить", "Enregistrer", "Guardar", "保存", "Guardar", "Sichern", "Salva", "保存", "저장"]
+        case .mailRemove: return ["Remove account", "Удалить аккаунт", "Supprimer le compte", "Eliminar cuenta", "移除账户", "Remover conta", "Konto entfernen", "Rimuovi account", "アカウントを削除", "계정 제거"]
 
         case .playNew: return ["+ new", "+ новый", "+ nouveau", "+ nuevo", "+ 新建", "+ novo", "+ neu", "+ nuovo", "+ 新規", "+ 새로 만들기"]
         case .playEmpty: return ["empty", "пустой", "vide", "vacío", "空", "vazio", "leer", "vuoto", "空", "비어 있음"]
