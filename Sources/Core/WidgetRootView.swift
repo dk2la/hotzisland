@@ -97,6 +97,14 @@ struct WidgetRootView: View {
                 .foregroundStyle(isActive ? Theme.accent : Theme.textPrimary.opacity(0.6))
                 .frame(width: WidgetMetrics.cell, height: WidgetMetrics.cell)
                 .background(cellShape.fill(isActive ? Theme.accentWash : .clear))
+                .overlay(alignment: .topTrailing) {
+                    if tab == .email, services.emailService.unreadCount > 0 {
+                        Circle()
+                            .fill(Theme.critical)
+                            .frame(width: 5, height: 5)
+                            .padding(6)
+                    }
+                }
                 .contentShape(cellShape)
         }
         .buttonStyle(PressableStyle())
