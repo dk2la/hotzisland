@@ -27,17 +27,7 @@ struct ModuleContentView: View {
             ClipboardModuleView(clipboard: services.clipboardStore)
         case .timer:
             TimerModuleView(timer: services.timerService)
-        case .notes:
-            NotesModuleView(store: services.notesStore, speech: services.speechCapture)
-        case .email:
-            EmailModuleView(service: services.emailService, speech: services.speechCapture)
-        case .assistant:
-            AssistantModuleView(
-                assistant: services.assistantService,
-                speech: services.speechCapture,
-                voice: services.speechSynthesis
-            )
-        case .chats:
+        case .email, .notes, .chats:
             ComingSoonModuleView(tab: tab)
         }
     }

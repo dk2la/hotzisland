@@ -30,9 +30,5 @@
 	<string>HotzIsland shows your upcoming events in the island.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Danila Kozlov</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>HotzIsland records audio only while you dictate a note.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>HotzIsland transcribes your dictation into note text.</string>
 </dict>
 </plist>

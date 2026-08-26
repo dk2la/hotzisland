@@ -119,9 +119,6 @@ final class WidgetWindowController: NSObject {
         guard let screen = currentScreen else { return }
         collapseTask?.cancel()
         collapseTask = nil
-        // Module panels host text input — let the panel take key status
-        // without activating the app.
-        panel.allowsKeyFocus = true
         // Two-phase, same as the notch: grow the window silently first (the
         // strip's local frame shifts in the same tick, so it does not move
         // on screen), animate the panel in on the next tick once the
@@ -141,10 +138,6 @@ final class WidgetWindowController: NSObject {
 
     private func closePanel() {
         openTask?.cancel()
-        panel.allowsKeyFocus = false
-        if panel.isKeyWindow {
-            panel.resignKey()
-        }
         viewModel.setSelectedTab(nil)
         // Shrink the window only after the close animation has finished,
         // otherwise it would clip the panel mid-flight.

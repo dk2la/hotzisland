@@ -12,9 +12,6 @@ xcuserdata/
 .build/
 .swiftpm/
 
-# Local signing identity (see Support/Signing.xcconfig)
-Support/Signing.local.xcconfig
-
 # macOS
 .DS_Store
 
