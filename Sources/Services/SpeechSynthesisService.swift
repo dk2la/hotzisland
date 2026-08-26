@@ -55,7 +55,7 @@ final class SpeechSynthesisService {
     /// Markdown scaffolding reads badly out loud.
     private static func strippedForSpeech(_ text: String) -> String {
         var spoken = text
-        for token in ["**", "__", "`", "#", "⚙"] {
+        for token in ["**", "__", "`", "#"] {
             spoken = spoken.replacingOccurrences(of: token, with: "")
         }
         return spoken.trimmingCharacters(in: .whitespacesAndNewlines)

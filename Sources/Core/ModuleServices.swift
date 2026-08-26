@@ -18,9 +18,12 @@ final class ModuleServices {
     let speechSynthesis = SpeechSynthesisService()
     let emailService = EmailService()
     let assistantService = AssistantService()
+    let playbookStore = PlaybookStore()
     let playbookRunner: PlaybookRunner
 
     init() {
         playbookRunner = PlaybookRunner(timer: timerService)
+        // The toolbox needs the fully built container, so it attaches last.
+        assistantService.attachToolbox(services: self, playbooks: playbookStore)
     }
 }

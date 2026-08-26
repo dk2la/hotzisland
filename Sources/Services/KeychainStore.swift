@@ -79,3 +79,38 @@ struct KeychainStore {
         }
     }
 }
+
+/// KeychainStore plus a per-launch in-memory cache. Every Keychain read is a
+/// potential access prompt, so a secret is read from the store at most once
+/// per launch; writes and deletes keep the cache honest. This is the one
+/// place that policy lives — services should not talk to KeychainStore
+/// directly for secrets they read repeatedly.
+@MainActor
+final class SecretVault {
+    private let store: KeychainStore
+    private var cache: [String: String] = [:]
+
+    init(service: String) {
+        store = KeychainStore(service: service)
+    }
+
+    /// The secret for `account`, or nil when absent or empty.
+    func secret(account: String) -> String? {
+        if let cached = cache[account] {
+            return cached.isEmpty ? nil : cached
+        }
+        let stored = (try? store.password(account: account)) ?? ""
+        cache[account] = stored
+        return stored.isEmpty ? nil : stored
+    }
+
+    func set(_ value: String, account: String) throws {
+        try store.setPassword(value, account: account)
+        cache[account] = value
+    }
+
+    func delete(account: String) {
+        try? store.deletePassword(account: account)
+        cache[account] = nil
+    }
+}

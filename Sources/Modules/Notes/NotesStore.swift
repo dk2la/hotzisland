@@ -18,7 +18,6 @@ final class NotesStore {
     private(set) var lastError: String?
 
     /// Single shell callback: true while a text field owns the keyboard.
-    @ObservationIgnored var onEditingChanged: ((Bool) -> Void)?
 
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "notes")
     @ObservationIgnored private let defaults = UserDefaults.standard

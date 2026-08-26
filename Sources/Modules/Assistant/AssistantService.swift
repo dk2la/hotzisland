@@ -11,7 +11,6 @@ final class AssistantService {
     private(set) var config: AssistantConfig?
     private(set) var transcript: [AssistantMessage] = []
     private(set) var isThinking = false
-    private(set) var lastError: String?
 
     /// Composer text lives here so collapsing the panel keeps the draft.
     var draft = ""
@@ -21,12 +20,9 @@ final class AssistantService {
     /// The newest assistant answer, if it still needs speaking.
     private(set) var pendingSpeech: String?
 
-    @ObservationIgnored var onEditingChanged: ((Bool) -> Void)?
-
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "assistant")
     @ObservationIgnored private let defaults = UserDefaults.standard
-    @ObservationIgnored private let keychain = KeychainStore(service: AssistantConfig.keychainService)
-    @ObservationIgnored private var cachedKey: String?
+    @ObservationIgnored private let vault = SecretVault(service: AssistantConfig.keychainService)
     @ObservationIgnored private var toolbox: AssistantToolbox?
     /// Wire-shaped history (role/content/tool_calls dicts) sent to the API.
     @ObservationIgnored private var apiHistory: [[String: Any & Sendable]] = []
@@ -70,15 +66,41 @@ final class AssistantService {
     }
 
     /// Appends an answer and, in voice mode, queues it to be read aloud.
-    private func appendAnswer(_ text: String, isError: Bool = false) {
-        transcript.append(AssistantMessage(role: .assistant, text: text, isError: isError))
-        if isVoiceMode, !isError {
+    private func appendAnswer(_ text: String) {
+        transcript.append(AssistantMessage(role: .assistant, text: text))
+        if isVoiceMode {
             pendingSpeech = text
         }
     }
 
-    /// Called once at startup — the playbook store lives outside
-    /// ModuleServices, so the toolbox is attached, not constructed here.
+    /// Request failures render as error rows in the transcript — there is no
+    /// separate error surface.
+    private func appendFailure(_ message: String) {
+        transcript.append(AssistantMessage(role: .assistant, text: message, isError: true))
+        log.error("assistant turn failed: \(message, privacy: .public)")
+    }
+
+    /// Runs one tool call, records it in the transcript, and returns the
+    /// outcome for the backend to feed back to the model.
+    private func performToolCall(name: String, argumentsJSON: String) -> ToolOutcome {
+        let outcome = toolbox?.execute(name: name, argumentsJSON: argumentsJSON)
+            ?? .failure("Tools are unavailable.")
+        transcript.append(AssistantMessage(
+            role: .tool,
+            text: outcome.text,
+            toolLabel: AssistantToolbox.label(name: name, argumentsJSON: argumentsJSON),
+            isError: outcome.isError
+        ))
+        return outcome
+    }
+
+    private func appendRoundLimitTail() {
+        appendFailure("…")
+        log.error("assistant hit tool round limit")
+    }
+
+    /// Called by ModuleServices at the end of its init — the toolbox needs
+    /// the fully built service container, so it cannot exist in our own init.
     func attachToolbox(services: ModuleServices, playbooks: PlaybookStore) {
         toolbox = AssistantToolbox(services: services, playbooks: playbooks)
     }
@@ -87,35 +109,30 @@ final class AssistantService {
 
     func saveConfig(_ newConfig: AssistantConfig, key: String) {
         do {
-            try keychain.setPassword(key, account: Self.keyAccount)
+            try vault.set(key, account: Self.keyAccount)
         } catch {
-            lastError = "Keychain: \(error.localizedDescription)"
+            log.error("keychain save failed: \(error.localizedDescription, privacy: .public)")
             return
         }
-        cachedKey = key
         config = newConfig
         if let data = try? JSONEncoder().encode(newConfig) {
             defaults.set(data, forKey: AssistantConfig.defaultsKey)
         }
-        lastError = nil
         log.info("assistant saved model=\(newConfig.model, privacy: .public)")
     }
 
     func removeConfig() {
-        try? keychain.deletePassword(account: Self.keyAccount)
-        cachedKey = nil
+        vault.delete(account: Self.keyAccount)
         config = nil
         defaults.removeObject(forKey: AssistantConfig.defaultsKey)
         transcript = []
         apiHistory = []
-        lastError = nil
         log.info("assistant removed")
     }
 
     func clearTranscript() {
         transcript = []
         apiHistory = []
-        lastError = nil
     }
 
     /// Setup-form probe: one tiny round-trip proves the whole path.
@@ -145,7 +162,6 @@ final class AssistantService {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isThinking, let config else { return }
         draft = ""
-        lastError = nil
         transcript.append(AssistantMessage(role: .user, text: text))
         apiHistory.append(["role": "user", "content": text])
         trimHistory()
@@ -174,9 +190,7 @@ final class AssistantService {
             do {
                 answer = try await client.send(system: cliSystemPrompt(), prompt: cliPrompt())
             } catch {
-                lastError = error.localizedDescription
-                transcript.append(AssistantMessage(role: .assistant, text: error.localizedDescription, isError: true))
-                log.error("assistant cli failed: \(error.localizedDescription, privacy: .public)")
+                appendFailure(error.localizedDescription)
                 return
             }
 
@@ -184,18 +198,9 @@ final class AssistantService {
                 appendAnswer(answer)
                 return
             }
-            let label = AssistantToolbox.label(name: call.name, argumentsJSON: call.argumentsJSON)
-            let result = toolbox?.execute(name: call.name, argumentsJSON: call.argumentsJSON)
-                ?? "Error: tools are unavailable."
-            transcript.append(AssistantMessage(
-                role: .tool,
-                text: result,
-                toolLabel: label,
-                isError: result.hasPrefix("Error")
-            ))
+            _ = performToolCall(name: call.name, argumentsJSON: call.argumentsJSON)
         }
-        transcript.append(AssistantMessage(role: .assistant, text: "…", isError: true))
-        log.error("assistant hit tool round limit")
+        appendRoundLimitTail()
     }
 
     /// The visible transcript, flattened for a CLI that takes one prompt.
@@ -210,14 +215,18 @@ final class AssistantService {
         .joined(separator: "\n\n")
     }
 
-    private func cliSystemPrompt() -> String {
+    /// The one description of who the assistant is; each backend appends its
+    /// own tool-usage contract.
+    private func basePrompt() -> String {
         """
         You are the assistant inside HotzIsland, a macOS desktop widget with modules: \
         timer, playbooks (app workspaces), music, calendar, notes and email. \
         Be brief — answers render in a small panel. Reply in \(L10n.shared.language.title).
-
-        \(CLIToolProtocol.instructions)
         """
+    }
+
+    private func cliSystemPrompt() -> String {
+        basePrompt() + "\n\n" + AssistantToolbox.cliInstructions
     }
 
     private func runLoop(client: OpenAIClient) async {
@@ -229,9 +238,7 @@ final class AssistantService {
                     tools: AssistantToolbox.declarations
                 )
             } catch {
-                lastError = error.localizedDescription
-                transcript.append(AssistantMessage(role: .assistant, text: error.localizedDescription, isError: true))
-                log.error("assistant request failed: \(error.localizedDescription, privacy: .public)")
+                appendFailure(error.localizedDescription)
                 return
             }
 
@@ -255,46 +262,28 @@ final class AssistantService {
                 "tool_calls": toolCallDicts,
             ])
             for call in reply.toolCalls {
-                let label = AssistantToolbox.label(name: call.name, argumentsJSON: call.argumentsJSON)
-                let result = toolbox?.execute(name: call.name, argumentsJSON: call.argumentsJSON)
-                    ?? "Error: tools are unavailable."
-                transcript.append(AssistantMessage(
-                    role: .tool,
-                    text: result,
-                    toolLabel: label,
-                    isError: result.hasPrefix("Error")
-                ))
+                let outcome = performToolCall(name: call.name, argumentsJSON: call.argumentsJSON)
                 apiHistory.append([
                     "role": "tool",
                     "tool_call_id": call.id,
-                    "content": result,
+                    "content": outcome.text,
                 ])
             }
             trimHistory()
         }
-        // Tool-round budget exhausted — surface whatever state we're in.
-        transcript.append(AssistantMessage(role: .assistant, text: "…", isError: true))
-        log.error("assistant hit tool round limit")
+        appendRoundLimitTail()
     }
 
     private func systemMessage() -> [String: Any & Sendable] {
-        let language = L10n.shared.language.title
-        return [
+        [
             "role": "system",
-            "content": """
-            You are the assistant inside HotzIsland, a macOS desktop widget with modules: \
-            timer, playbooks (app workspaces), music, calendar, notes and email. \
-            Use the provided tools to act on the user's widget when asked; do not invent tool results. \
-            Be brief — answers render in a small panel. Reply in \(language).
-            """,
+            "content": basePrompt()
+                + " Use the provided tools to act on the user's widget when asked; do not invent tool results.",
         ]
     }
 
     private func apiKey() -> String {
-        if let cachedKey { return cachedKey }
-        let stored = (try? keychain.password(account: Self.keyAccount)) ?? ""
-        cachedKey = stored
-        return stored
+        vault.secret(account: Self.keyAccount) ?? ""
     }
 
     /// Bounds the wire history. Trimming never starts on a tool message —
