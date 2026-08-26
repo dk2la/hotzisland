@@ -24,21 +24,7 @@ struct EmailModuleView: View {
     }
 
     private var setupPrompt: some View {
-        VStack(spacing: 12) {
-            DashedZone(
-                label: L10n.t(.mailSetupTitle),
-                sublabel: L10n.t(.mailSetupSub)
-            )
-            .frame(maxHeight: 110)
-            GlassCapsuleButton(label: L10n.t(.mailSetupAction), isPrimary: true) {
-                NotificationCenter.default.post(
-                    name: .hotzOpenSettings,
-                    object: nil,
-                    userInfo: ["page": SettingsView.Page.accounts.rawValue]
-                )
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ModuleSetupPrompt(title: L10n.t(.mailSetupTitle), sublabel: L10n.t(.mailSetupSub))
     }
 
     private var inbox: some View {
@@ -254,7 +240,7 @@ struct EmailMessageView: View {
                     GlassCapsuleButton(label: L10n.t(.mailReply), systemName: "arrowshape.turn.up.left", isPrimary: true) {
                         service.startReply()
                     }
-                    if service.sentAt != nil {
+                    if service.didSend {
                         Label(L10n.t(.mailSent), systemImage: "checkmark")
                             .font(Theme.subFont)
                             .foregroundStyle(Theme.accent)
@@ -265,15 +251,8 @@ struct EmailMessageView: View {
             }
         }
         .animation(Theme.stateSpring, value: service.isComposing)
-        .onChange(of: draftFocused) { _, focused in
-            service.onEditingChanged?(focused)
-        }
         .onChange(of: service.isComposing) { _, composing in
             draftFocused = composing
-            if !composing { service.onEditingChanged?(false) }
-        }
-        .onDisappear {
-            service.onEditingChanged?(false)
         }
     }
 

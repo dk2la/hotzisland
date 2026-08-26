@@ -13,15 +13,8 @@ struct EmailSetupView: View {
     @State private var imapPort = "993"
     @State private var smtpHost = ""
     @State private var smtpPort = "465"
-    @State private var checkState: CheckState = .idle
+    @State private var checkState: SetupCheckState = .idle
     @State private var loaded = false
-
-    enum CheckState: Equatable {
-        case idle
-        case checking
-        case ok
-        case failed(String)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -42,97 +35,46 @@ struct EmailSetupView: View {
                     .padding(.bottom, 8)
             }
             Hairline(color: palette.hairline)
-            fieldRow(L10n.t(.mailAddress)) {
+            SetupFieldRow(title: L10n.t(.mailAddress), palette: palette) {
                 TextField("name@example.com", text: $email)
             }
             Hairline(color: palette.hairline)
-            SettingRow(
+            SetupFieldRow(
                 title: L10n.t(.mailPassword),
                 subtitle: L10n.t(.mailPasswordHint),
-                palette: palette
+                palette: palette,
+                width: 200
             ) {
                 SecureField("", text: $password)
-                    .textFieldStyle(.plain)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(palette.ink)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .frame(width: 200)
-                    .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             if provider == .custom {
                 Hairline(color: palette.hairline)
-                fieldRow(L10n.t(.mailImapHost)) {
+                SetupFieldRow(title: L10n.t(.mailImapHost), palette: palette) {
                     TextField("imap.example.com", text: $imapHost)
                     TextField("993", text: $imapPort).frame(width: 56)
                 }
                 Hairline(color: palette.hairline)
-                fieldRow(L10n.t(.mailSmtpHost)) {
+                SetupFieldRow(title: L10n.t(.mailSmtpHost), palette: palette) {
                     TextField("smtp.example.com", text: $smtpHost)
                     TextField("465", text: $smtpPort).frame(width: 56)
                 }
             }
             Hairline(color: palette.hairline)
-            actionRow
-        }
-        .onAppear(perform: loadExisting)
-    }
-
-    private func fieldRow(_ title: String, @ViewBuilder fields: @escaping () -> some View) -> some View {
-        SettingRow(title: title, palette: palette) {
-            HStack(spacing: 6) {
-                fields()
-            }
-            .textFieldStyle(.plain)
-            .font(Theme.bodyFont)
-            .foregroundStyle(palette.ink)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .frame(width: 260)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-    }
-
-    private var actionRow: some View {
-        HStack(spacing: 10) {
-            Button {
-                runCheck()
-            } label: {
-                Text(checkLabel)
-                    .font(Theme.subFont)
-                    .foregroundStyle(checkColor)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(checkState == .checking || !isComplete)
-            Spacer(minLength: 0)
-            if service.config != nil {
-                Button {
+            SetupActionRow(
+                palette: palette,
+                checkState: checkState,
+                canCheck: isComplete,
+                canSave: isComplete && !password.isEmpty,
+                showRemove: service.config != nil,
+                onCheck: runCheck,
+                onRemove: {
                     service.removeAccount()
                     password = ""
-                } label: {
-                    Text(L10n.t(.mailRemove))
-                        .font(Theme.subFont)
-                        .foregroundStyle(Theme.critical.opacity(0.9))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(PressableStyle())
-            }
-            Button {
-                service.saveAccount(builtConfig, password: password)
-            } label: {
-                Text(L10n.t(.mailSave))
-                    .font(Theme.subFont)
-                    .foregroundStyle(palette.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(!isComplete || password.isEmpty)
+                },
+                onSave: { service.saveAccount(builtConfig, password: password) }
+            )
         }
-        .padding(.top, 12)
+        .onAppear(perform: loadExisting)
     }
 
     // MARK: - State
@@ -165,23 +107,6 @@ struct EmailSetupView: View {
             smtpUsesSTARTTLS: resolved.startTLS,
             presetID: provider.rawValue
         )
-    }
-
-    private var checkLabel: String {
-        switch checkState {
-        case .idle: L10n.t(.mailCheck)
-        case .checking: L10n.t(.mailChecking)
-        case .ok: L10n.t(.mailCheckOk)
-        case .failed(let message): message
-        }
-    }
-
-    private var checkColor: Color {
-        switch checkState {
-        case .failed: Theme.critical.opacity(0.9)
-        case .ok: palette.accent
-        case .idle, .checking: palette.ink60
-        }
     }
 
     private func applyPreset(_ newProvider: EmailProvider) {

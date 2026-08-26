@@ -4,7 +4,6 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let services = ModuleServices()
-    private let playbookStore = PlaybookStore()
     private var statusItem: NSStatusItem?
     private var notchController: NotchWindowController?
     private var widgetController: WidgetWindowController?
@@ -13,13 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
-        // The playbook store lives outside ModuleServices, so the assistant's
-        // tool executor is wired here, once both exist.
-        services.assistantService.attachToolbox(services: services, playbooks: playbookStore)
         notchController = NotchWindowController(
             settings: settings,
             services: services,
-            playbooks: playbookStore
+            playbooks: services.playbookStore
         )
 
         // The widget window lives only in widget mode; the notch window
@@ -93,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             widgetController = WidgetWindowController(
                 settings: settings,
                 services: services,
-                playbooks: playbookStore
+                playbooks: services.playbookStore
             )
         }
     }
@@ -112,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsWindow == nil {
             settingsWindow = SettingsWindowController(
                 settings: settings,
-                playbooks: playbookStore,
+                playbooks: services.playbookStore,
                 services: services
             )
         }

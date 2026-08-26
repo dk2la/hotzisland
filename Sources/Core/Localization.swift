@@ -116,7 +116,7 @@ enum L10nKey {
     // Assistant
     case asstSetupTitle, asstSetupSub, asstHint, asstPlaceholder, asstThinking
     case asstBaseURL, asstModel, asstKey, asstKeyHint
-    case asstProvider, asstProviderClaude, asstProviderCodex, asstProviderAPI
+    case asstProviderClaude, asstProviderCodex, asstProviderAPI
     case asstPreset, asstModelOptional, asstCLIMissing, asstVoiceHint
 
     // Playbooks
@@ -219,7 +219,6 @@ enum L10nKey {
         case .asstBaseURL: return ["Base URL", "Base URL", "URL de base", "URL base", "基础 URL", "URL base", "Basis-URL", "URL di base", "ベースURL", "기본 URL"]
         case .asstModel: return ["Model", "Модель", "Modèle", "Modelo", "模型", "Modelo", "Modell", "Modello", "モデル", "모델"]
         case .asstKey: return ["API key", "API-ключ", "Clé API", "Clave API", "API 密钥", "Chave de API", "API-Schlüssel", "Chiave API", "APIキー", "API 키"]
-        case .asstProvider: return ["Provider", "Провайдер", "Fournisseur", "Proveedor", "服务商", "Fornecedor", "Anbieter", "Provider", "プロバイダ", "제공업체"]
         case .asstProviderClaude: return ["Uses the local claude CLI — covered by your Claude subscription", "Через локальный claude CLI — расходует вашу подписку Claude", "Via le CLI claude local — inclus dans votre abonnement Claude", "Usa el CLI claude local — incluido en tu suscripción de Claude", "使用本地 claude CLI — 计入你的 Claude 订阅", "Usa o CLI claude local — incluído na sua subscrição Claude", "Nutzt die lokale claude-CLI — über dein Claude-Abo", "Usa la CLI claude locale — inclusa nel tuo abbonamento Claude", "ローカルの claude CLI を使用 — Claudeサブスクリプションに含まれます", "로컬 claude CLI 사용 — Claude 구독에 포함"]
         case .asstProviderCodex: return ["Uses the local codex CLI — covered by your ChatGPT subscription", "Через локальный codex CLI — расходует вашу подписку ChatGPT", "Via le CLI codex local — inclus dans votre abonnement ChatGPT", "Usa el CLI codex local — incluido en tu suscripción de ChatGPT", "使用本地 codex CLI — 计入你的 ChatGPT 订阅", "Usa o CLI codex local — incluído na sua subscrição ChatGPT", "Nutzt die lokale codex-CLI — über dein ChatGPT-Abo", "Usa la CLI codex locale — inclusa nel tuo abbonamento ChatGPT", "ローカルの codex CLI を使用 — ChatGPTサブスクリプションに含まれます", "로컬 codex CLI 사용 — ChatGPT 구독에 포함"]
         case .asstProviderAPI: return ["Any OpenAI-compatible endpoint, billed per token", "Любой OpenAI-совместимый эндпоинт, оплата за токены", "Tout point d'accès compatible OpenAI, facturé au token", "Cualquier endpoint compatible con OpenAI, pago por tokens", "任意兼容 OpenAI 的接口，按 token 计费", "Qualquer endpoint compatível com OpenAI, pago por token", "Beliebiger OpenAI-kompatibler Endpunkt, Abrechnung pro Token", "Qualsiasi endpoint compatibile OpenAI, a consumo", "OpenAI互換エンドポイント、トークン課金", "OpenAI 호환 엔드포인트, 토큰 과금"]

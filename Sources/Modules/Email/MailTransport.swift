@@ -145,6 +145,9 @@ actor StreamTransport {
         self.port = port
     }
 
+    private static let minTick = Duration.milliseconds(5)
+    private static let maxTick = Duration.milliseconds(100)
+
     func connect(useTLS: Bool, timeout: Duration = .seconds(15)) async throws {
         var readStream: Unmanaged<CFReadStream>?
         var writeStream: Unmanaged<CFWriteStream>?
@@ -161,8 +164,9 @@ actor StreamTransport {
         output.open()
 
         let deadline = ContinuousClock.now + timeout
+        var wait = Self.minTick
         while input.streamStatus == .opening || output.streamStatus == .opening {
-            try await tick(deadline: deadline)
+            try await tick(deadline: deadline, delay: &wait)
         }
         guard input.streamStatus != .error, output.streamStatus != .error else {
             throw MailError.tls(streamErrorText())
@@ -191,18 +195,21 @@ actor StreamTransport {
     func send(_ data: Data, timeout: Duration = .seconds(15)) async throws {
         guard let output else { throw MailError.connectionClosed }
         let deadline = ContinuousClock.now + timeout
-        var remaining = data
-        while !remaining.isEmpty {
+        // Cursor, not removeFirst: shifting Data is O(n) per chunk.
+        var offset = data.startIndex
+        var wait = Self.minTick
+        while offset < data.endIndex {
             while !output.hasSpaceAvailable {
                 if output.streamStatus == .error { throw MailError.tls(streamErrorText()) }
-                try await tick(deadline: deadline)
+                try await tick(deadline: deadline, delay: &wait)
             }
-            let written = remaining.withUnsafeBytes { raw -> Int in
+            let written = data[offset...].withUnsafeBytes { raw -> Int in
                 guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return -1 }
                 return output.write(base, maxLength: raw.count)
             }
             guard written > 0 else { throw MailError.tls(streamErrorText()) }
-            remaining.removeFirst(written)
+            offset = data.index(offset, offsetBy: written)
+            wait = Self.minTick
         }
     }
 
@@ -227,11 +234,12 @@ actor StreamTransport {
 
     private func receiveMore(deadline: ContinuousClock.Instant) async throws {
         guard let input else { throw MailError.connectionClosed }
+        var wait = Self.minTick
         while !input.hasBytesAvailable {
             switch input.streamStatus {
             case .atEnd, .closed: throw MailError.connectionClosed
             case .error: throw MailError.tls(streamErrorText())
-            default: try await tick(deadline: deadline)
+            default: try await tick(deadline: deadline, delay: &wait)
             }
         }
         var chunk = [UInt8](repeating: 0, count: 8192)
@@ -241,9 +249,12 @@ actor StreamTransport {
         buffer.append(contentsOf: chunk[..<count])
     }
 
-    private func tick(deadline: ContinuousClock.Instant) async throws {
+    /// Waits with exponential backoff so a slow SMTP reply does not spin the
+    /// actor at 100 Hz — the first misses stay snappy, long waits go quiet.
+    private func tick(deadline: ContinuousClock.Instant, delay: inout Duration) async throws {
         guard ContinuousClock.now < deadline else { throw MailError.timeout }
-        try await Task.sleep(for: .milliseconds(10))
+        try await Task.sleep(for: delay)
+        delay = min(delay * 2, Self.maxTick)
     }
 
     private func streamErrorText() -> String {

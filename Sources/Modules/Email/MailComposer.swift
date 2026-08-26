@@ -96,7 +96,7 @@ enum MailComposer {
     static func rfc5322Date(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "EEE, d MMM yyyy HH:mm:ss Z"
+        formatter.dateFormat = MIMEDecode.rfc5322DateFormat
         return formatter.string(from: date)
     }
 }

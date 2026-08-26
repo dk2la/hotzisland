@@ -39,9 +39,6 @@ struct NotesModuleView: View {
             SpeechStatusRow(speech: speech)
             captureBar
         }
-        .onDisappear {
-            store.onEditingChanged?(false)
-        }
     }
 
     private func row(_ note: NoteFile) -> some View {
@@ -113,9 +110,6 @@ struct NotesModuleView: View {
             CircleGlassButton(systemName: "folder", size: 30) {
                 pickFolder()
             }
-        }
-        .onChange(of: captureFocused) { _, focused in
-            store.onEditingChanged?(focused)
         }
     }
 
@@ -194,18 +188,13 @@ struct NoteEditorView: View {
                 }
             SpeechStatusRow(speech: speech)
         }
-        .onChange(of: bodyFocused) { _, focused in
-            store.onEditingChanged?(focused || titleFocused)
-        }
         .onChange(of: titleFocused) { _, focused in
             if !focused {
                 store.commitTitle()
             }
-            store.onEditingChanged?(focused || bodyFocused)
         }
         .onDisappear {
             store.flush()
-            store.onEditingChanged?(false)
         }
     }
 

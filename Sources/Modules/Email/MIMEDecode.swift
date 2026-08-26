@@ -373,8 +373,12 @@ enum MIMEDecode {
 
     // MARK: - Dates
 
+    /// Shared with MailComposer so the compose and parse sides of the wire
+    /// format cannot drift apart.
+    static let rfc5322DateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+
     private static let dateFormats = [
-        "EEE, dd MMM yyyy HH:mm:ss Z",
+        rfc5322DateFormat,
         "dd MMM yyyy HH:mm:ss Z",
         "EEE, dd MMM yyyy HH:mm Z",
         "dd MMM yyyy HH:mm Z",

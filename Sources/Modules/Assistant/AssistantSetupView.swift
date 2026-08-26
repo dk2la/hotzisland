@@ -11,19 +11,15 @@ struct AssistantSetupView: View {
     @State private var baseURL = AssistantConfig.defaultBaseURL
     @State private var model = ""
     @State private var key = ""
-    @State private var checkState: CheckState = .idle
+    @State private var checkState: SetupCheckState = .idle
+    /// Resolved on appear and on provider switches — probing the filesystem
+    /// from `body` would re-stat the PATH on every keystroke.
+    @State private var cliInstalled = true
     @State private var loaded = false
-
-    enum CheckState: Equatable {
-        case idle
-        case checking
-        case ok
-        case failed(String)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingRow(title: L10n.t(.asstProvider), subtitle: providerHint, palette: palette) {
+            SettingRow(title: L10n.t(.mailProvider), subtitle: providerHint, palette: palette) {
                 WindowSegmented(
                     options: AssistantProvider.allCases.map { ($0, $0.title) },
                     selection: Binding(get: { provider }, set: { switchProvider($0) }),
@@ -36,7 +32,19 @@ struct AssistantSetupView: View {
                 apiSection
             }
             Hairline(color: palette.hairline)
-            actionRow
+            SetupActionRow(
+                palette: palette,
+                checkState: checkState,
+                canCheck: isComplete,
+                canSave: isComplete,
+                showRemove: assistant.config != nil,
+                onCheck: runCheck,
+                onRemove: {
+                    assistant.removeConfig()
+                    key = ""
+                },
+                onSave: { assistant.saveConfig(builtConfig, key: key) }
+            )
         }
         .onAppear(perform: loadExisting)
     }
@@ -45,7 +53,7 @@ struct AssistantSetupView: View {
 
     @ViewBuilder
     private var cliSection: some View {
-        if !isCLIInstalled {
+        if !cliInstalled {
             Text(L10n.f(.asstCLIMissing, provider.executableName ?? ""))
                 .font(Theme.subFont)
                 .foregroundStyle(Theme.critical.opacity(0.9))
@@ -53,7 +61,7 @@ struct AssistantSetupView: View {
                 .padding(.bottom, 8)
         }
         Hairline(color: palette.hairline)
-        fieldRow(L10n.t(.asstModel), subtitle: L10n.t(.asstModelOptional)) {
+        SetupFieldRow(title: L10n.t(.asstModel), subtitle: L10n.t(.asstModelOptional), palette: palette) {
             TextField(provider == .claudeCode ? "opus" : "gpt-5", text: $model)
         }
     }
@@ -83,94 +91,20 @@ struct AssistantSetupView: View {
             }
         }
         Hairline(color: palette.hairline)
-        fieldRow(L10n.t(.asstBaseURL)) {
+        SetupFieldRow(title: L10n.t(.asstBaseURL), palette: palette) {
             TextField(AssistantConfig.defaultBaseURL, text: $baseURL)
         }
         Hairline(color: palette.hairline)
-        fieldRow(L10n.t(.asstModel)) {
+        SetupFieldRow(title: L10n.t(.asstModel), palette: palette) {
             TextField(AssistantAPIPreset.matching(baseURL)?.sampleModel ?? "gpt-5-mini", text: $model)
         }
         Hairline(color: palette.hairline)
-        SettingRow(title: L10n.t(.asstKey), subtitle: L10n.t(.asstKeyHint), palette: palette) {
+        SetupFieldRow(title: L10n.t(.asstKey), subtitle: L10n.t(.asstKeyHint), palette: palette, width: 200) {
             SecureField("", text: $key)
-                .textFieldStyle(.plain)
-                .font(Theme.bodyFont)
-                .foregroundStyle(palette.ink)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .frame(width: 200)
-                .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-    }
-
-    private func fieldRow(
-        _ title: String,
-        subtitle: String? = nil,
-        @ViewBuilder fields: @escaping () -> some View
-    ) -> some View {
-        SettingRow(title: title, subtitle: subtitle, palette: palette) {
-            HStack(spacing: 6) {
-                fields()
-            }
-            .textFieldStyle(.plain)
-            .font(Theme.bodyFont)
-            .foregroundStyle(palette.ink)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .frame(width: 260)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        }
-    }
-
-    private var actionRow: some View {
-        HStack(spacing: 10) {
-            Button {
-                runCheck()
-            } label: {
-                Text(checkLabel)
-                    .font(Theme.subFont)
-                    .foregroundStyle(checkColor)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(checkState == .checking || !isComplete)
-            Spacer(minLength: 0)
-            if assistant.config != nil {
-                Button {
-                    assistant.removeConfig()
-                    key = ""
-                } label: {
-                    Text(L10n.t(.mailRemove))
-                        .font(Theme.subFont)
-                        .foregroundStyle(Theme.critical.opacity(0.9))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(PressableStyle())
-            }
-            Button {
-                assistant.saveConfig(builtConfig, key: key)
-            } label: {
-                Text(L10n.t(.mailSave))
-                    .font(Theme.subFont)
-                    .foregroundStyle(palette.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableStyle())
-            .disabled(!isComplete)
-        }
-        .padding(.top, 12)
     }
 
     // MARK: - State
-
-    private var isCLIInstalled: Bool {
-        CLIAssistantClient(provider: provider, model: "").isInstalled
-    }
 
     private var providerHint: String {
         switch provider {
@@ -199,26 +133,15 @@ struct AssistantSetupView: View {
         AssistantAPIPreset.matching(baseURL) == preset
     }
 
-    private var checkLabel: String {
-        switch checkState {
-        case .idle: L10n.t(.mailCheck)
-        case .checking: L10n.t(.mailChecking)
-        case .ok: L10n.t(.mailCheckOk)
-        case .failed(let message): message
-        }
-    }
-
-    private var checkColor: Color {
-        switch checkState {
-        case .failed: Theme.critical.opacity(0.9)
-        case .ok: palette.accent
-        case .idle, .checking: palette.ink60
-        }
+    private func refreshCLIInstalled() {
+        cliInstalled = !provider.isCLI
+            || CLIAssistantClient(provider: provider, model: "").isInstalled
     }
 
     private func switchProvider(_ newProvider: AssistantProvider) {
         provider = newProvider
         checkState = .idle
+        refreshCLIInstalled()
         // Model names do not carry across providers.
         if newProvider.isCLI {
             model = ""
@@ -236,10 +159,12 @@ struct AssistantSetupView: View {
     private func loadExisting() {
         guard !loaded else { return }
         loaded = true
-        guard let config = assistant.config else { return }
-        provider = config.provider
-        baseURL = config.baseURL
-        model = config.model
+        if let config = assistant.config {
+            provider = config.provider
+            baseURL = config.baseURL
+            model = config.model
+        }
+        refreshCLIInstalled()
     }
 
     private func runCheck() {

@@ -4,7 +4,8 @@ import OSLog
 /// The CLI backends speak plain text, not the tool-call wire format, so tool
 /// use rides on a marker the model is asked to emit verbatim. A model that
 /// ignores it simply produces a normal chat answer — the degradation is a
-/// missing capability, never a broken turn.
+/// missing capability, never a broken turn. The tool list itself lives in
+/// `AssistantToolbox.cliInstructions`, generated from the one registry.
 enum CLIToolProtocol {
     static let marker = "<<TOOL "
 
@@ -12,20 +13,6 @@ enum CLIToolProtocol {
         var name: String
         var argumentsJSON: String
     }
-
-    static let instructions = """
-        To act on the widget, reply with ONLY this one line and nothing else:
-        <<TOOL tool_name {"arg": "value"}>>
-        Available tools:
-        - set_timer {"minutes": 25} — start a countdown
-        - run_playbook {"name": "Focus"} — run an app workspace
-        - now_playing {} — what music is playing
-        - today_events {} — today's calendar
-        - create_note {"text": "buy milk"} — save a note
-        - unread_email_count {} — unread mail count
-        You will then receive a TOOL RESULT line; after it, answer the user in \
-        prose. Never claim a tool ran unless you saw its TOOL RESULT.
-        """
 
     /// Extracts a call from a model turn, if it emitted one.
     static func parse(_ text: String) -> Call? {
@@ -167,15 +154,39 @@ struct CLIAssistantClient: Sendable {
     private func discardStoredTranscript(from result: ProcessResult) {
         guard let id = sessionID(in: result), !id.isEmpty else { return }
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let roots: [URL]
+        let root: URL
         switch provider {
-        case .claudeCode: roots = [home.appendingPathComponent(".claude/projects")]
-        case .codex: roots = [home.appendingPathComponent(".codex/sessions")]
+        case .claudeCode: root = home.appendingPathComponent(".claude/projects")
+        case .codex: root = home.appendingPathComponent(".codex/sessions")
         case .api: return
         }
-        for root in roots {
-            Self.removeFiles(named: id, under: root)
+        // Fast path first: Claude Code shards logs by a slug of the cwd we
+        // pinned, so the file's location is deterministic. The recursive walk
+        // is the fallback — for a heavy CLI user that tree holds thousands
+        // of entries, too many to scan after every widget turn.
+        if provider == .claudeCode {
+            let direct = root
+                .appendingPathComponent(Self.claudeProjectSlug(for: FileManager.default.temporaryDirectory))
+                .appendingPathComponent("\(id).jsonl")
+            if (try? FileManager.default.removeItem(at: direct)) != nil {
+                Self.log.info("discarded cli transcript")
+                return
+            }
         }
+        Self.removeFiles(named: id, under: root)
+    }
+
+    /// Claude Code names a project folder by its cwd with every
+    /// non-alphanumeric character replaced by "-", symlinks resolved
+    /// (observed: /private/var/… → "-private-var-…").
+    static func claudeProjectSlug(for directory: URL) -> String {
+        var resolved = directory.resolvingSymlinksInPath().path
+        // The CLI sees getcwd's "/private/var/…", but Foundation strips that
+        // prefix when resolving — put it back or the slug never matches.
+        for prefix in ["/var/", "/tmp/", "/etc/"] where resolved.hasPrefix(prefix) {
+            resolved = "/private" + resolved
+        }
+        return String(resolved.map { $0.isLetter || $0.isNumber ? $0 : "-" })
     }
 
     private func sessionID(in result: ProcessResult) -> String? {

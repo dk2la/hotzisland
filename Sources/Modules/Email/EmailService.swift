@@ -22,19 +22,14 @@ final class EmailService {
     var draft = ""
     private(set) var isComposing = false
     private(set) var isSending = false
-    private(set) var sentAt: Date?
+    private(set) var didSend = false
     private(set) var sendError: String?
-
-    @ObservationIgnored var onEditingChanged: ((Bool) -> Void)?
 
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
     @ObservationIgnored private let defaults = UserDefaults.standard
-    @ObservationIgnored private let keychain = KeychainStore(service: EmailAccountConfig.keychainService)
+    @ObservationIgnored private let vault = SecretVault(service: EmailAccountConfig.keychainService)
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    /// In-memory copy so the Keychain is touched once per launch, not on
-    /// every 90s poll — each read is a potential access prompt.
-    @ObservationIgnored private var cachedPassword: String?
     private static let messageLimit = 30
 
     init() {
@@ -50,12 +45,11 @@ final class EmailService {
 
     func saveAccount(_ newConfig: EmailAccountConfig, password: String) {
         do {
-            try keychain.setPassword(password, account: newConfig.email)
+            try vault.set(password, account: newConfig.email)
         } catch {
             lastError = "Keychain: \(error.localizedDescription)"
             return
         }
-        cachedPassword = password
         config = newConfig
         if let data = try? JSONEncoder().encode(newConfig) {
             defaults.set(data, forKey: EmailAccountConfig.defaultsKey)
@@ -70,9 +64,8 @@ final class EmailService {
 
     func removeAccount() {
         if let config {
-            try? keychain.deletePassword(account: config.email)
+            vault.delete(account: config.email)
         }
-        cachedPassword = nil
         config = nil
         defaults.removeObject(forKey: EmailAccountConfig.defaultsKey)
         messages = []
@@ -114,14 +107,8 @@ final class EmailService {
         }
     }
 
-    /// The cached password, read from the Keychain on first use.
     private func accountPassword() -> String? {
-        if let cachedPassword { return cachedPassword }
-        guard let config,
-              let stored = try? keychain.password(account: config.email), !stored.isEmpty
-        else { return nil }
-        cachedPassword = stored
-        return stored
+        config.flatMap { vault.secret(account: $0.email) }
     }
 
     func refresh() {
@@ -181,7 +168,7 @@ final class EmailService {
         draft = ""
         isComposing = false
         sendError = nil
-        sentAt = nil
+        didSend = false
     }
 
     private func loadBody(for message: EmailMessage) {
@@ -219,7 +206,7 @@ final class EmailService {
     func startReply() {
         isComposing = true
         sendError = nil
-        sentAt = nil
+        didSend = false
     }
 
     func cancelReply() {
@@ -261,7 +248,7 @@ final class EmailService {
                 await client.quit()
                 guard let self else { return }
                 self.isSending = false
-                self.sentAt = Date()
+                self.didSend = true
                 self.isComposing = false
                 self.draft = ""
                 self.log.info("reply sent uid=\(message.uid, privacy: .public)")

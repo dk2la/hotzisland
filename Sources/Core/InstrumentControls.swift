@@ -198,3 +198,25 @@ struct InstrumentShell<S: Shape>: View {
         }
     }
 }
+
+/// Empty state for a module that needs an account configured: dashed zone
+/// plus one primary button that deep-links to Settings → Accounts.
+struct ModuleSetupPrompt: View {
+    let title: String
+    let sublabel: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            DashedZone(label: title, sublabel: sublabel)
+                .frame(maxHeight: 110)
+            GlassCapsuleButton(label: L10n.t(.mailSetupAction), isPrimary: true) {
+                NotificationCenter.default.post(
+                    name: .hotzOpenSettings,
+                    object: nil,
+                    userInfo: ["page": SettingsView.Page.accounts.rawValue]
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
