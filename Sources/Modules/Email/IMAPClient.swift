@@ -8,6 +8,8 @@ actor IMAPClient {
     private let transport: TLSTransport
     private var tagCounter = 0
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
+    /// Cap for the structure-free body fetch (256 KB).
+    private static let bodyByteLimit = 262_144
 
     init(host: String, port: UInt16) {
         transport = TLSTransport(host: host, port: port)
@@ -68,7 +70,7 @@ actor IMAPClient {
             let envelope = item.envelope
             messages.append(EmailMessage(
                 uid: uid,
-                subject: envelope?.subject.isEmpty == false ? envelope!.subject : "(no subject)",
+                subject: envelope?.subject ?? "",
                 fromName: envelope?.fromName ?? "",
                 fromAddress: envelope?.fromAddress ?? "",
                 date: envelope?.date ?? item.internalDate ?? .distantPast,
@@ -80,22 +82,65 @@ actor IMAPClient {
             ))
         }
         messages.sort { $0.date > $1.date }
+        // Counts only — a drop in either column means the parser lost ground.
+        let named = messages.filter { !$0.subject.isEmpty }.count
+        let structured = messages.filter { $0.textPart != nil }.count
+        log.info("headers n=\(messages.count, privacy: .public) subjects=\(named, privacy: .public) parts=\(structured, privacy: .public)")
         return messages
     }
 
-    /// Fetches and decodes the text/plain part of one message.
-    func fetchPlainBody(uid: UInt32, part: EmailMessage.TextPartInfo?) async throws -> String {
-        let section = part?.section ?? "1"
-        let units = try await command("UID FETCH \(uid) (BODY.PEEK[\(section)])")
-        for unit in units {
-            guard let item = IMAPParser.parseFetch(unit), let payload = item.bodyPayload else { continue }
-            return MIMEDecode.decodeBody(
-                payload,
-                encoding: part?.encoding ?? "7bit",
-                charset: part?.charset ?? "utf-8"
+    /// Fetches and decodes the readable text of one message: the part that
+    /// BODYSTRUCTURE pointed at, or — when it pointed at nothing — the raw
+    /// body plus its content headers, walked locally. The References header
+    /// rides along; replies need it and ENVELOPE does not carry it.
+    func fetchBody(uid: UInt32, part: EmailMessage.TextPartInfo?) async throws -> MessageBody {
+        if let part {
+            let units = try await command(
+                "UID FETCH \(uid) (BODY.PEEK[\(part.section)] BODY.PEEK[HEADER.FIELDS (REFERENCES)])"
             )
+            for unit in units {
+                guard let item = IMAPParser.parseFetch(unit),
+                      let payload = item.bodyPayloads[part.section.uppercased()]
+                else { continue }
+                let decoded = MIMEDecode.decodeBody(payload, encoding: part.encoding, charset: part.charset)
+                let text = part.isHTML ? MIMEDecode.htmlToPlainText(decoded) : decoded
+                log.info("body uid=\(uid, privacy: .public) section=\(part.section, privacy: .public) enc=\(part.encoding, privacy: .public) chars=\(text.count, privacy: .public)")
+                return MessageBody(text: text, references: Self.references(in: item))
+            }
         }
-        return ""
+        return try await fetchWholeBody(uid: uid)
+    }
+
+    /// Structure-free fallback. Capped with a partial fetch so a message
+    /// carrying a fat attachment cannot stall the panel.
+    private func fetchWholeBody(uid: UInt32) async throws -> MessageBody {
+        let headerFields = "BODY.PEEK[HEADER.FIELDS (CONTENT-TYPE CONTENT-TRANSFER-ENCODING REFERENCES)]"
+        let units = try await command(
+            "UID FETCH \(uid) (\(headerFields) BODY.PEEK[TEXT]<0.\(Self.bodyByteLimit)>)"
+        )
+        for unit in units {
+            guard let item = IMAPParser.parseFetch(unit), let body = item.bodyPayloads["TEXT"] else { continue }
+            let rawHeaders = item.bodyPayloads.first { $0.key.hasPrefix("HEADER.FIELDS") }?.value ?? Data()
+            let headers = MIMEDecode.parseHeaders(rawHeaders)
+            let text = MIMEDecode.extractText(
+                rawBody: body,
+                contentType: headers["content-type"] ?? "text/plain",
+                transferEncoding: headers["content-transfer-encoding"] ?? "7bit"
+            )
+            log.info("body fallback uid=\(uid, privacy: .public) bytes=\(body.count, privacy: .public) chars=\(text.count, privacy: .public)")
+            return MessageBody(text: text, references: Self.references(in: item))
+        }
+        return MessageBody(text: "", references: [])
+    }
+
+    /// "<a@x> <b@y>" from whichever HEADER.FIELDS payload came back.
+    private static func references(in item: IMAPParser.FetchItem) -> [String] {
+        guard let raw = item.bodyPayloads.first(where: { $0.key.hasPrefix("HEADER.FIELDS") })?.value,
+              let value = MIMEDecode.parseHeaders(raw)["references"]
+        else { return [] }
+        return value.split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .filter { $0.hasPrefix("<") && $0.hasSuffix(">") }
     }
 
     func markSeen(uid: UInt32) async throws {

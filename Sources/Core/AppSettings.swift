@@ -181,11 +181,12 @@ final class AppSettings {
     // v4: bumped when the email tab shipped (v3 = notes, v2 = playbooks) —
     // a stored older set would silently hide new tabs, since "missing" is
     // indistinguishable from "disabled by the user".
-    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v4"
+    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
     /// (legacy key, tabs to surface when migrating from it)
     @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [
-        ("settings.enabledTabs.v3", [.email]),
-        ("settings.enabledTabs.v2", [.notes, .email]),
+        ("settings.enabledTabs.v4", [.assistant]),
+        ("settings.enabledTabs.v3", [.email, .assistant]),
+        ("settings.enabledTabs.v2", [.notes, .email, .assistant]),
     ]
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"

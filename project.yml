@@ -22,12 +22,42 @@ targets:
         NSCalendarsFullAccessUsageDescription: "HotzIsland shows your upcoming events in the island."
         NSMicrophoneUsageDescription: "HotzIsland records audio only while you dictate a note."
         NSSpeechRecognitionUsageDescription: "HotzIsland transcribes your dictation into note text."
+    # Signing lives in the xcconfig: ad-hoc by default, overridable by a
+    # gitignored Signing.local.xcconfig (stable cert → keychain stops asking).
+    configFiles:
+      Debug: Support/Signing.xcconfig
+      Release: Support/Signing.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "6.0"
-        CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: NO
+    scheme:
+      testTargets:
+        - HotzIslandTests
+
+  # Logic-only bundle: it compiles the pure mail parsing sources into itself,
+  # so the tests need no app host and never touch Keychain or the network.
+  HotzIslandTests:
+    type: bundle.unit-test
+    platform: macOS
+    configFiles:
+      Debug: Support/Signing.xcconfig
+      Release: Support/Signing.xcconfig
+    sources:
+      - path: Tests
+      - path: Sources/Modules/Email/IMAPParser.swift
+      - path: Sources/Modules/Email/MIMEDecode.swift
+      - path: Sources/Modules/Email/MailComposer.swift
+      - path: Sources/Modules/Email/EmailModels.swift
+      - path: Sources/Modules/Assistant/OpenAIClient.swift
+      - path: Sources/Modules/Assistant/AssistantModels.swift
+      - path: Sources/Modules/Assistant/CLIAssistantClient.swift
+      - path: Sources/Services/SpeechCaptureService.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland.tests
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES

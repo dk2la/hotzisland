@@ -75,7 +75,7 @@ final class L10n {
 enum L10nKey {
     // Module titles
     case modPlaybooks, modCalendar, modEmail, modClipboard, modNotes, modChats
-    case modMusic, modTimer, modShelf, modSystem
+    case modMusic, modTimer, modShelf, modSystem, modAssistant
     case comingSoon, comingSoonSub
 
     // Widget chrome
@@ -107,10 +107,17 @@ enum L10nKey {
     // Email
     case setAccounts
     case mailSetupTitle, mailSetupSub, mailSetupAction
-    case mailInboxEmpty, mailOpenInApp, mailNoBody
+    case mailInboxEmpty, mailOpenInApp, mailNoBody, mailNoSubject
     case mailProvider, mailAddress, mailPassword, mailPasswordHint, mailOutlookWarning
     case mailImapHost, mailSmtpHost
     case mailCheck, mailChecking, mailCheckOk, mailSave, mailRemove
+    case mailReply, mailReplyPlaceholder, mailSend, mailSending, mailSent, mailCancel
+
+    // Assistant
+    case asstSetupTitle, asstSetupSub, asstHint, asstPlaceholder, asstThinking
+    case asstBaseURL, asstModel, asstKey, asstKeyHint
+    case asstProvider, asstProviderClaude, asstProviderCodex, asstProviderAPI
+    case asstPreset, asstModelOptional, asstCLIMissing, asstVoiceHint
 
     // Playbooks
     case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playEdit, playAdd
@@ -140,6 +147,7 @@ enum L10nKey {
         case .modTimer: return ["Timer", "Таймер", "Minuteur", "Temporizador", "计时器", "Temporizador", "Timer", "Timer", "タイマー", "타이머"]
         case .modShelf: return ["Shelf", "Полка", "Étagère", "Estante", "暂存架", "Prateleira", "Ablage", "Mensola", "シェルフ", "선반"]
         case .modSystem: return ["System", "Система", "Système", "Sistema", "系统", "Sistema", "System", "Sistema", "システム", "시스템"]
+        case .modAssistant: return ["Assistant", "Ассистент", "Assistant", "Asistente", "助手", "Assistente", "Assistent", "Assistente", "アシスタント", "어시스턴트"]
         case .comingSoon: return ["Coming soon", "Скоро", "Bientôt", "Próximamente", "即将推出", "Em breve", "Bald verfügbar", "In arrivo", "近日公開", "곧 제공"]
         case .comingSoonSub: return ["Connects in a later build.", "Подключится в следующих версиях.", "Disponible dans une prochaine version.", "Se conecta en una versión futura.", "将在后续版本中接入。", "Chega numa versão futura.", "Kommt in einer späteren Version.", "Arriva in una versione futura.", "今後のバージョンで対応します。", "이후 버전에서 연결됩니다."]
 
@@ -196,6 +204,30 @@ enum L10nKey {
         case .mailInboxEmpty: return ["inbox is empty", "входящие пусты", "boîte vide", "bandeja vacía", "收件箱为空", "caixa vazia", "Posteingang leer", "posta vuota", "受信トレイは空", "받은편지함 비어 있음"]
         case .mailOpenInApp: return ["Open in Mail", "Открыть в почте", "Ouvrir dans Mail", "Abrir en Mail", "在邮件App中打开", "Abrir no Mail", "In Mail öffnen", "Apri in Mail", "メールで開く", "Mail에서 열기"]
         case .mailNoBody: return ["(no text)", "(нет текста)", "(pas de texte)", "(sin texto)", "（无正文）", "(sem texto)", "(kein Text)", "(nessun testo)", "（本文なし）", "(본문 없음)"]
+        case .mailNoSubject: return ["(no subject)", "(без темы)", "(sans objet)", "(sin asunto)", "（无主题）", "(sem assunto)", "(kein Betreff)", "(nessun oggetto)", "（件名なし）", "(제목 없음)"]
+        case .mailReply: return ["Reply", "Ответить", "Répondre", "Responder", "回复", "Responder", "Antworten", "Rispondi", "返信", "답장"]
+        case .mailReplyPlaceholder: return ["Your reply…", "Ваш ответ…", "Votre réponse…", "Tu respuesta…", "你的回复…", "A sua resposta…", "Ihre Antwort…", "La tua risposta…", "返信を入力…", "답장 입력…"]
+        case .mailSend: return ["Send", "Отправить", "Envoyer", "Enviar", "发送", "Enviar", "Senden", "Invia", "送信", "보내기"]
+        case .mailSending: return ["Sending…", "Отправка…", "Envoi…", "Enviando…", "发送中…", "A enviar…", "Senden…", "Invio…", "送信中…", "보내는 중…"]
+        case .mailSent: return ["Sent", "Отправлено", "Envoyé", "Enviado", "已发送", "Enviado", "Gesendet", "Inviato", "送信済み", "보냄"]
+        case .mailCancel: return ["Cancel", "Отмена", "Annuler", "Cancelar", "取消", "Cancelar", "Abbrechen", "Annulla", "キャンセル", "취소"]
+        case .asstSetupTitle: return ["no provider", "нет провайдера", "aucun fournisseur", "sin proveedor", "未设置服务商", "sem fornecedor", "kein Anbieter", "nessun provider", "プロバイダなし", "제공자 없음"]
+        case .asstSetupSub: return ["Connect any OpenAI-compatible endpoint — OpenAI, OpenRouter or a local Ollama", "Подключите любой OpenAI-совместимый эндпоинт — OpenAI, OpenRouter или локальную Ollama", "Connectez tout point d'accès compatible OpenAI — OpenAI, OpenRouter ou Ollama local", "Conecta cualquier endpoint compatible con OpenAI — OpenAI, OpenRouter u Ollama local", "连接任意兼容 OpenAI 的接口 — OpenAI、OpenRouter 或本地 Ollama", "Ligue qualquer endpoint compatível com OpenAI — OpenAI, OpenRouter ou Ollama local", "Beliebigen OpenAI-kompatiblen Endpunkt verbinden — OpenAI, OpenRouter oder lokales Ollama", "Collega qualsiasi endpoint compatibile OpenAI — OpenAI, OpenRouter o Ollama locale", "OpenAI互換のエンドポイントを接続 — OpenAI、OpenRouter、ローカルのOllama", "OpenAI 호환 엔드포인트 연결 — OpenAI, OpenRouter 또는 로컬 Ollama"]
+        case .asstHint: return ["Set a timer, check today's events, capture a note — just ask", "Поставить таймер, узнать события на сегодня, записать заметку — просто спросите", "Minuteur, agenda du jour, note rapide — demandez simplement", "Pon un temporizador, revisa la agenda, guarda una nota — solo pide", "设定计时器、查看今日日程、记笔记 — 直接开口", "Temporizador, agenda de hoje, nota rápida — é só pedir", "Timer stellen, heutige Termine, Notiz erfassen — einfach fragen", "Timer, eventi di oggi, una nota al volo — basta chiedere", "タイマー設定、今日の予定、メモ — 何でも聞いて", "타이머 설정, 오늘 일정, 메모 — 그냥 물어보세요"]
+        case .asstPlaceholder: return ["Ask anything…", "Спросите что-нибудь…", "Demandez…", "Pregunta lo que sea…", "随便问…", "Pergunte algo…", "Frag etwas…", "Chiedi pure…", "何でも聞いて…", "무엇이든 물어보세요…"]
+        case .asstThinking: return ["Thinking…", "Думаю…", "Réflexion…", "Pensando…", "思考中…", "A pensar…", "Denke nach…", "Sto pensando…", "考え中…", "생각 중…"]
+        case .asstBaseURL: return ["Base URL", "Base URL", "URL de base", "URL base", "基础 URL", "URL base", "Basis-URL", "URL di base", "ベースURL", "기본 URL"]
+        case .asstModel: return ["Model", "Модель", "Modèle", "Modelo", "模型", "Modelo", "Modell", "Modello", "モデル", "모델"]
+        case .asstKey: return ["API key", "API-ключ", "Clé API", "Clave API", "API 密钥", "Chave de API", "API-Schlüssel", "Chiave API", "APIキー", "API 키"]
+        case .asstProvider: return ["Provider", "Провайдер", "Fournisseur", "Proveedor", "服务商", "Fornecedor", "Anbieter", "Provider", "プロバイダ", "제공업체"]
+        case .asstProviderClaude: return ["Uses the local claude CLI — covered by your Claude subscription", "Через локальный claude CLI — расходует вашу подписку Claude", "Via le CLI claude local — inclus dans votre abonnement Claude", "Usa el CLI claude local — incluido en tu suscripción de Claude", "使用本地 claude CLI — 计入你的 Claude 订阅", "Usa o CLI claude local — incluído na sua subscrição Claude", "Nutzt die lokale claude-CLI — über dein Claude-Abo", "Usa la CLI claude locale — inclusa nel tuo abbonamento Claude", "ローカルの claude CLI を使用 — Claudeサブスクリプションに含まれます", "로컬 claude CLI 사용 — Claude 구독에 포함"]
+        case .asstProviderCodex: return ["Uses the local codex CLI — covered by your ChatGPT subscription", "Через локальный codex CLI — расходует вашу подписку ChatGPT", "Via le CLI codex local — inclus dans votre abonnement ChatGPT", "Usa el CLI codex local — incluido en tu suscripción de ChatGPT", "使用本地 codex CLI — 计入你的 ChatGPT 订阅", "Usa o CLI codex local — incluído na sua subscrição ChatGPT", "Nutzt die lokale codex-CLI — über dein ChatGPT-Abo", "Usa la CLI codex locale — inclusa nel tuo abbonamento ChatGPT", "ローカルの codex CLI を使用 — ChatGPTサブスクリプションに含まれます", "로컬 codex CLI 사용 — ChatGPT 구독에 포함"]
+        case .asstProviderAPI: return ["Any OpenAI-compatible endpoint, billed per token", "Любой OpenAI-совместимый эндпоинт, оплата за токены", "Tout point d'accès compatible OpenAI, facturé au token", "Cualquier endpoint compatible con OpenAI, pago por tokens", "任意兼容 OpenAI 的接口，按 token 计费", "Qualquer endpoint compatível com OpenAI, pago por token", "Beliebiger OpenAI-kompatibler Endpunkt, Abrechnung pro Token", "Qualsiasi endpoint compatibile OpenAI, a consumo", "OpenAI互換エンドポイント、トークン課金", "OpenAI 호환 엔드포인트, 토큰 과금"]
+        case .asstVoiceHint: return ["Voice mode — tap the mic, speak, and the answer is read back", "Голосовой режим — нажмите микрофон, говорите, ответ прозвучит вслух", "Mode vocal — appuyez sur le micro, parlez, la réponse est lue", "Modo voz — toca el micro, habla y la respuesta se lee en voz alta", "语音模式 — 点击麦克风说话，答案会朗读出来", "Modo de voz — toque no micro, fale e a resposta é lida", "Sprachmodus — Mikro antippen, sprechen, die Antwort wird vorgelesen", "Modalità vocale — tocca il microfono, parla, la risposta viene letta", "音声モード — マイクをタップして話すと、回答が読み上げられます", "음성 모드 — 마이크를 누르고 말하면 답변을 읽어 줍니다"]
+        case .asstPreset: return ["Preset", "Пресет", "Préréglage", "Preajuste", "预设", "Predefinição", "Voreinstellung", "Preset", "プリセット", "프리셋"]
+        case .asstModelOptional: return ["Optional — leave empty for the CLI's default", "Необязательно — пусто = модель по умолчанию в CLI", "Facultatif — vide pour le modèle par défaut du CLI", "Opcional — vacío para el modelo por defecto del CLI", "可选 — 留空则使用 CLI 默认模型", "Opcional — vazio para o modelo padrão do CLI", "Optional — leer für das Standardmodell der CLI", "Opzionale — vuoto per il modello predefinito della CLI", "任意 — 空欄でCLIの既定モデル", "선택 사항 — 비우면 CLI 기본 모델"]
+        case .asstCLIMissing: return ["%@ CLI not found. Install it and sign in, then press Check.", "%@ CLI не найден. Установите его, войдите в аккаунт и нажмите «Проверить».", "CLI %@ introuvable. Installez-le, connectez-vous, puis cliquez sur Vérifier.", "No se encontró el CLI %@. Instálalo, inicia sesión y pulsa Comprobar.", "未找到 %@ CLI。请安装并登录后点击检查。", "CLI %@ não encontrado. Instale, inicie sessão e prima Verificar.", "%@-CLI nicht gefunden. Installieren, anmelden, dann auf Prüfen klicken.", "CLI %@ non trovata. Installala, accedi e premi Verifica.", "%@ CLI が見つかりません。インストールしてサインイン後、チェックを押してください。", "%@ CLI를 찾을 수 없습니다. 설치 후 로그인하고 확인을 누르세요."]
+        case .asstKeyHint: return ["Stored in the Keychain; leave empty for a local Ollama", "Хранится в Keychain; для локальной Ollama оставьте пустым", "Stockée dans le trousseau ; vide pour Ollama local", "Se guarda en el llavero; vacía para Ollama local", "保存在钥匙串；本地 Ollama 可留空", "Guardada nas Chaves; vazia para Ollama local", "Im Schlüsselbund gespeichert; für lokales Ollama leer lassen", "Salvata nel portachiavi; vuota per Ollama locale", "キーチェーンに保存。ローカルのOllamaは空欄でOK", "키체인에 저장. 로컬 Ollama는 비워 두세요"]
         case .mailProvider: return ["Provider", "Провайдер", "Fournisseur", "Proveedor", "服务商", "Fornecedor", "Anbieter", "Provider", "プロバイダ", "제공업체"]
         case .mailAddress: return ["Email address", "Адрес почты", "Adresse e-mail", "Dirección de correo", "邮箱地址", "Endereço de e-mail", "E-Mail-Adresse", "Indirizzo e-mail", "メールアドレス", "이메일 주소"]
         case .mailPassword: return ["App password", "Пароль приложения", "Mot de passe d'application", "Contraseña de aplicación", "应用专用密码", "Palavra-passe de aplicação", "App-Passwort", "Password per le app", "アプリパスワード", "앱 암호"]

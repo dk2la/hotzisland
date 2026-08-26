@@ -17,6 +17,14 @@ final class EmailService {
     private(set) var lastRefresh: Date?
     private(set) var lastError: String?
 
+    /// Reply composer state. It lives here, not in the view, so collapsing
+    /// the panel mid-sentence does not throw the draft away.
+    var draft = ""
+    private(set) var isComposing = false
+    private(set) var isSending = false
+    private(set) var sentAt: Date?
+    private(set) var sendError: String?
+
     @ObservationIgnored var onEditingChanged: ((Bool) -> Void)?
 
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
@@ -24,6 +32,9 @@ final class EmailService {
     @ObservationIgnored private let keychain = KeychainStore(service: EmailAccountConfig.keychainService)
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    /// In-memory copy so the Keychain is touched once per launch, not on
+    /// every 90s poll — each read is a potential access prompt.
+    @ObservationIgnored private var cachedPassword: String?
     private static let messageLimit = 30
 
     init() {
@@ -44,6 +55,7 @@ final class EmailService {
             lastError = "Keychain: \(error.localizedDescription)"
             return
         }
+        cachedPassword = password
         config = newConfig
         if let data = try? JSONEncoder().encode(newConfig) {
             defaults.set(data, forKey: EmailAccountConfig.defaultsKey)
@@ -60,6 +72,7 @@ final class EmailService {
         if let config {
             try? keychain.deletePassword(account: config.email)
         }
+        cachedPassword = nil
         config = nil
         defaults.removeObject(forKey: EmailAccountConfig.defaultsKey)
         messages = []
@@ -101,9 +114,19 @@ final class EmailService {
         }
     }
 
+    /// The cached password, read from the Keychain on first use.
+    private func accountPassword() -> String? {
+        if let cachedPassword { return cachedPassword }
+        guard let config,
+              let stored = try? keychain.password(account: config.email), !stored.isEmpty
+        else { return nil }
+        cachedPassword = stored
+        return stored
+    }
+
     func refresh() {
         guard let config, refreshTask == nil else { return }
-        guard let password = try? keychain.password(account: config.email), !password.isEmpty else {
+        guard let password = accountPassword() else {
             connection = .failed("No password in Keychain")
             return
         }
@@ -137,6 +160,9 @@ final class EmailService {
     // MARK: - Message actions
 
     func open(_ message: EmailMessage) {
+        if openMessage?.uid != message.uid {
+            resetComposer()
+        }
         openMessage = message
         if message.bodyPlain == nil {
             loadBody(for: message)
@@ -148,42 +174,110 @@ final class EmailService {
 
     func closeMessage() {
         openMessage = nil
+        resetComposer()
+    }
+
+    private func resetComposer() {
+        draft = ""
+        isComposing = false
+        sendError = nil
+        sentAt = nil
     }
 
     private func loadBody(for message: EmailMessage) {
-        guard let config,
-              let password = try? keychain.password(account: config.email) else { return }
+        guard let config, let password = accountPassword() else { return }
         isLoadingBody = true
         Task { [weak self] in
             let client = IMAPClient(host: config.imapHost, port: config.imapPort)
-            var body = ""
+            var body = MessageBody(text: "", references: [])
             do {
                 try await client.connect()
                 try await client.login(user: config.email, password: password)
                 _ = try await client.selectInbox()
-                body = try await client.fetchPlainBody(uid: message.uid, part: message.textPart)
+                body = try await client.fetchBody(uid: message.uid, part: message.textPart)
                 await client.logout()
             } catch {
                 await client.logout()
-                body = ""
             }
             guard let self else { return }
             self.isLoadingBody = false
-            let text = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = body.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if var open = self.openMessage, open.uid == message.uid {
                 open.bodyPlain = text
+                open.references = body.references
                 self.openMessage = open
             }
             if let index = self.messages.firstIndex(where: { $0.uid == message.uid }) {
                 self.messages[index].bodyPlain = text
+                self.messages[index].references = body.references
+            }
+        }
+    }
+
+    // MARK: - Reply
+
+    func startReply() {
+        isComposing = true
+        sendError = nil
+        sentAt = nil
+    }
+
+    func cancelReply() {
+        isComposing = false
+        draft = ""
+        sendError = nil
+    }
+
+    /// Sends the draft as a reply to the open message and threads it with
+    /// In-Reply-To / References so the provider files it in the conversation.
+    func sendReply() {
+        guard let config, let message = openMessage, !isSending else { return }
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !message.fromAddress.isEmpty else { return }
+        guard let password = accountPassword() else {
+            sendError = "No password in Keychain"
+            return
+        }
+        let mail = OutgoingMail(
+            from: config.email,
+            to: message.fromAddress,
+            subject: MailComposer.replySubject(message.subject),
+            body: text,
+            inReplyTo: message.messageID,
+            references: message.references
+        )
+        isSending = true
+        sendError = nil
+        Task { [weak self] in
+            let client = SMTPClient(
+                host: config.smtpHost,
+                port: config.smtpPort,
+                usesSTARTTLS: config.smtpUsesSTARTTLS
+            )
+            do {
+                try await client.connect()
+                try await client.login(user: config.email, password: password)
+                try await client.send(mail)
+                await client.quit()
+                guard let self else { return }
+                self.isSending = false
+                self.sentAt = Date()
+                self.isComposing = false
+                self.draft = ""
+                self.log.info("reply sent uid=\(message.uid, privacy: .public)")
+            } catch {
+                await client.quit()
+                guard let self else { return }
+                self.isSending = false
+                self.sendError = error.localizedDescription
+                self.log.error("send failed: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
 
     /// Optimistic local flip, then the server call.
     func markRead(_ message: EmailMessage) {
-        guard let config,
-              let password = try? keychain.password(account: config.email) else { return }
+        guard let config, let password = accountPassword() else { return }
         if let index = messages.firstIndex(where: { $0.uid == message.uid }), messages[index].isUnread {
             messages[index].isUnread = false
             unreadCount = max(0, unreadCount - 1)

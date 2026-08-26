@@ -15,7 +15,9 @@ final class ModuleServices {
     let timerService = TimerService()
     let notesStore = NotesStore()
     let speechCapture = SpeechCaptureService()
+    let speechSynthesis = SpeechSynthesisService()
     let emailService = EmailService()
+    let assistantService = AssistantService()
     let playbookRunner: PlaybookRunner
 
     init() {

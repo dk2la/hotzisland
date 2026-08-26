@@ -61,7 +61,7 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
     var messageID: String?
     var references: [String]
     var bodyPlain: String?
-    /// (section path, transfer encoding, charset) of the text/plain part.
+    /// Where the readable part lives and how it is encoded.
     var textPart: TextPartInfo?
 
     var id: UInt32 { uid }
@@ -70,7 +70,26 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
         var section: String
         var encoding: String
         var charset: String
+        /// text/html parts are flattened to text after decoding.
+        var isHTML: Bool = false
     }
+}
+
+/// What one body fetch brings back: the readable text plus the threading
+/// chain, which ENVELOPE does not carry.
+struct MessageBody: Sendable {
+    var text: String
+    var references: [String]
+}
+
+/// A reply ready for the wire.
+struct OutgoingMail: Sendable {
+    var from: String
+    var to: String
+    var subject: String
+    var body: String
+    var inReplyTo: String?
+    var references: [String]
 }
 
 enum MailConnectionState: Equatable {

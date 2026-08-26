@@ -1,23 +1,30 @@
 import Foundation
 
 /// A parsed IMAP value: atoms, strings (quoted or literal), nested lists.
+/// `nilValue` is spelled out rather than `none` so it can never collide with
+/// `Optional.none` at a `IMAPValue?` return site.
 indirect enum IMAPValue: Equatable, Sendable {
     case atom(String)
     case string(Data)
     case list([IMAPValue])
-    case none // NIL
+    case nilValue // NIL
 
     var text: String? {
         switch self {
         case .atom(let s): s
         case .string(let d): String(data: d, encoding: .utf8) ?? String(data: d, encoding: .isoLatin1)
-        case .list, .none: nil
+        case .list, .nilValue: nil
         }
     }
 
     var items: [IMAPValue]? {
         if case .list(let values) = self { return values }
         return nil
+    }
+
+    var isList: Bool {
+        if case .list = self { return true }
+        return false
     }
 
     var number: UInt32? {
@@ -99,20 +106,28 @@ enum IMAPParser {
             index = end
             return .string(Data(payload))
         default:
-            // Atom: up to space, paren, or line end.
+            // Atom: up to space, paren, or line end. Brackets suspend that —
+            // "BODY[HEADER.FIELDS (SUBJECT FROM)]" is one key, not three.
             var bytes = Data()
+            var brackets = 0
             while index < data.endIndex {
                 let b = data[index]
-                if b == UInt8(ascii: " ") || b == UInt8(ascii: "(") || b == UInt8(ascii: ")")
-                    || b == UInt8(ascii: "\r") || b == UInt8(ascii: "\n") {
-                    break
+                if b == UInt8(ascii: "[") {
+                    brackets += 1
+                } else if b == UInt8(ascii: "]") {
+                    brackets = max(0, brackets - 1)
+                } else if brackets == 0 {
+                    if b == UInt8(ascii: " ") || b == UInt8(ascii: "(") || b == UInt8(ascii: ")")
+                        || b == UInt8(ascii: "\r") || b == UInt8(ascii: "\n") {
+                        break
+                    }
                 }
                 bytes.append(b)
                 index = data.index(after: index)
             }
             let text = String(decoding: bytes, as: UTF8.self)
             if text.isEmpty { return nil }
-            if text.uppercased() == "NIL" { return .none }
+            if text.uppercased() == "NIL" { return IMAPValue.nilValue }
             return .atom(text)
         }
     }
@@ -125,7 +140,8 @@ enum IMAPParser {
         var internalDate: Date?
         var envelope: Envelope?
         var textPart: EmailMessage.TextPartInfo?
-        var bodyPayload: Data?
+        /// BODY[…] payloads keyed by the section inside the brackets.
+        var bodyPayloads: [String: Data] = [:]
     }
 
     struct Envelope {
@@ -160,12 +176,17 @@ enum IMAPParser {
                 item.internalDate = payload.text.flatMap(MIMEDecode.parseDate)
             case "ENVELOPE":
                 item.envelope = parseEnvelope(payload)
-            case "BODYSTRUCTURE":
-                item.textPart = findPlainTextPart(payload, path: [])
+            case "BODYSTRUCTURE", "BODY":
+                if payload.isList {
+                    item.textPart = findTextPart(payload, path: [])
+                }
             default:
-                // BODY[...] payloads: the key atom carries brackets.
-                if key.hasPrefix("BODY["), case .string(let data) = payload {
-                    item.bodyPayload = data
+                // BODY[…] payloads: the section lives inside the brackets.
+                if key.hasPrefix("BODY["),
+                   let open = key.firstIndex(of: "["),
+                   let close = key.lastIndex(of: "]"),
+                   case .string(let data) = payload {
+                    item.bodyPayloads[String(key[key.index(after: open)..<close])] = data
                 }
             }
             cursor += 2
@@ -180,7 +201,7 @@ enum IMAPParser {
             MIMEDecode.decodeEncodedWords(
                 String(data: d, encoding: .utf8) ?? String(data: d, encoding: .isoLatin1) ?? ""
             )
-        case .list, .none: ""
+        case .list, .nilValue: ""
         }
     }
 
@@ -205,26 +226,47 @@ enum IMAPParser {
         return envelope
     }
 
-    /// Walks a BODYSTRUCTURE to the first text/plain leaf, tracking the IMAP
-    /// section path ("1", "1.2", …). A non-multipart message is section "1".
-    static func findPlainTextPart(_ value: IMAPValue, path: [Int]) -> EmailMessage.TextPartInfo? {
-        guard let items = value.items, !items.isEmpty else { return nil }
-        if case .list = items[0] {
+    /// Picks the part to show for a message: the first text/plain leaf, or
+    /// the first text/html one when the sender shipped HTML only.
+    static func findTextPart(_ value: IMAPValue, path: [Int]) -> EmailMessage.TextPartInfo? {
+        var found: [EmailMessage.TextPartInfo] = []
+        collectTextParts(value, path: path, into: &found)
+        return found.first { !$0.isHTML } ?? found.first
+    }
+
+    /// Walks a BODYSTRUCTURE, tracking the IMAP section path ("1", "1.2", …).
+    /// A non-multipart message is section "1".
+    private static func collectTextParts(
+        _ value: IMAPValue,
+        path: [Int],
+        into result: inout [EmailMessage.TextPartInfo]
+    ) {
+        guard let items = value.items, items.count >= 2 else { return }
+        if items[0].isList {
             // Multipart: child parts first, then the subtype atom.
             for (offset, child) in items.enumerated() {
-                guard case .list = child else { break }
-                if let found = findPlainTextPart(child, path: path + [offset + 1]) {
-                    return found
-                }
+                guard child.isList else { break }
+                collectTextParts(child, path: path + [offset + 1], into: &result)
             }
-            return nil
+            return
         }
-        // Leaf: ("TEXT" "PLAIN" ("CHARSET" "UTF-8" …) id desc encoding size …)
-        guard items.count >= 7,
-              let type = items[0].text?.uppercased(),
+        guard let type = items[0].text?.uppercased(),
               let subtype = items[1].text?.uppercased()
-        else { return nil }
-        guard type == "TEXT", subtype == "PLAIN" else { return nil }
+        else { return }
+
+        // An embedded message: its parts are numbered under this one.
+        if type == "MESSAGE", subtype == "RFC822", items.count >= 9 {
+            let nested = items[8]
+            let nestedIsMultipart = nested.items?.first?.isList ?? false
+            collectTextParts(nested, path: nestedIsMultipart ? path : path + [1], into: &result)
+            return
+        }
+
+        // Leaf: ("TEXT" "PLAIN" ("CHARSET" "UTF-8" …) id desc encoding size lines md5 disposition …)
+        guard type == "TEXT", subtype == "PLAIN" || subtype == "HTML", items.count >= 7 else { return }
+        if items.count >= 10, items[9].items?.first?.text?.uppercased() == "ATTACHMENT" {
+            return // a .txt/.html file riding along, not the message body
+        }
         var charset = "utf-8"
         if let params = items[2].items {
             var index = 0
@@ -236,24 +278,30 @@ enum IMAPParser {
                 index += 2
             }
         }
-        let encoding = items[5].text ?? "7bit"
-        let section = path.isEmpty ? "1" : path.map(String.init).joined(separator: ".")
-        return EmailMessage.TextPartInfo(section: section, encoding: encoding, charset: charset)
+        result.append(EmailMessage.TextPartInfo(
+            section: path.isEmpty ? "1" : path.map(String.init).joined(separator: "."),
+            encoding: items[5].text ?? "7bit",
+            charset: charset,
+            isHTML: subtype == "HTML"
+        ))
     }
 
     // MARK: - Other responses
 
     /// "* SEARCH 4 8 15" → [4, 8, 15]
     static func parseSearch(_ unit: Data) -> [UInt32]? {
+        // Trim first: the trailing CRLF would otherwise swallow the last UID.
         let text = String(decoding: unit, as: UTF8.self)
-        let upper = text.uppercased()
-        guard upper.hasPrefix("* SEARCH") else { return nil }
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.uppercased().hasPrefix("* SEARCH") else { return nil }
         return text.split(separator: " ").dropFirst(2).compactMap { UInt32($0) }
     }
 
     /// "* 231 EXISTS" → 231
     static func parseExists(_ unit: Data) -> Int? {
-        let text = String(decoding: unit, as: UTF8.self).uppercased()
+        let text = String(decoding: unit, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
         let parts = text.split(separator: " ")
         guard parts.count >= 3, parts[0] == "*", parts[2].hasPrefix("EXISTS") else { return nil }
         return Int(parts[1])

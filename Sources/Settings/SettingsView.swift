@@ -144,9 +144,14 @@ struct SettingsView: View {
 
     private var accountsPage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionHeader(L10n.t(.modEmail))
             ScrollView(.vertical, showsIndicators: false) {
-                EmailSetupView(service: services.emailService, palette: palette)
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionHeader(L10n.t(.modEmail))
+                    EmailSetupView(service: services.emailService, palette: palette)
+                    sectionHeader(L10n.t(.modAssistant))
+                        .padding(.top, 18)
+                    AssistantSetupView(assistant: services.assistantService, palette: palette)
+                }
             }
         }
     }

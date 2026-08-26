@@ -30,7 +30,13 @@ struct ModuleContentView: View {
         case .notes:
             NotesModuleView(store: services.notesStore, speech: services.speechCapture)
         case .email:
-            EmailModuleView(service: services.emailService)
+            EmailModuleView(service: services.emailService, speech: services.speechCapture)
+        case .assistant:
+            AssistantModuleView(
+                assistant: services.assistantService,
+                speech: services.speechCapture,
+                voice: services.speechSynthesis
+            )
         case .chats:
             ComingSoonModuleView(tab: tab)
         }

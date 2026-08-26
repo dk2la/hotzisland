@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
+        // The playbook store lives outside ModuleServices, so the assistant's
+        // tool executor is wired here, once both exist.
+        services.assistantService.attachToolbox(services: services, playbooks: playbookStore)
         notchController = NotchWindowController(
             settings: settings,
             services: services,
