@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
+        // The playbook store lives outside ModuleServices, so the assistant's
+        // tool executor is wired here, once both exist.
+        services.assistantService.attachToolbox(services: services, playbooks: playbookStore)
         notchController = NotchWindowController(
             settings: settings,
             services: services,
@@ -33,14 +36,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // window through this notification.
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(openSettings),
+            selector: #selector(handleOpenSettings(_:)),
             name: .hotzOpenSettings,
             object: nil
         )
 
         // Developer convenience: `open HotzIsland.app --args --settings`.
         if CommandLine.arguments.contains("--settings") {
-            openSettings()
+            showSettings(page: nil)
         }
 
         let defaults = UserDefaults.standard
@@ -96,9 +99,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openSettings() {
+        showSettings(page: nil)
+    }
+
+    @objc private func handleOpenSettings(_ notification: Notification) {
+        let page = (notification.userInfo?["page"] as? String)
+            .flatMap(SettingsView.Page.init(rawValue:))
+        showSettings(page: page)
+    }
+
+    private func showSettings(page: SettingsView.Page?) {
         if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(settings: settings, playbooks: playbookStore)
+            settingsWindow = SettingsWindowController(
+                settings: settings,
+                playbooks: playbookStore,
+                services: services
+            )
         }
-        settingsWindow?.show()
+        settingsWindow?.show(page: page)
     }
 }

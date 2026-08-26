@@ -178,10 +178,16 @@ final class AppSettings {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    // v2: bumped when the playbooks tab was added — a stored v1 set would
-    // silently hide new tabs, since "missing" is indistinguishable from
-    // "disabled by the user".
-    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v2"
+    // v4: bumped when the email tab shipped (v3 = notes, v2 = playbooks) —
+    // a stored older set would silently hide new tabs, since "missing" is
+    // indistinguishable from "disabled by the user".
+    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
+    /// (legacy key, tabs to surface when migrating from it)
+    @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [
+        ("settings.enabledTabs.v4", [.assistant]),
+        ("settings.enabledTabs.v3", [.email, .assistant]),
+        ("settings.enabledTabs.v2", [.notes, .email, .assistant]),
+    ]
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
     @ObservationIgnored private static let tabOrderKey = "settings.tabOrder"
@@ -217,6 +223,15 @@ final class AppSettings {
         let defaultEnabled = Set(NotchTab.allCases).subtracting(NotchTab.comingSoon)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {
             let tabs = Set(stored.compactMap(NotchTab.init(rawValue:)))
+            enabledTabs = tabs.isEmpty ? defaultEnabled : tabs
+        } else if let (legacy, extras) = Self.legacyTabsKeys
+            .compactMap({ key, extras in
+                defaults.stringArray(forKey: key).map { ($0, extras) }
+            })
+            .first {
+            // Migration: keep the user's choices, surface freshly shipped
+            // tabs they could not have known about.
+            let tabs = Set(legacy.compactMap(NotchTab.init(rawValue:))).union(extras)
             enabledTabs = tabs.isEmpty ? defaultEnabled : tabs
         } else {
             enabledTabs = defaultEnabled
