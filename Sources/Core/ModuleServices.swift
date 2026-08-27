@@ -13,9 +13,17 @@ final class ModuleServices {
     let shelfStore = ShelfStore()
     let clipboardStore = ClipboardStore()
     let timerService = TimerService()
+    let notesStore = NotesStore()
+    let speechCapture = SpeechCaptureService()
+    let speechSynthesis = SpeechSynthesisService()
+    let emailService = EmailService()
+    let assistantService = AssistantService()
+    let playbookStore = PlaybookStore()
     let playbookRunner: PlaybookRunner
 
     init() {
         playbookRunner = PlaybookRunner(timer: timerService)
+        // The toolbox needs the fully built container, so it attaches last.
+        assistantService.attachToolbox(services: self, playbooks: playbookStore)
     }
 }

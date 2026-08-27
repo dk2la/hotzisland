@@ -10,6 +10,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
     case email
     case clipboard
     case notes
+    case assistant
     case chats
     case media
     case timer
@@ -19,11 +20,11 @@ enum NotchTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     /// Modules enabled out of the box (still toggleable).
-    static let defaultTabs: [NotchTab] = [.playbooks, .calendar, .email, .clipboard, .notes, .chats]
+    static let defaultTabs: [NotchTab] = [.playbooks, .calendar, .email, .clipboard, .notes, .assistant, .chats]
     /// Modules the user opts into from settings.
     static let optionalTabs: [NotchTab] = [.media, .timer, .shelf, .metrics]
     /// No backing service yet — shown as "soon", excluded from defaults.
-    static let comingSoon: Set<NotchTab> = [.email, .notes, .chats]
+    static let comingSoon: Set<NotchTab> = [.chats]
 
     var isComingSoon: Bool { Self.comingSoon.contains(self) }
 
@@ -35,6 +36,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .email: "Mail"
         case .clipboard: "Clip"
         case .notes: "Notes"
+        case .assistant: "AI"
         case .chats: "Chats"
         case .media: "Media"
         case .timer: "Timer"
@@ -52,6 +54,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .email: L10n.t(.modEmail)
         case .clipboard: L10n.t(.modClipboard)
         case .notes: L10n.t(.modNotes)
+        case .assistant: L10n.t(.modAssistant)
         case .chats: L10n.t(.modChats)
         case .media: L10n.t(.modMusic)
         case .timer: L10n.t(.modTimer)
@@ -67,6 +70,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .email: "envelope"
         case .clipboard: "doc.on.clipboard"
         case .notes: "note.text"
+        case .assistant: "sparkles"
         case .chats: "bubble.left"
         case .media: "music.note"
         case .timer: "timer"

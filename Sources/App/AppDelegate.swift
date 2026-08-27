@@ -4,19 +4,20 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let services = ModuleServices()
-    private let playbookStore = PlaybookStore()
     private var statusItem: NSStatusItem?
     private var notchController: NotchWindowController?
     private var widgetController: WidgetWindowController?
     private var settingsWindow: SettingsWindowController?
     private let onboarding = OnboardingWindowController()
+    private let hotkeys = HotkeyService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
+        registerHotkeys()
         notchController = NotchWindowController(
             settings: settings,
             services: services,
-            playbooks: playbookStore
+            playbooks: services.playbookStore
         )
 
         // The widget window lives only in widget mode; the notch window
@@ -33,14 +34,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // window through this notification.
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(openSettings),
+            selector: #selector(handleOpenSettings(_:)),
             name: .hotzOpenSettings,
             object: nil
         )
 
         // Developer convenience: `open HotzIsland.app --args --settings`.
         if CommandLine.arguments.contains("--settings") {
-            openSettings()
+            showSettings(page: nil)
         }
 
         let defaults = UserDefaults.standard
@@ -49,6 +50,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onboarding.show(settings: settings) {
                 defaults.set(true, forKey: "onboarding.completed")
             }
+        }
+    }
+
+    /// Global shortcuts (Carbon — no permissions needed). Both act on the
+    /// widget surface; in island mode they are inert by design.
+    private func registerHotkeys() {
+        hotkeys.register(.toggleWidgetHidden) { [weak self] in
+            guard let self, self.settings.displayMode == .widget else { return }
+            // The controller reconciles through settingsDidChange, so the
+            // hotkey works even while the widget window is being rebuilt.
+            self.settings.widgetMinimized.toggle()
+        }
+        hotkeys.register(.togglePanelPin) { [weak self] in
+            self?.settings.closeOnOutsideClick.toggle()
         }
     }
 
@@ -90,15 +105,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             widgetController = WidgetWindowController(
                 settings: settings,
                 services: services,
-                playbooks: playbookStore
+                playbooks: services.playbookStore
             )
         }
     }
 
     @objc private func openSettings() {
+        showSettings(page: nil)
+    }
+
+    @objc private func handleOpenSettings(_ notification: Notification) {
+        let page = (notification.userInfo?["page"] as? String)
+            .flatMap(SettingsView.Page.init(rawValue:))
+        showSettings(page: page)
+    }
+
+    private func showSettings(page: SettingsView.Page?) {
         if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(settings: settings, playbooks: playbookStore)
+            settingsWindow = SettingsWindowController(
+                settings: settings,
+                playbooks: services.playbookStore,
+                services: services
+            )
         }
-        settingsWindow?.show()
+        settingsWindow?.show(page: page)
     }
 }

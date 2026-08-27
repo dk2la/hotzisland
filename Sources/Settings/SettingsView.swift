@@ -1,3 +1,4 @@
+import AppKit
 import EventKit
 import SwiftUI
 
@@ -7,15 +8,22 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     var playbooks: PlaybookStore
+    var services: ModuleServices
+    var pageSelection: SettingsPageSelection
 
-    @State private var page: Page = .general
     @State private var editingPlaybook: Playbook?
     @State private var creatingPlaybook = false
+
+    private var page: Page {
+        get { pageSelection.page }
+        nonmutating set { pageSelection.page = newValue }
+    }
 
     enum Page: String, CaseIterable, Identifiable {
         case general
         case appearance
         case modules
+        case accounts
         case playbooks
         case hotkeys
 
@@ -27,6 +35,7 @@ struct SettingsView: View {
             case .general: L10n.t(.setGeneral)
             case .appearance: L10n.t(.setAppearance)
             case .modules: L10n.t(.setModules)
+            case .accounts: L10n.t(.setAccounts)
             case .playbooks: L10n.t(.setPlaybooks)
             case .hotkeys: L10n.t(.setHotkeys)
             }
@@ -37,6 +46,7 @@ struct SettingsView: View {
             case .general: "gearshape"
             case .appearance: "circle.lefthalf.filled"
             case .modules: "square.grid.2x2"
+            case .accounts: "at"
             case .playbooks: "bolt.fill"
             case .hotkeys: "keyboard"
             }
@@ -85,7 +95,7 @@ struct SettingsView: View {
             ForEach(Page.allCases) { item in
                 let isActive = page == item
                 Button {
-                    page = item
+                    pageSelection.page = item
                 } label: {
                     HStack(spacing: 9) {
                         Image(systemName: item.icon)
@@ -126,8 +136,23 @@ struct SettingsView: View {
         case .general: generalPage
         case .appearance: appearancePage
         case .modules: modulesPage
+        case .accounts: accountsPage
         case .playbooks: playbooksPage
         case .hotkeys: hotkeysPage
+        }
+    }
+
+    private var accountsPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionHeader(L10n.t(.modEmail))
+                    EmailSetupView(service: services.emailService, palette: palette)
+                    sectionHeader(L10n.t(.modAssistant))
+                        .padding(.top, 18)
+                    AssistantSetupView(assistant: services.assistantService, palette: palette)
+                }
+            }
         }
     }
 
@@ -151,6 +176,20 @@ struct SettingsView: View {
                     isOn: Binding(
                         get: { settings.launchAtLogin },
                         set: { settings.setLaunchAtLogin($0) }
+                    ),
+                    palette: palette
+                )
+            }
+            Hairline(color: palette.hairline)
+            SettingRow(
+                title: L10n.t(.setOutsideClick),
+                subtitle: L10n.t(.setOutsideClickSub),
+                palette: palette
+            ) {
+                InstrumentToggle(
+                    isOn: Binding(
+                        get: { settings.closeOnOutsideClick },
+                        set: { settings.closeOnOutsideClick = $0 }
                     ),
                     palette: palette
                 )
@@ -274,6 +313,33 @@ struct SettingsView: View {
                 .foregroundStyle(palette.ink40)
                 .padding(.bottom, 10)
             ModulesOrderList(settings: settings, palette: palette)
+            Hairline(color: palette.hairline)
+            SettingRow(
+                title: L10n.t(.notesFolder),
+                subtitle: services.notesStore.folderURL.path,
+                palette: palette
+            ) {
+                Button {
+                    pickNotesFolder()
+                } label: {
+                    Text(L10n.t(.notesChange))
+                        .font(Theme.subFont)
+                        .foregroundStyle(palette.accent)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+            }
+        }
+    }
+
+    private func pickNotesFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = services.notesStore.folderURL
+        if panel.runModal() == .OK, let url = panel.url {
+            services.notesStore.setFolder(url)
         }
     }
 
@@ -340,10 +406,29 @@ struct SettingsView: View {
                 KeyCap(symbol: "hover", palette: palette)
             }
             Hairline(color: palette.hairline)
-            Text(L10n.t(.setHotkeysSoon))
-                .font(Theme.subFont)
-                .foregroundStyle(palette.ink40)
-                .padding(.top, 14)
+            SettingRow(
+                title: L10n.t(.setHideWidget),
+                subtitle: L10n.t(.setHideWidgetSub),
+                palette: palette
+            ) {
+                keyCaps(HotkeyService.Action.toggleWidgetHidden.keyCaps)
+            }
+            Hairline(color: palette.hairline)
+            SettingRow(
+                title: L10n.t(.setPinPanel),
+                subtitle: L10n.t(.setPinPanelSub),
+                palette: palette
+            ) {
+                keyCaps(HotkeyService.Action.togglePanelPin.keyCaps)
+            }
+        }
+    }
+
+    private func keyCaps(_ symbols: [String]) -> some View {
+        HStack(spacing: 5) {
+            ForEach(symbols, id: \.self) { symbol in
+                KeyCap(symbol: symbol, palette: palette)
+            }
         }
     }
 

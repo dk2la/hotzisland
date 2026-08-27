@@ -125,6 +125,26 @@ final class AppSettings {
         }
     }
 
+    /// Clicking anywhere outside the widget closes the open panel. Off =
+    /// the panel stays pinned until closed explicitly. ⌃⌥P flips it.
+    var closeOnOutsideClick: Bool {
+        didSet {
+            defaults.set(closeOnOutsideClick, forKey: Self.outsideClickKey)
+            log.info("closeOnOutsideClick -> \(self.closeOnOutsideClick, privacy: .public)")
+            notifyChange()
+        }
+    }
+
+    /// Widget collapsed to a small square (⌃⌥H). Persisted so a restart
+    /// brings the widget back the way it was left.
+    var widgetMinimized: Bool {
+        didSet {
+            defaults.set(widgetMinimized, forKey: Self.widgetMinimizedKey)
+            log.info("widgetMinimized -> \(self.widgetMinimized, privacy: .public)")
+            notifyChange()
+        }
+    }
+
     /// User-chosen size of the expanded panel (dragged by the corner grip).
     private(set) var expandedPanelSize: CGSize {
         didSet {
@@ -178,10 +198,16 @@ final class AppSettings {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    // v2: bumped when the playbooks tab was added — a stored v1 set would
-    // silently hide new tabs, since "missing" is indistinguishable from
-    // "disabled by the user".
-    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v2"
+    // v4: bumped when the email tab shipped (v3 = notes, v2 = playbooks) —
+    // a stored older set would silently hide new tabs, since "missing" is
+    // indistinguishable from "disabled by the user".
+    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
+    /// (legacy key, tabs to surface when migrating from it)
+    @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [
+        ("settings.enabledTabs.v4", [.assistant]),
+        ("settings.enabledTabs.v3", [.email, .assistant]),
+        ("settings.enabledTabs.v2", [.notes, .email, .assistant]),
+    ]
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
     @ObservationIgnored private static let tabOrderKey = "settings.tabOrder"
@@ -190,6 +216,8 @@ final class AppSettings {
     @ObservationIgnored private static let languageKey = "settings.language"
     @ObservationIgnored private static let widgetEdgeKey = "settings.widgetEdge"
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
+    @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
+    @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
 
     init() {
         let defaults = UserDefaults.standard
@@ -213,10 +241,22 @@ final class AppSettings {
             .flatMap(WidgetEdge.init(rawValue:)) ?? .right
         let storedOffset = defaults.object(forKey: Self.widgetOffsetKey) as? Double
         widgetOffset = min(max(storedOffset ?? 0.5, 0), 1)
+        // Absent key = default ON: auto-close is the expected light behaviour.
+        closeOnOutsideClick = (defaults.object(forKey: Self.outsideClickKey) as? Bool) ?? true
+        widgetMinimized = defaults.bool(forKey: Self.widgetMinimizedKey)
         // Coming-soon modules stay off until their services land.
         let defaultEnabled = Set(NotchTab.allCases).subtracting(NotchTab.comingSoon)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {
             let tabs = Set(stored.compactMap(NotchTab.init(rawValue:)))
+            enabledTabs = tabs.isEmpty ? defaultEnabled : tabs
+        } else if let (legacy, extras) = Self.legacyTabsKeys
+            .compactMap({ key, extras in
+                defaults.stringArray(forKey: key).map { ($0, extras) }
+            })
+            .first {
+            // Migration: keep the user's choices, surface freshly shipped
+            // tabs they could not have known about.
+            let tabs = Set(legacy.compactMap(NotchTab.init(rawValue:))).union(extras)
             enabledTabs = tabs.isEmpty ? defaultEnabled : tabs
         } else {
             enabledTabs = defaultEnabled
