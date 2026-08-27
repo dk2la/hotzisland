@@ -9,9 +9,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var widgetController: WidgetWindowController?
     private var settingsWindow: SettingsWindowController?
     private let onboarding = OnboardingWindowController()
+    private let hotkeys = HotkeyService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
+        registerHotkeys()
         notchController = NotchWindowController(
             settings: settings,
             services: services,
@@ -48,6 +50,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onboarding.show(settings: settings) {
                 defaults.set(true, forKey: "onboarding.completed")
             }
+        }
+    }
+
+    /// Global shortcuts (Carbon — no permissions needed). Both act on the
+    /// widget surface; in island mode they are inert by design.
+    private func registerHotkeys() {
+        hotkeys.register(.toggleWidgetHidden) { [weak self] in
+            guard let self, self.settings.displayMode == .widget else { return }
+            // The controller reconciles through settingsDidChange, so the
+            // hotkey works even while the widget window is being rebuilt.
+            self.settings.widgetMinimized.toggle()
+        }
+        hotkeys.register(.togglePanelPin) { [weak self] in
+            self?.settings.closeOnOutsideClick.toggle()
         }
     }
 

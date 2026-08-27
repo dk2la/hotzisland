@@ -59,6 +59,12 @@ struct WidgetRootView: View {
             .clipShape(stripShape)
             .contentShape(stripShape)
             .gesture(dragGesture)
+            // Minimized: a click on the dots brings the icons back. The drag
+            // gesture keeps priority, so moving the widget still works.
+            .onTapGesture {
+                if viewModel.isMinimized { viewModel.onRestore?() }
+            }
+            .help(viewModel.isMinimized ? L10n.t(.setHideWidget) : "")
             .contextMenu {
                 Button(L10n.t(.menuSettings)) {
                     NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
@@ -73,17 +79,26 @@ struct WidgetRootView: View {
             }
     }
 
+    /// Minimized keeps the grip only — same view identity, so the strip
+    /// shrinks around the dots instead of being swapped for another shape.
     private var stripContent: some View {
         let layout = viewModel.edge.isVertical
             ? AnyLayout(VStackLayout(spacing: WidgetMetrics.spacing))
             : AnyLayout(HStackLayout(spacing: WidgetMetrics.spacing))
         return layout {
             gripDots
-            ForEach(settings.orderedEnabledTabs) { tab in
+            ForEach(visibleTabs) { tab in
                 iconButton(for: tab)
             }
         }
         .padding(viewModel.edge.isVertical ? .vertical : .horizontal, WidgetMetrics.endPadding)
+    }
+
+    /// Minimized the strip keeps its first module button — the widget still
+    /// reads as itself, and that one button unfolds it.
+    private var visibleTabs: [NotchTab] {
+        let tabs = settings.orderedEnabledTabs
+        return viewModel.isMinimized ? Array(tabs.prefix(1)) : tabs
     }
 
     private func iconButton(for tab: NotchTab) -> some View {

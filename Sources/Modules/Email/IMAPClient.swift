@@ -2,8 +2,8 @@ import Foundation
 import OSLog
 
 /// Minimal IMAP4rev1 client scoped to one INBOX session: login, unseen
-/// search, header fetch, body fetch, mark seen. Stateless by design — the
-/// service opens a fresh session per refresh.
+/// search, header fetch, body fetch, mark seen. Connection lifetime is
+/// `MailSession`'s job — this type owns the wire protocol only.
 actor IMAPClient {
     private let transport: TLSTransport
     private var tagCounter = 0
@@ -46,7 +46,17 @@ actor IMAPClient {
         return 0
     }
 
+    /// Unread count. STATUS answers with a single number; UID SEARCH would
+    /// stream back every unread UID — on a neglected inbox that is a
+    /// six-figure line of digits every poll.
     func searchUnseenCount() async throws -> Int {
+        if let units = try? await command("STATUS INBOX (UNSEEN)") {
+            for unit in units {
+                if let count = IMAPParser.parseStatusUnseen(unit) {
+                    return count
+                }
+            }
+        }
         let units = try await command("UID SEARCH UNSEEN")
         for unit in units {
             if let uids = IMAPParser.parseSearch(unit) {
@@ -143,6 +153,13 @@ actor IMAPClient {
             .filter { $0.hasPrefix("<") && $0.hasSuffix(">") }
     }
 
+    /// Cheap liveness probe. A silently dropped socket only reveals itself
+    /// on the next read, so a reused session is validated with a short-timeout
+    /// NOOP rather than by stalling a real command for the full 15 seconds.
+    func ping() async throws {
+        _ = try await command("NOOP", timeout: .seconds(3))
+    }
+
     func markSeen(uid: UInt32) async throws {
         _ = try await command("UID STORE \(uid) +FLAGS.SILENT (\\Seen)")
     }
@@ -156,14 +173,14 @@ actor IMAPClient {
 
     /// Sends one tagged command and gathers complete response units (each a
     /// line with any `{n}` literals inlined) until the tagged completion.
-    private func command(_ text: String) async throws -> [Data] {
+    private func command(_ text: String, timeout: Duration = .seconds(15)) async throws -> [Data] {
         tagCounter += 1
         let tag = "A\(tagCounter)"
         try await transport.send(Data("\(tag) \(text)\r\n".utf8))
 
         var units: [Data] = []
         while true {
-            let unit = try await readUnit()
+            let unit = try await readUnit(timeout: timeout)
             let line = String(decoding: unit.prefix(200), as: UTF8.self)
             if line.hasPrefix("\(tag) ") {
                 let upper = line.uppercased()
@@ -182,10 +199,10 @@ actor IMAPClient {
     /// Reads one full response unit: a CRLF line plus any literal payloads
     /// (lines ending in "{n}" are continued by n raw bytes and more line
     /// data, repeatedly).
-    private func readUnit() async throws -> Data {
+    private func readUnit(timeout: Duration = .seconds(15)) async throws -> Data {
         var unit = Data()
         while true {
-            let line = try await transport.readLine()
+            let line = try await transport.readLine(timeout: timeout)
             unit.append(line)
             guard let size = trailingLiteralSize(of: line) else {
                 return unit

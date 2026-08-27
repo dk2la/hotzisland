@@ -297,6 +297,22 @@ enum IMAPParser {
         return text.split(separator: " ").dropFirst(2).compactMap { UInt32($0) }
     }
 
+    /// `* STATUS "INBOX" (UNSEEN 18811)` → 18811
+    static func parseStatusUnseen(_ unit: Data) -> Int? {
+        let text = String(decoding: unit, as: UTF8.self)
+        guard text.uppercased().hasPrefix("* STATUS") else { return nil }
+        guard let open = text.range(of: "(", options: .backwards),
+              let close = text.range(of: ")", options: .backwards, range: open.upperBound..<text.endIndex)
+        else { return nil }
+        // The parenthesised list is name/value pairs: (MESSAGES 9 UNSEEN 3).
+        let items = text[open.upperBound..<close.lowerBound].split(separator: " ")
+        for (index, item) in items.enumerated()
+        where item.uppercased() == "UNSEEN" && index + 1 < items.count {
+            return Int(items[index + 1])
+        }
+        return nil
+    }
+
     /// "* 231 EXISTS" → 231
     static func parseExists(_ unit: Data) -> Int? {
         let text = String(decoding: unit, as: UTF8.self)

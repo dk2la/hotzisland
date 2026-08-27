@@ -182,6 +182,20 @@ struct SettingsView: View {
             }
             Hairline(color: palette.hairline)
             SettingRow(
+                title: L10n.t(.setOutsideClick),
+                subtitle: L10n.t(.setOutsideClickSub),
+                palette: palette
+            ) {
+                InstrumentToggle(
+                    isOn: Binding(
+                        get: { settings.closeOnOutsideClick },
+                        set: { settings.closeOnOutsideClick = $0 }
+                    ),
+                    palette: palette
+                )
+            }
+            Hairline(color: palette.hairline)
+            SettingRow(
                 title: L10n.t(.setDisplayMode),
                 subtitle: L10n.t(.setDisplayModeSub),
                 palette: palette
@@ -392,10 +406,29 @@ struct SettingsView: View {
                 KeyCap(symbol: "hover", palette: palette)
             }
             Hairline(color: palette.hairline)
-            Text(L10n.t(.setHotkeysSoon))
-                .font(Theme.subFont)
-                .foregroundStyle(palette.ink40)
-                .padding(.top, 14)
+            SettingRow(
+                title: L10n.t(.setHideWidget),
+                subtitle: L10n.t(.setHideWidgetSub),
+                palette: palette
+            ) {
+                keyCaps(HotkeyService.Action.toggleWidgetHidden.keyCaps)
+            }
+            Hairline(color: palette.hairline)
+            SettingRow(
+                title: L10n.t(.setPinPanel),
+                subtitle: L10n.t(.setPinPanelSub),
+                palette: palette
+            ) {
+                keyCaps(HotkeyService.Action.togglePanelPin.keyCaps)
+            }
+        }
+    }
+
+    private func keyCaps(_ symbols: [String]) -> some View {
+        HStack(spacing: 5) {
+            ForEach(symbols, id: \.self) { symbol in
+                KeyCap(symbol: symbol, palette: palette)
+            }
         }
     }
 

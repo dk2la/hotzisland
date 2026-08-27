@@ -30,6 +30,12 @@ final class EmailService {
     @ObservationIgnored private let vault = SecretVault(service: EmailAccountConfig.keychainService)
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    /// Two long-lived IMAP connections: one for the 90s poll, one for what
+    /// the user just clicked. Reconnecting per action made opening a message
+    /// take seconds; sharing a single connection would queue the click
+    /// behind a poll that is streaming 30 message headers.
+    @ObservationIgnored private var pollSession: MailSession?
+    @ObservationIgnored private var userSession: MailSession?
     private static let messageLimit = 30
 
     init() {
@@ -50,6 +56,7 @@ final class EmailService {
             lastError = "Keychain: \(error.localizedDescription)"
             return
         }
+        dropSessions()
         config = newConfig
         if let data = try? JSONEncoder().encode(newConfig) {
             defaults.set(data, forKey: EmailAccountConfig.defaultsKey)
@@ -66,6 +73,7 @@ final class EmailService {
         if let config {
             vault.delete(account: config.email)
         }
+        dropSessions()
         config = nil
         defaults.removeObject(forKey: EmailAccountConfig.defaultsKey)
         messages = []
@@ -111,32 +119,70 @@ final class EmailService {
         config.flatMap { vault.secret(account: $0.email) }
     }
 
+    private func makeSession() -> MailSession? {
+        guard let config, let password = accountPassword() else { return nil }
+        return MailSession(
+            host: config.imapHost,
+            port: config.imapPort,
+            user: config.email,
+            password: password
+        )
+    }
+
+    /// Background polling connection.
+    private func activePollSession() -> MailSession? {
+        if let pollSession { return pollSession }
+        pollSession = makeSession()
+        return pollSession
+    }
+
+    /// Foreground connection for taps: opening a message, marking it read.
+    private func activeUserSession() -> MailSession? {
+        if let userSession { return userSession }
+        userSession = makeSession()
+        return userSession
+    }
+
+    private func dropSessions() {
+        let open = [pollSession, userSession].compactMap { $0 }
+        pollSession = nil
+        userSession = nil
+        guard !open.isEmpty else { return }
+        Task {
+            for session in open {
+                await session.close()
+            }
+        }
+    }
+
     func refresh() {
-        guard let config, refreshTask == nil else { return }
-        guard let password = accountPassword() else {
+        guard refreshTask == nil, config != nil else { return }
+        guard accountPassword() != nil else {
             connection = .failed("No password in Keychain")
             return
         }
+        guard let session = activePollSession() else { return }
         connection = messages.isEmpty ? .connecting : connection
+        let limit = Self.messageLimit
         refreshTask = Task { [weak self] in
             defer { self?.refreshTask = nil }
-            let client = IMAPClient(host: config.imapHost, port: config.imapPort)
             do {
-                try await client.connect()
-                try await client.login(user: config.email, password: password)
-                let exists = try await client.selectInbox()
-                let unread = try await client.searchUnseenCount()
-                let fetched = try await client.fetchHeaders(exists: exists, limit: Self.messageLimit)
-                await client.logout()
+                let result = try await session.run { client -> (Int, Int, [EmailMessage]) in
+                    // SELECT again: EXISTS moves as mail arrives on a
+                    // connection we are keeping open across polls.
+                    let exists = try await client.selectInbox()
+                    let unread = try await client.searchUnseenCount()
+                    let fetched = try await client.fetchHeaders(exists: exists, limit: limit)
+                    return (exists, unread, fetched)
+                }
                 guard let self, !Task.isCancelled else { return }
-                self.unreadCount = unread
-                self.messages = fetched
+                self.unreadCount = result.1
+                self.messages = result.2
                 self.connection = .online
                 self.lastRefresh = Date()
                 self.lastError = nil
-                self.log.info("refreshed exists=\(exists, privacy: .public) unread=\(unread, privacy: .public)")
+                self.log.info("refreshed exists=\(result.0, privacy: .public) unread=\(result.1, privacy: .public)")
             } catch {
-                await client.logout()
                 guard let self, !Task.isCancelled else { return }
                 self.connection = .failed(error.localizedDescription)
                 self.log.error("refresh failed: \(error.localizedDescription, privacy: .public)")
@@ -172,19 +218,19 @@ final class EmailService {
     }
 
     private func loadBody(for message: EmailMessage) {
-        guard let config, let password = accountPassword() else { return }
+        guard let session = activeUserSession() else { return }
         isLoadingBody = true
+        let uid = message.uid
+        let part = message.textPart
+        let startedAt = ContinuousClock.now
         Task { [weak self] in
-            let client = IMAPClient(host: config.imapHost, port: config.imapPort)
             var body = MessageBody(text: "", references: [])
             do {
-                try await client.connect()
-                try await client.login(user: config.email, password: password)
-                _ = try await client.selectInbox()
-                body = try await client.fetchBody(uid: message.uid, part: message.textPart)
-                await client.logout()
+                body = try await session.run { try await $0.fetchBody(uid: uid, part: part) }
+                let elapsed = ContinuousClock.now - startedAt
+                self?.log.info("body ready in \(elapsed.milliseconds, privacy: .public) ms")
             } catch {
-                await client.logout()
+                self?.log.error("body load failed: \(error.localizedDescription, privacy: .public)")
             }
             guard let self else { return }
             self.isLoadingBody = false
@@ -264,7 +310,7 @@ final class EmailService {
 
     /// Optimistic local flip, then the server call.
     func markRead(_ message: EmailMessage) {
-        guard let config, let password = accountPassword() else { return }
+        guard let session = activeUserSession() else { return }
         if let index = messages.firstIndex(where: { $0.uid == message.uid }), messages[index].isUnread {
             messages[index].isUnread = false
             unreadCount = max(0, unreadCount - 1)
@@ -273,17 +319,10 @@ final class EmailService {
             open.isUnread = false
             openMessage = open
         }
+        let uid = message.uid
         Task {
-            let client = IMAPClient(host: config.imapHost, port: config.imapPort)
-            do {
-                try await client.connect()
-                try await client.login(user: config.email, password: password)
-                _ = try await client.selectInbox()
-                try await client.markSeen(uid: message.uid)
-            } catch {
-                // Reconciled by the next poll.
-            }
-            await client.logout()
+            // Failure is fine: the next poll reconciles the flag.
+            try? await session.run { try await $0.markSeen(uid: uid) }
         }
     }
 }

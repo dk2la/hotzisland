@@ -10,6 +10,8 @@ import Observation
 final class WidgetViewModel {
     /// Open module panel; nil = collapsed to the icon strip.
     private(set) var selectedTab: NotchTab?
+    /// Widget shrunk to a small square (⌃⌥H); no strip, no panel.
+    var isMinimized = false
 
     var edge: WidgetEdge = .right
     var stripFrame: CGRect = .zero
@@ -17,6 +19,7 @@ final class WidgetViewModel {
 
     @ObservationIgnored var onTabTapped: ((NotchTab) -> Void)?
     @ObservationIgnored var onClose: (() -> Void)?
+    @ObservationIgnored var onRestore: (() -> Void)?
     /// Drag reads the global cursor itself (NSEvent.mouseLocation) — the
     /// window moves mid-drag, so gesture-local coordinates would feed back.
     @ObservationIgnored var onDragChanged: (() -> Void)?
