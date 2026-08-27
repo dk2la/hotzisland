@@ -105,6 +105,18 @@ final class IMAPParserTests: XCTestCase {
         XCTAssertEqual(MIMEDecode.parseHeaders(raw)["content-transfer-encoding"], "7bit")
     }
 
+    /// STATUS replaced UID SEARCH for the unread badge — the search streams
+    /// back every unread UID, which on a real inbox is a six-figure line.
+    func testStatusUnseen() {
+        XCTAssertEqual(IMAPParser.parseStatusUnseen(Data("* STATUS \"INBOX\" (UNSEEN 18811)\r\n".utf8)), 18811)
+        XCTAssertEqual(
+            IMAPParser.parseStatusUnseen(Data("* STATUS INBOX (MESSAGES 21472 UNSEEN 3)\r\n".utf8)),
+            3
+        )
+        XCTAssertEqual(IMAPParser.parseStatusUnseen(Data("* STATUS \"INBOX\" (MESSAGES 9)\r\n".utf8)), nil)
+        XCTAssertNil(IMAPParser.parseStatusUnseen(Data("* 231 EXISTS\r\n".utf8)))
+    }
+
     func testSearchAndExists() {
         XCTAssertEqual(IMAPParser.parseSearch(Data("* SEARCH 4 8 15\r\n".utf8)), [4, 8, 15])
         XCTAssertEqual(IMAPParser.parseExists(Data("* 231 EXISTS\r\n".utf8)), 231)

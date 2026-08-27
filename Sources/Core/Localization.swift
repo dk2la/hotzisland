@@ -133,7 +133,9 @@ enum L10nKey {
     case setShellTheme, setCapsule, setCapsuleSub, setWidgetMaterial, setWidgetMaterialSub
     case setLight, setDark, setAuto
     case setModulesHint, setDefaultTag, setSoonTag
-    case setOpenSettings, setExpandIsland, setExpandIslandSub, setHotkeysSoon
+    case setOpenSettings, setExpandIsland, setExpandIslandSub
+    case setOutsideClick, setOutsideClickSub
+    case setHideWidget, setHideWidgetSub, setPinPanel, setPinPanelSub
 
     var row: [String] {
         switch self {
@@ -288,7 +290,12 @@ enum L10nKey {
         case .setOpenSettings: return ["Open settings", "Открыть настройки", "Ouvrir les réglages", "Abrir ajustes", "打开设置", "Abrir ajustes", "Einstellungen öffnen", "Apri impostazioni", "設定を開く", "설정 열기"]
         case .setExpandIsland: return ["Expand the island", "Раскрыть остров", "Déployer l'îlot", "Expandir la isla", "展开灵动岛", "Expandir a ilha", "Insel aufklappen", "Espandi l'isola", "アイランドを展開", "아일랜드 펼치기"]
         case .setExpandIslandSub: return ["Hover the cursor over the notch", "Наведение курсора на вырез", "Survolez le notch", "Pasa el cursor por el notch", "将光标悬停在刘海上", "Passe o cursor sobre o notch", "Cursor über den Notch bewegen", "Passa il cursore sul notch", "ノッチにカーソルを合わせる", "노치에 커서를 올리기"]
-        case .setHotkeysSoon: return ["Custom shortcuts are planned.", "Настраиваемые сочетания — в планах.", "Raccourcis personnalisés à venir.", "Atajos personalizables en camino.", "自定义快捷键即将推出。", "Atalhos personalizados a caminho.", "Eigene Kurzbefehle sind geplant.", "Scorciatoie personalizzate in arrivo.", "カスタムショートカットは今後対応予定。", "사용자 지정 단축키는 준비 중입니다."]
+        case .setOutsideClick: return ["Close panel on outside click", "Закрывать панель по клику вне виджета", "Fermer le panneau en cliquant à l'extérieur", "Cerrar el panel al hacer clic fuera", "点击外部时关闭面板", "Fechar o painel ao clicar fora", "Panel bei Klick außerhalb schließen", "Chiudi il pannello cliccando fuori", "外側をクリックでパネルを閉じる", "밖을 클릭하면 패널 닫기"]
+        case .setOutsideClickSub: return ["Off = the panel stays pinned. ⌃⌥P toggles this anywhere.", "Выкл = панель закреплена. ⌃⌥P переключает откуда угодно.", "Désactivé = panneau épinglé. ⌃⌥P bascule partout.", "Desactivado = panel fijado. ⌃⌥P lo alterna en cualquier lugar.", "关闭 = 面板固定。⌃⌥P 随处切换。", "Desligado = painel fixado. ⌃⌥P alterna em qualquer lugar.", "Aus = Panel bleibt angeheftet. ⌃⌥P schaltet überall um.", "Off = pannello fissato. ⌃⌥P lo commuta ovunque.", "オフ = パネルを固定。⌃⌥P でどこでも切替。", "끄면 패널 고정. ⌃⌥P로 어디서든 전환."]
+        case .setHideWidget: return ["Hide / show the widget", "Скрыть / показать виджет", "Masquer / afficher le widget", "Ocultar / mostrar el widget", "隐藏 / 显示小组件", "Ocultar / mostrar o widget", "Widget aus- / einblenden", "Nascondi / mostra il widget", "ウィジェットを隠す / 表示", "위젯 숨기기 / 표시"]
+        case .setHideWidgetSub: return ["Collapses the strip into a small square when it is in the way", "Сворачивает рейку в маленький квадрат, когда она мешает", "Réduit la barre en petit carré quand elle gêne", "Colapsa la barra en un cuadrito cuando estorba", "碍事时把工具条折叠成小方块", "Recolhe a barra num quadradinho quando atrapalha", "Faltet die Leiste zu einem kleinen Quadrat, wenn sie stört", "Riduce la barra a un quadratino quando è d'intralcio", "邪魔なときにストリップを小さな四角に畳みます", "방해될 때 스트립을 작은 사각형으로 접기"]
+        case .setPinPanel: return ["Pin the panel", "Закрепить панель", "Épingler le panneau", "Fijar el panel", "固定面板", "Fixar o painel", "Panel anheften", "Fissa il pannello", "パネルを固定", "패널 고정"]
+        case .setPinPanelSub: return ["Toggles \"close on outside click\"", "Переключает «закрывать по клику вне виджета»", "Bascule « fermer au clic extérieur »", "Alterna «cerrar al hacer clic fuera»", "切换「点击外部关闭」", "Alterna «fechar ao clicar fora»", "Schaltet \"bei Klick außerhalb schließen\" um", "Commuta «chiudi al clic esterno»", "「外側クリックで閉じる」を切替", "\"밖 클릭 시 닫기\" 전환"]
         }
     }
 }

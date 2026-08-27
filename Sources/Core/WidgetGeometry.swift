@@ -38,15 +38,18 @@ enum WidgetGeometry {
         let panelLocal: CGRect
     }
 
-    static func stripLength(iconCount: Int) -> CGFloat {
-        let icons = CGFloat(iconCount) * WidgetMetrics.cell
-            + CGFloat(max(0, iconCount - 1)) * WidgetMetrics.spacing
+    /// Minimized (⌃⌥H): the strip rolls up to its grip plus the first
+    /// module button — same shape and thickness, just shorter.
+    static func stripLength(iconCount: Int, minimized: Bool = false) -> CGFloat {
+        let shown = minimized ? min(iconCount, 1) : iconCount
+        let icons = CGFloat(shown) * WidgetMetrics.cell
+            + CGFloat(max(0, shown - 1)) * WidgetMetrics.spacing
         return WidgetMetrics.endPadding * 2 + WidgetMetrics.gripSize
             + WidgetMetrics.spacing + icons
     }
 
-    static func stripSize(iconCount: Int, edge: WidgetEdge) -> CGSize {
-        let length = stripLength(iconCount: iconCount)
+    static func stripSize(iconCount: Int, edge: WidgetEdge, minimized: Bool = false) -> CGSize {
+        let length = stripLength(iconCount: iconCount, minimized: minimized)
         return edge.isVertical
             ? CGSize(width: WidgetMetrics.thickness, height: length)
             : CGSize(width: length, height: WidgetMetrics.thickness)
@@ -54,7 +57,30 @@ enum WidgetGeometry {
 
     /// Strip rect on screen; `offset` is the normalized 0…1 position of the
     /// strip's center along the edge (survives resolution changes).
-    static func stripFrame(edge: WidgetEdge, offset: Double, iconCount: Int, on screen: NSScreen) -> NSRect {
+    ///
+    /// Minimizing keeps the leading edge — the top for a side dock — pinned,
+    /// so the widget rolls up into itself instead of sliding along the edge.
+    static func stripFrame(
+        edge: WidgetEdge,
+        offset: Double,
+        iconCount: Int,
+        minimized: Bool = false,
+        on screen: NSScreen
+    ) -> NSRect {
+        let full = fullStripFrame(edge: edge, offset: offset, iconCount: iconCount, on: screen)
+        guard minimized else { return full }
+        let size = stripSize(iconCount: iconCount, edge: edge, minimized: true)
+        return edge.isVertical
+            ? NSRect(x: full.minX, y: full.maxY - size.height, width: size.width, height: size.height)
+            : NSRect(x: full.minX, y: full.minY, width: size.width, height: size.height)
+    }
+
+    private static func fullStripFrame(
+        edge: WidgetEdge,
+        offset: Double,
+        iconCount: Int,
+        on screen: NSScreen
+    ) -> NSRect {
         let vf = screen.visibleFrame
         let size = stripSize(iconCount: iconCount, edge: edge)
         let inset = WidgetMetrics.edgeInset

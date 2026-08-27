@@ -125,6 +125,26 @@ final class AppSettings {
         }
     }
 
+    /// Clicking anywhere outside the widget closes the open panel. Off =
+    /// the panel stays pinned until closed explicitly. ⌃⌥P flips it.
+    var closeOnOutsideClick: Bool {
+        didSet {
+            defaults.set(closeOnOutsideClick, forKey: Self.outsideClickKey)
+            log.info("closeOnOutsideClick -> \(self.closeOnOutsideClick, privacy: .public)")
+            notifyChange()
+        }
+    }
+
+    /// Widget collapsed to a small square (⌃⌥H). Persisted so a restart
+    /// brings the widget back the way it was left.
+    var widgetMinimized: Bool {
+        didSet {
+            defaults.set(widgetMinimized, forKey: Self.widgetMinimizedKey)
+            log.info("widgetMinimized -> \(self.widgetMinimized, privacy: .public)")
+            notifyChange()
+        }
+    }
+
     /// User-chosen size of the expanded panel (dragged by the corner grip).
     private(set) var expandedPanelSize: CGSize {
         didSet {
@@ -196,6 +216,8 @@ final class AppSettings {
     @ObservationIgnored private static let languageKey = "settings.language"
     @ObservationIgnored private static let widgetEdgeKey = "settings.widgetEdge"
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
+    @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
+    @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
 
     init() {
         let defaults = UserDefaults.standard
@@ -219,6 +241,9 @@ final class AppSettings {
             .flatMap(WidgetEdge.init(rawValue:)) ?? .right
         let storedOffset = defaults.object(forKey: Self.widgetOffsetKey) as? Double
         widgetOffset = min(max(storedOffset ?? 0.5, 0), 1)
+        // Absent key = default ON: auto-close is the expected light behaviour.
+        closeOnOutsideClick = (defaults.object(forKey: Self.outsideClickKey) as? Bool) ?? true
+        widgetMinimized = defaults.bool(forKey: Self.widgetMinimizedKey)
         // Coming-soon modules stay off until their services land.
         let defaultEnabled = Set(NotchTab.allCases).subtracting(NotchTab.comingSoon)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {
