@@ -30,6 +30,7 @@ final class EmailService {
     @ObservationIgnored private let vault = SecretVault(service: EmailAccountConfig.keychainService)
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var prefetchTask: Task<Void, Never>?
     /// Two long-lived IMAP connections: one for the 90s poll, one for what
     /// the user just clicked. Reconnecting per action made opening a message
     /// take seconds; sharing a single connection would queue the click
@@ -144,6 +145,8 @@ final class EmailService {
     }
 
     private func dropSessions() {
+        prefetchTask?.cancel()
+        prefetchTask = nil
         let open = [pollSession, userSession].compactMap { $0 }
         pollSession = nil
         userSession = nil
@@ -177,11 +180,22 @@ final class EmailService {
                 }
                 guard let self, !Task.isCancelled else { return }
                 self.unreadCount = result.1
-                self.messages = result.2
+                // A poll must not throw away bodies that are already in
+                // memory — that made a message lag again after every 90s.
+                var merged = result.2
+                let known = Dictionary(uniqueKeysWithValues: self.messages.map { ($0.uid, $0) })
+                for index in merged.indices {
+                    if let cached = known[merged[index].uid], cached.bodyPlain != nil {
+                        merged[index].bodyPlain = cached.bodyPlain
+                        merged[index].references = cached.references
+                    }
+                }
+                self.messages = merged
                 self.connection = .online
                 self.lastRefresh = Date()
                 self.lastError = nil
                 self.log.info("refreshed exists=\(result.0, privacy: .public) unread=\(result.1, privacy: .public)")
+                self.prefetchBodies()
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 self.connection = .failed(error.localizedDescription)
@@ -224,25 +238,58 @@ final class EmailService {
         let part = message.textPart
         let startedAt = ContinuousClock.now
         Task { [weak self] in
-            var body = MessageBody(text: "", references: [])
             do {
-                body = try await session.run { try await $0.fetchBody(uid: uid, part: part) }
+                let body = try await session.run { try await $0.fetchBody(uid: uid, part: part) }
                 let elapsed = ContinuousClock.now - startedAt
                 self?.log.info("body ready in \(elapsed.milliseconds, privacy: .public) ms")
+                self?.store(body, uid: uid)
             } catch {
+                // Leave bodyPlain nil so the next open (or prefetch) retries.
                 self?.log.error("body load failed: \(error.localizedDescription, privacy: .public)")
             }
-            guard let self else { return }
-            self.isLoadingBody = false
-            let text = body.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if var open = self.openMessage, open.uid == message.uid {
-                open.bodyPlain = text
-                open.references = body.references
-                self.openMessage = open
+            self?.isLoadingBody = false
+        }
+    }
+
+    /// Puts a fetched body into the list and, when relevant, the open view.
+    private func store(_ body: MessageBody, uid: UInt32) {
+        let text = body.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if var open = openMessage, open.uid == uid {
+            open.bodyPlain = text
+            open.references = body.references
+            openMessage = open
+        }
+        if let index = messages.firstIndex(where: { $0.uid == uid }) {
+            messages[index].bodyPlain = text
+            messages[index].references = body.references
+        }
+    }
+
+    /// Downloads bodies the list does not have yet, newest first, on the
+    /// background connection. Opening a message then shows it instantly from
+    /// memory instead of paying network round trips while the user stares
+    /// at a placeholder.
+    private func prefetchBodies() {
+        guard prefetchTask == nil, let session = activePollSession() else { return }
+        let pending = messages
+            .filter { $0.bodyPlain == nil }
+            .map { (uid: $0.uid, part: $0.textPart) }
+        guard !pending.isEmpty else { return }
+        prefetchTask = Task { [weak self] in
+            defer { self?.prefetchTask = nil }
+            var fetched = 0
+            for item in pending {
+                guard !Task.isCancelled else { return }
+                // A message may have been opened (and loaded) meanwhile.
+                guard self?.messages.first(where: { $0.uid == item.uid })?.bodyPlain == nil else { continue }
+                guard let body = try? await session.run({
+                    try await $0.fetchBody(uid: item.uid, part: item.part)
+                }) else { continue }
+                self?.store(body, uid: item.uid)
+                fetched += 1
             }
-            if let index = self.messages.firstIndex(where: { $0.uid == message.uid }) {
-                self.messages[index].bodyPlain = text
-                self.messages[index].references = body.references
+            if fetched > 0 {
+                self?.log.info("prefetched bodies=\(fetched, privacy: .public)")
             }
         }
     }
@@ -310,7 +357,7 @@ final class EmailService {
 
     /// Optimistic local flip, then the server call.
     func markRead(_ message: EmailMessage) {
-        guard let session = activeUserSession() else { return }
+        guard let session = activePollSession() else { return }
         if let index = messages.firstIndex(where: { $0.uid == message.uid }), messages[index].isUnread {
             messages[index].isUnread = false
             unreadCount = max(0, unreadCount - 1)
