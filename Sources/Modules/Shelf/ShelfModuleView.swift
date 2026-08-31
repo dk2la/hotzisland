@@ -37,7 +37,8 @@ struct ShelfModuleView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.textTertiary)
             Text(L10n.t(.shelfDrop))
-                .font(.system(size: 12, weight: .medium))
+                .font(Theme.subFont)
+                .fontWeight(.medium)
                 .foregroundStyle(Theme.textTertiary)
         }
         .frame(maxWidth: .infinity)
@@ -57,12 +58,13 @@ struct ShelfModuleView: View {
                 .background(Theme.raisedFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(Theme.bodyFont)
+                    .fontWeight(.medium)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.92))
+                    .foregroundStyle(Theme.textPrimary)
                 Text(Self.sizeLabel(for: item.url))
-                    .font(.system(size: 10.5))
+                    .font(Theme.captionFont)
                     .foregroundStyle(Theme.textQuaternary)
             }
             Spacer(minLength: 0)
@@ -71,7 +73,7 @@ struct ShelfModuleView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Theme.textPrimary.opacity(0.6))
+                    .foregroundStyle(Theme.textTertiary)
                     .frame(width: 24, height: 24)
                     .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.raisedFill))
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))

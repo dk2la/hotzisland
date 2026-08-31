@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let services = ModuleServices()
     private var statusItem: NSStatusItem?
+    private var displayModeMenuItem: NSMenuItem?
     private var notchController: NotchWindowController?
     private var widgetController: WidgetWindowController?
     private var settingsWindow: SettingsWindowController?
@@ -53,8 +54,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Global shortcuts (Carbon — no permissions needed). Both act on the
-    /// widget surface; in island mode they are inert by design.
+    /// Global shortcuts (Carbon — no permissions needed). H and P act on
+    /// the widget surface and are inert in island mode by design; M flips
+    /// between the surfaces from anywhere.
     private func registerHotkeys() {
         hotkeys.register(.toggleWidgetHidden) { [weak self] in
             guard let self, self.settings.displayMode == .widget else { return }
@@ -64,6 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeys.register(.togglePanelPin) { [weak self] in
             self?.settings.closeOnOutsideClick.toggle()
+        }
+        hotkeys.register(.toggleDisplayMode) { [weak self] in
+            self?.settings.toggleDisplayMode()
         }
     }
 
@@ -75,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let menu = NSMenu()
+        menu.delegate = self
         let settingsItem = NSMenuItem(
             title: "Settings…",
             action: #selector(openSettings),
@@ -82,6 +88,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         settingsItem.target = self
         menu.addItem(settingsItem)
+        // Title is stamped in menuNeedsUpdate — it names the mode the click
+        // switches TO, so it must reflect the current mode at open time.
+        let modeItem = NSMenuItem(
+            title: "",
+            action: #selector(toggleDisplayModeAction),
+            keyEquivalent: ""
+        )
+        modeItem.target = self
+        menu.addItem(modeItem)
+        displayModeMenuItem = modeItem
         menu.addItem(.separator())
         menu.addItem(
             NSMenuItem(
@@ -93,6 +109,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.menu = menu
 
         statusItem = item
+    }
+
+    @objc private func toggleDisplayModeAction() {
+        settings.toggleDisplayMode()
     }
 
     private func applyDisplayMode(_ mode: DisplayMode) {
@@ -129,5 +149,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
         settingsWindow?.show(page: page)
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    /// AppKit opens menus on the main thread; the protocol requirement is
+    /// nonisolated, hence the assumption.
+    nonisolated func menuNeedsUpdate(_ menu: NSMenu) {
+        MainActor.assumeIsolated {
+            displayModeMenuItem?.title = L10n.t(
+                settings.displayMode == .widget ? .menuIslandMode : .menuWidgetMode
+            )
+        }
     }
 }

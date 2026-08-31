@@ -16,11 +16,14 @@ final class HotkeyService {
         case toggleWidgetHidden = 1
         /// ⌃⌥P — pin the panel: flips close-on-outside-click.
         case togglePanelPin = 2
+        /// ⌃⌥M — flip between the edge widget and the notch island.
+        case toggleDisplayMode = 3
 
         var keyCode: UInt32 {
             switch self {
             case .toggleWidgetHidden: UInt32(kVK_ANSI_H)
             case .togglePanelPin: UInt32(kVK_ANSI_P)
+            case .toggleDisplayMode: UInt32(kVK_ANSI_M)
             }
         }
 
@@ -33,6 +36,7 @@ final class HotkeyService {
             switch self {
             case .toggleWidgetHidden: ["⌃", "⌥", "H"]
             case .togglePanelPin: ["⌃", "⌥", "P"]
+            case .toggleDisplayMode: ["⌃", "⌥", "M"]
             }
         }
     }

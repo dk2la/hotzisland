@@ -27,13 +27,15 @@ final class IMAPParserTests: XCTestCase {
         XCTAssertEqual(envelope.messageID, "<abc123@mail.gmail.com>")
     }
 
-    func testPrefersPlainTextPart() throws {
+    /// The widget renders HTML, so the HTML alternative wins: senders'
+    /// auto-generated plain parts are routinely stripped-tag garbage with
+    /// CSS and entities left in.
+    func testPrefersHTMLOverThePlainAlternative() throws {
         let item = try XCTUnwrap(IMAPParser.parseFetch(Data(alternative.utf8)))
         let part = try XCTUnwrap(item.textPart)
-        XCTAssertEqual(part.section, "1")
-        XCTAssertEqual(part.encoding, "BASE64")
-        XCTAssertEqual(part.charset, "UTF-8")
-        XCTAssertFalse(part.isHTML)
+        XCTAssertEqual(part.section, "2")
+        XCTAssertEqual(part.encoding, "QUOTED-PRINTABLE")
+        XCTAssertTrue(part.isHTML)
     }
 
     func testLiteralSubjectAndSinglePartBody() throws {
@@ -46,8 +48,10 @@ final class IMAPParserTests: XCTestCase {
             + "BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"KOI8-R\") NIL NIL \"8BIT\" 400 10 NIL NIL NIL NIL))\r\n"
         let item = try XCTUnwrap(IMAPParser.parseFetch(Data(unit.utf8)))
         XCTAssertEqual(item.envelope?.subject, "Привет, мир")
+        // Plain-only mail still uses its only part.
         XCTAssertEqual(item.textPart?.section, "1")
         XCTAssertEqual(item.textPart?.charset, "KOI8-R")
+        XCTAssertEqual(item.textPart?.isHTML, false)
     }
 
     func testNestedMultipartSectionPath() throws {
@@ -63,7 +67,7 @@ final class IMAPParserTests: XCTestCase {
             + "\"MIXED\" (\"BOUNDARY\" \"bbb\") NIL NIL NIL))\r\n"
         let item = try XCTUnwrap(IMAPParser.parseFetch(Data(unit.utf8)))
         XCTAssertEqual(item.envelope?.inReplyTo, "<parent@acme.io>")
-        XCTAssertEqual(item.textPart?.section, "1.1")
+        XCTAssertEqual(item.textPart?.section, "1.2", "the HTML half of the alternative")
     }
 
     func testFallsBackToHTMLWhenThatIsAllThereIs() throws {

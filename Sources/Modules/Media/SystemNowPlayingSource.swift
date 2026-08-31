@@ -13,6 +13,7 @@ final class SystemNowPlayingSource: MediaSource {
     private typealias GetInfoFn = @convention(c) (DispatchQueue, @escaping (CFDictionary?) -> Void) -> Void
     private typealias GetPIDFn = @convention(c) (DispatchQueue, @escaping (Int32) -> Void) -> Void
     private typealias SendCommandFn = @convention(c) (Int32, CFDictionary?) -> Bool
+    private typealias SetElapsedFn = @convention(c) (Double) -> Void
 
     private enum Command: Int32 {
         case togglePlayPause = 2
@@ -23,6 +24,7 @@ final class SystemNowPlayingSource: MediaSource {
     private let getInfo: GetInfoFn?
     private let getPID: GetPIDFn?
     private let sendCommand: SendCommandFn?
+    private let setElapsed: SetElapsedFn?
     private var lastArtworkData: Data?
 
     init() {
@@ -36,6 +38,7 @@ final class SystemNowPlayingSource: MediaSource {
         getInfo = symbol("MRMediaRemoteGetNowPlayingInfo", as: GetInfoFn.self)
         getPID = symbol("MRMediaRemoteGetNowPlayingApplicationPID", as: GetPIDFn.self)
         sendCommand = symbol("MRMediaRemoteSendCommand", as: SendCommandFn.self)
+        setElapsed = symbol("MRMediaRemoteSetElapsedTime", as: SetElapsedFn.self)
     }
 
     func isAvailable() -> Bool { getInfo != nil }
@@ -122,6 +125,7 @@ final class SystemNowPlayingSource: MediaSource {
     func togglePlayPause() async { send(.togglePlayPause) }
     func next() async { send(.nextTrack) }
     func previous() async { send(.previousTrack) }
+    func seek(to seconds: Double) async { setElapsed?(seconds) }
 
     private func send(_ command: Command) {
         _ = sendCommand?(command.rawValue, nil)

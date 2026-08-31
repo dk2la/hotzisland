@@ -91,6 +91,16 @@ final class MediaCenter {
     func previous() { command { await $0.previous() } }
     func like() { command { await $0.like() } }
 
+    /// Scrubbing. The position is applied locally at once — the next poll
+    /// would otherwise snap the knob back for up to a second.
+    func seek(toFraction fraction: Double) {
+        guard var current = track, current.duration > 0 else { return }
+        let seconds = max(0, min(current.duration, fraction * current.duration))
+        current.position = seconds
+        track = current
+        command { await $0.seek(to: seconds) }
+    }
+
     private func command(_ operation: @escaping @MainActor (any MediaSource) async -> Void) {
         guard let activeSource, canControl(activeSource) else { return }
         let source = source(for: activeSource)

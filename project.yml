@@ -57,6 +57,7 @@ targets:
       - path: Sources/Modules/Assistant/CLIAssistantClient.swift
       - path: Sources/Services/SpeechCaptureService.swift
       - path: Sources/Core/WidgetGeometry.swift
+      - path: Sources/Modules/Email/EmailHTMLSanitizer.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland.tests

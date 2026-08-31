@@ -40,12 +40,13 @@ struct MetricsModuleView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline) {
                 Text(label)
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(Theme.subFont)
+                    .fontWeight(.medium)
                     .foregroundStyle(Theme.textSecondary)
                 Spacer(minLength: 8)
                 Text(value)
-                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
+                    .font(Theme.smallValueFont)
+                    .foregroundStyle(Theme.textPrimary)
             }
             if let fraction {
                 GlassProgressBar(fraction: fraction, fillColor: Theme.severity(fraction))
@@ -61,7 +62,8 @@ struct MetricsModuleView: View {
             HStack(alignment: .firstTextBaseline) {
                 HStack(spacing: 6) {
                     Text(L10n.t(.sysBattery))
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(Theme.subFont)
+                        .fontWeight(.medium)
                         .foregroundStyle(Theme.textSecondary)
                     if power.isPlugged {
                         HStack(spacing: 4) {
@@ -74,8 +76,8 @@ struct MetricsModuleView: View {
                 }
                 Spacer(minLength: 8)
                 Text("\(power.percent)%")
-                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
+                    .font(Theme.smallValueFont)
+                    .foregroundStyle(Theme.textPrimary)
             }
             GlassProgressBar(fraction: Double(power.percent) / 100)
         }
@@ -87,7 +89,8 @@ struct MetricsModuleView: View {
     private var volumeRow: some View {
         HStack(spacing: 12) {
             Text(L10n.t(.sysVolume))
-                .font(.system(size: 12.5, weight: .medium))
+                .font(Theme.subFont)
+                .fontWeight(.medium)
                 .foregroundStyle(Theme.textSecondary)
             Slider(
                 value: Binding(
@@ -99,7 +102,7 @@ struct MetricsModuleView: View {
             .controlSize(.mini)
             Text("\(Int(audio.volume * 100))")
                 .font(Theme.readoutSFont)
-                .foregroundStyle(Theme.textPrimary.opacity(0.9))
+                .foregroundStyle(Theme.textPrimary)
                 .frame(width: 26, alignment: .trailing)
         }
         .padding(.horizontal, 14)
