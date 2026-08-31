@@ -45,18 +45,32 @@ final class MIMEDecodeTests: XCTestCase {
 
     // MARK: - Raw body walk (the structure-free fallback)
 
-    func testMultipartWalkPrefersPlainText() {
-        let plain = Data("Привет из письма".utf8).base64EncodedString()
+    /// HTML wins in the fallback walk too — same reasoning as
+    /// IMAPParser.findTextPart.
+    func testMultipartWalkPrefersHTML() {
+        let plain = Data("плохой авто-текст".utf8).base64EncodedString()
         let body = "--XyZ\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: base64\r\n\r\n\(plain)\r\n"
-            + "--XyZ\r\nContent-Type: text/html; charset=\"utf-8\"\r\n\r\n<p>ignored</p>\r\n--XyZ--\r\n"
-        XCTAssertEqual(
-            MIMEDecode.extractText(
-                rawBody: Data(body.utf8),
-                contentType: "multipart/alternative; boundary=\"XyZ\"",
-                transferEncoding: "7bit"
-            ),
-            "Привет из письма"
+            + "--XyZ\r\nContent-Type: text/html; charset=\"utf-8\"\r\n\r\n<p>Привет из письма</p>\r\n--XyZ--\r\n"
+        let readable = MIMEDecode.extractReadable(
+            rawBody: Data(body.utf8),
+            contentType: "multipart/alternative; boundary=\"XyZ\"",
+            transferEncoding: "7bit"
         )
+        XCTAssertEqual(readable.text, "Привет из письма")
+        XCTAssertNotNil(readable.html, "the reader needs the HTML source to render richly")
+    }
+
+    /// Plain-only mail keeps working.
+    func testMultipartWalkFallsBackToPlain() {
+        let plain = Data("только текст".utf8).base64EncodedString()
+        let body = "--XyZ\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: base64\r\n\r\n\(plain)\r\n--XyZ--\r\n"
+        let readable = MIMEDecode.extractReadable(
+            rawBody: Data(body.utf8),
+            contentType: "multipart/alternative; boundary=\"XyZ\"",
+            transferEncoding: "7bit"
+        )
+        XCTAssertEqual(readable.text, "только текст")
+        XCTAssertNil(readable.html)
     }
 
     func testHTMLOnlyBodyIsFlattened() {

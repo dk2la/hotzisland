@@ -1,114 +1,53 @@
 import AppKit
 import SwiftUI
 
-/// "Calendar" tab: month grid and/or the selected day's events, plus a
-/// calendar-visibility picker.
+/// "Calendar" tab. Agenda-first: list mode is the coming week with the next
+/// meeting on top; the month grid stays one toggle away. Mode switching, the
+/// visibility picker and back navigation live in the shared panel header.
 struct CalendarModuleView: View {
     var service: CalendarService
-    @State private var showingPicker = false
 
     var body: some View {
-        VStack(spacing: 8) {
-            header
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            if service.access == .granted, !showingPicker {
-                navigation
-            } else {
-                Text(showingPicker ? "Calendars" : "Calendar")
-                    .font(Theme.headlineFont)
-                    .foregroundStyle(Theme.textPrimary)
-            }
-            Spacer(minLength: 0)
-            if service.access == .granted {
-                if !showingPicker {
-                    modeSwitcher
-                }
-                iconButton(showingPicker ? "xmark" : "line.3.horizontal.decrease") {
-                    showingPicker.toggle()
-                }
-            }
-        }
-    }
-
-    /// Month arrows in grid modes, day arrows in list-only mode.
-    private var navigation: some View {
-        HStack(spacing: 6) {
-            iconButton("chevron.left") {
-                service.displayMode.showsGrid ? service.step(months: -1) : service.step(days: -1)
-            }
-            Button {
-                service.goToToday()
-            } label: {
-                Text(titleText)
-                    .font(Theme.headlineFont)
-                    .foregroundStyle(Theme.textPrimary)
-                    .frame(minWidth: 116)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            iconButton("chevron.right") {
-                service.displayMode.showsGrid ? service.step(months: 1) : service.step(days: 1)
-            }
-        }
-    }
-
-    private var titleText: String {
-        if service.displayMode == .listOnly {
-            return service.calendar.isDateInToday(service.selectedDay)
-                ? "Today"
-                : Self.dayFormatter.string(from: service.selectedDay)
-        }
-        return Self.monthFormatter.string(from: service.displayedMonth)
-    }
-
-    private var modeSwitcher: some View {
-        HStack(spacing: 2) {
-            ForEach(CalendarDisplayMode.allCases) { mode in
-                let isActive = service.displayMode == mode
-                Button {
-                    service.setDisplayMode(mode)
-                } label: {
-                    Image(systemName: mode.icon)
-                        .font(Theme.iconSmallFont)
-                        .foregroundStyle(isActive ? Theme.accent : Theme.textQuaternary)
-                        .frame(width: 22, height: 20)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(PressableStyle())
-            }
-        }
-    }
-
-    // MARK: - Content
 
     @ViewBuilder
     private var content: some View {
         switch service.access {
         case .granted:
-            if showingPicker {
+            if service.showingPicker {
                 CalendarPickerView(service: service)
             } else {
                 switch service.displayMode {
                 case .gridAndList:
-                    HStack(alignment: .top, spacing: 14) {
-                        EventListView(service: service, day: service.selectedDay)
-                            .frame(maxWidth: .infinity)
-                        MonthGridView(service: service)
-                            .frame(width: 210)
+                    VStack(spacing: 8) {
+                        monthNav
+                        // Side by side needs ~470pt (210pt grid + a usable
+                        // list); narrower panels fold the grid away instead
+                        // of crushing both halves.
+                        GeometryReader { proxy in
+                            if proxy.size.width < 470 {
+                                EventListView(service: service, day: service.selectedDay)
+                            } else {
+                                HStack(alignment: .top, spacing: 14) {
+                                    EventListView(service: service, day: service.selectedDay)
+                                        .frame(maxWidth: .infinity)
+                                    MonthGridView(service: service)
+                                        .frame(width: 210)
+                                }
+                            }
+                        }
                     }
                 case .listOnly:
-                    EventListView(service: service, day: service.selectedDay)
+                    AgendaListView(service: service)
                 case .gridOnly:
-                    MonthGridView(service: service)
-                        .frame(maxWidth: 260)
+                    VStack(spacing: 8) {
+                        monthNav
+                        MonthGridView(service: service)
+                            .frame(maxWidth: 260)
+                        Spacer(minLength: 0)
+                    }
                 }
             }
         case .denied:
@@ -119,6 +58,26 @@ struct CalendarModuleView: View {
             )
         case .unknown:
             message(icon: "calendar", text: "Requesting access…", action: nil)
+        }
+    }
+
+    /// Month furniture — arrows and the tappable "back to today" title. It
+    /// belongs to the grid, so it only appears with one.
+    private var monthNav: some View {
+        HStack(spacing: 6) {
+            iconButton("chevron.left") { service.step(months: -1) }
+            Button {
+                service.goToToday()
+            } label: {
+                Text(Self.monthFormatter.string(from: service.displayedMonth))
+                    .font(Theme.headlineFont)
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(minWidth: 116)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            iconButton("chevron.right") { service.step(months: 1) }
+            Spacer(minLength: 0)
         }
     }
 
@@ -172,12 +131,6 @@ struct CalendarModuleView: View {
     private static let monthFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-        return formatter
-    }()
-
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
         return formatter
     }()
 }

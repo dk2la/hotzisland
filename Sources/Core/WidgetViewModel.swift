@@ -24,6 +24,12 @@ final class WidgetViewModel {
     /// window moves mid-drag, so gesture-local coordinates would feed back.
     @ObservationIgnored var onDragChanged: (() -> Void)?
     @ObservationIgnored var onDragEnded: (() -> Void)?
+    /// Resize grips (width on the panel's outer edge, height on the bottom).
+    /// They read the global cursor for the same feedback reason as the drag.
+    @ObservationIgnored var onResizeChanged: (() -> Void)?
+    @ObservationIgnored var onResizeEnded: (() -> Void)?
+    @ObservationIgnored var onHeightResizeChanged: (() -> Void)?
+    @ObservationIgnored var onHeightResizeEnded: (() -> Void)?
 
     func setSelectedTab(_ tab: NotchTab?) {
         guard tab != selectedTab else { return }

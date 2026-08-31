@@ -421,6 +421,14 @@ struct SettingsView: View {
             ) {
                 keyCaps(HotkeyService.Action.togglePanelPin.keyCaps)
             }
+            Hairline(color: palette.hairline)
+            SettingRow(
+                title: L10n.t(.setModeToggle),
+                subtitle: L10n.t(.setModeToggleSub),
+                palette: palette
+            ) {
+                keyCaps(HotkeyService.Action.toggleDisplayMode.keyCaps)
+            }
         }
     }
 

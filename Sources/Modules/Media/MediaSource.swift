@@ -11,6 +11,8 @@ protocol MediaSource: AnyObject {
     func next() async
     func previous() async
     func like() async
+    /// Jump playback to an absolute position.
+    func seek(to seconds: Double) async
 }
 
 extension MediaSource {

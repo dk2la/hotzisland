@@ -14,23 +14,19 @@ struct EventListView: View {
     /// up when it is close (≤2h) — "T−775m" is noise, not a readout.
     private var nextEvent: CalendarEvent? {
         guard service.calendar.isDateInToday(day) else { return nil }
-        let now = Date()
-        return events.first { event in
-            guard !event.isAllDay, event.end > now else { return false }
-            return event.start.timeIntervalSince(now) <= 2 * 3600
-        }
+        return EventRow.next(in: events)
     }
 
     var body: some View {
         if events.isEmpty {
-            DashedZone(label: L10n.t(.calNoEvents))
+            EmptyStateZone(label: L10n.t(.calNoEvents))
                 .frame(maxHeight: 90)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     ForEach(events) { event in
-                        row(for: event)
+                        EventRow(event: event, isNext: event.id == nextEvent?.id)
                         if event.id != events.last?.id {
                             Hairline()
                         }
@@ -39,10 +35,86 @@ struct EventListView: View {
             }
         }
     }
+}
 
-    private func row(for event: CalendarEvent) -> some View {
-        let isNext = event.id == nextEvent?.id
-        return Button {
+/// The coming week as one rolling list — TODAY / TOMORROW / FRI 4 SEP
+/// sections. Answers "when is my next meeting" the moment the tab opens.
+struct AgendaListView: View {
+    var service: CalendarService
+
+    private var sections: [(day: Date, events: [CalendarEvent])] {
+        let start = service.calendar.startOfDay(for: Date())
+        return (0..<8).compactMap { offset in
+            guard let day = service.calendar.date(byAdding: .day, value: offset, to: start)
+            else { return nil }
+            let events = service.events(forDay: day)
+            return events.isEmpty ? nil : (day, events)
+        }
+    }
+
+    private var nextEvent: CalendarEvent? {
+        guard let today = sections.first, service.calendar.isDateInToday(today.day)
+        else { return nil }
+        return EventRow.next(in: today.events)
+    }
+
+    var body: some View {
+        let shown = sections
+        if shown.isEmpty {
+            EmptyStateZone(label: L10n.t(.calNoEvents))
+                .frame(maxHeight: 90)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(shown, id: \.day) { day, events in
+                        // Accent, same register as the panel title — the day
+                        // dividers must not read as just another event row.
+                        InstrumentLabel(label(for: day), color: Theme.accent)
+                            .padding(.top, day == shown.first?.day ? 0 : 12)
+                            .padding(.bottom, 4)
+                        ForEach(events) { event in
+                            EventRow(event: event, isNext: event.id == nextEvent?.id)
+                            if event.id != events.last?.id {
+                                Hairline()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func label(for day: Date) -> String {
+        if service.calendar.isDateInToday(day) { return L10n.t(.calToday) }
+        if service.calendar.isDateInTomorrow(day) { return L10n.t(.calTomorrow) }
+        return Self.dayFormatter.string(from: day)
+    }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
+        return formatter
+    }()
+}
+
+/// One event register row, shared by the day list and the agenda. Clicking
+/// an event with a meeting link joins it.
+struct EventRow: View {
+    let event: CalendarEvent
+    let isNext: Bool
+
+    /// The row worth highlighting: upcoming-or-ongoing and close (≤2h).
+    static func next(in events: [CalendarEvent]) -> CalendarEvent? {
+        let now = Date()
+        return events.first { event in
+            guard !event.isAllDay, event.end > now else { return false }
+            return event.start.timeIntervalSince(now) <= 2 * 3600
+        }
+    }
+
+    var body: some View {
+        Button {
             if let url = event.joinURL {
                 NSWorkspace.shared.open(url)
             }
@@ -50,18 +122,18 @@ struct EventListView: View {
             DataRow(
                 leading: event.isAllDay ? "—" : Self.timeFormatter.string(from: event.start),
                 title: event.title,
-                titleColor: isNext ? Theme.textPrimary : Theme.textPrimary.opacity(0.8)
+                titleColor: isNext ? Theme.textPrimary : Theme.textSecondary
             ) {
-                Text(annotation(for: event, isNext: isNext))
+                Text(annotation)
                     .font(Theme.readoutSFont)
-                    .foregroundStyle(isNext ? Theme.accent : Theme.textPrimary.opacity(0.35))
+                    .foregroundStyle(isNext ? Theme.accent : Theme.textQuaternary)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
     }
 
-    private func annotation(for event: CalendarEvent, isNext: Bool) -> String {
+    private var annotation: String {
         if isNext {
             let minutes = max(0, Int(event.start.timeIntervalSinceNow / 60))
             let countdown: String = if event.start <= Date() {

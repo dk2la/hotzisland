@@ -66,6 +66,20 @@ struct NotchRootView: View {
                 }
             }
             .clipShape(shape)
+            // Mirror of the widget strip's menu — without it the island has
+            // no way back to widget mode short of opening Settings.
+            .contextMenu {
+                Button(L10n.t(.menuSettings)) {
+                    NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
+                }
+                Button(L10n.t(.menuWidgetMode)) {
+                    settings.displayMode = .widget
+                }
+                Divider()
+                Button(L10n.t(.menuQuit)) {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
             .frame(width: islandSize.width, height: islandSize.height)
             .animation(Theme.stateSpring, value: viewModel.state)
             .animation(Theme.stateSpring, value: viewModel.selectedTab)

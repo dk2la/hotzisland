@@ -9,7 +9,7 @@ struct ClipboardModuleView: View {
 
     var body: some View {
         if clipboard.entries.isEmpty {
-            DashedZone(label: L10n.t(.clipEmptyTitle), sublabel: L10n.t(.clipEmptySub))
+            EmptyStateZone(label: L10n.t(.clipEmptyTitle), sublabel: L10n.t(.clipEmptySub))
                 .frame(maxHeight: 100)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -21,17 +21,13 @@ struct ClipboardModuleView: View {
                         }
                     }
                 }
-                HStack {
-                    Text(L10n.t(.clipMemoryNote))
-                        .font(Theme.subFont)
-                        .foregroundStyle(Theme.textFaint)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Spacer(minLength: 8)
-                    GlassCapsuleButton(label: L10n.t(.clipClear)) {
-                        clipboard.clear()
-                    }
-                }
+                // Clearing moved to the panel header; the footer is a quiet
+                // disclosure line, same register as the mail status row.
+                Text(L10n.t(.clipMemoryNote))
+                    .font(Theme.subFont)
+                    .foregroundStyle(Theme.textFaint)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
     }
@@ -49,12 +45,12 @@ struct ClipboardModuleView: View {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.text.replacingOccurrences(of: "\n", with: " "))
-                        .font(.system(size: 12.5))
+                        .font(Theme.bodyFont)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .foregroundStyle(Theme.textPrimary.opacity(0.9))
+                        .foregroundStyle(Theme.textPrimary)
                     Text("\(Self.age(of: entry)) · \(Self.kind(of: entry))")
-                        .font(.system(size: 10.5))
+                        .font(Theme.captionFont)
                         .foregroundStyle(Theme.textQuaternary)
                 }
                 Spacer(minLength: 0)
@@ -63,7 +59,8 @@ struct ClipboardModuleView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 9, weight: .semibold))
                         Text(L10n.t(.clipCopied))
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(Theme.captionFont)
+                            .fontWeight(.semibold)
                     }
                     .foregroundStyle(Theme.inkOnAccent)
                     .padding(.horizontal, 10)
@@ -72,7 +69,7 @@ struct ClipboardModuleView: View {
                 } else {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.textPrimary.opacity(0.7))
+                        .foregroundStyle(Theme.textSecondary)
                         .frame(width: 28, height: 28)
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.raisedFill))
                 }
