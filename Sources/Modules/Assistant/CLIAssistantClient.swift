@@ -71,9 +71,11 @@ struct CLIAssistantClient: Sendable {
 
     /// A GUI app launched from Finder inherits a minimal PATH, so the usual
     /// install roots are searched explicitly before giving up.
-    static func locateExecutable(_ name: String) -> URL? {
+    /// `searchPath` overrides the process PATH (tests pass a temp dir);
+    /// the well-known install roots below are always appended.
+    static func locateExecutable(_ name: String, searchPath: String? = nil) -> URL? {
         var roots: [String] = []
-        if let path = ProcessInfo.processInfo.environment["PATH"] {
+        if let path = searchPath ?? ProcessInfo.processInfo.environment["PATH"] {
             roots += path.split(separator: ":").map(String.init)
         }
         let home = FileManager.default.homeDirectoryForCurrentUser.path

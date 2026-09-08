@@ -10,7 +10,8 @@ import Observation
 final class WidgetViewModel {
     /// Open module panel; nil = collapsed to the icon strip.
     private(set) var selectedTab: NotchTab?
-    /// Widget shrunk to a small square (⌃⌥H); no strip, no panel.
+    /// Widget rolled up to its grip plus the first module button (⌃⌥H);
+    /// no panel. See WidgetGeometry.stripLength.
     var isMinimized = false
 
     var edge: WidgetEdge = .right

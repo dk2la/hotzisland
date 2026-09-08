@@ -96,6 +96,7 @@ enum L10nKey {
 
     // Calendar
     case calAllDay, calJoin, calNow, calNoEvents, calToday, calTomorrow
+    case calStartsInMinutes, calStartsInHours
     case timerCustomPlaceholder
 
     // Notes
@@ -190,8 +191,10 @@ enum L10nKey {
         case .shelfLinksNote: return ["Links only — originals stay in place", "Только ссылки — оригиналы остаются на месте", "Liens seulement — les originaux restent en place", "Solo enlaces — los originales no se mueven", "仅链接 — 原文件保持原位", "Só ligações — os originais ficam no lugar", "Nur Links — Originale bleiben am Ort", "Solo link — gli originali restano al loro posto", "リンクのみ — 元ファイルは移動しません", "링크만 — 원본은 그대로"]
 
         case .calAllDay: return ["all day", "весь день", "toute la journée", "todo el día", "全天", "o dia todo", "ganztägig", "tutto il giorno", "終日", "종일"]
-        case .calJoin: return ["join", "войти", "rejoindre", "unirse", "加入", "entrar", "beitreten", "entra", "参加", "참여"]
+        case .calJoin: return ["Join", "Войти", "Rejoindre", "Unirse", "加入", "Entrar", "Beitreten", "Entra", "参加", "참여"]
         case .calNow: return ["now", "сейчас", "maintenant", "ahora", "现在", "agora", "jetzt", "ora", "今", "지금"]
+        case .calStartsInMinutes: return ["in %d min", "через %d мин", "dans %d min", "en %d min", "%d 分钟后", "em %d min", "in %d Min.", "tra %d min", "%d分後", "%d분 후"]
+        case .calStartsInHours: return ["in %dh %02dm", "через %dч %02dм", "dans %dh %02dm", "en %dh %02dm", "%d小时%02d分后", "em %dh %02dm", "in %dh %02dm", "tra %dh %02dm", "%d時間%02d分後", "%d시간 %02d분 후"]
         case .calNoEvents: return ["no events", "нет событий", "aucun événement", "sin eventos", "没有日程", "sem eventos", "keine Termine", "nessun evento", "予定なし", "일정 없음"]
         case .calToday: return ["Today", "Сегодня", "Aujourd'hui", "Hoy", "今天", "Hoje", "Heute", "Oggi", "今日", "오늘"]
         case .calTomorrow: return ["Tomorrow", "Завтра", "Demain", "Mañana", "明天", "Amanhã", "Morgen", "Domani", "明日", "내일"]

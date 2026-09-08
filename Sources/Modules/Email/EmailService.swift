@@ -15,8 +15,6 @@ final class EmailService {
     private(set) var messages: [EmailMessage] = []
     private(set) var openMessage: EmailMessage?
     private(set) var isLoadingBody = false
-    private(set) var lastRefresh: Date?
-    private(set) var lastError: String?
 
     /// Compose state — a Gmail-like To/Subject/Body form used for both
     /// replies (prefilled, threaded) and new mail. It lives here, not in
@@ -67,7 +65,7 @@ final class EmailService {
         do {
             try vault.set(password, account: newConfig.email)
         } catch {
-            lastError = "Keychain: \(error.localizedDescription)"
+            log.error("keychain write failed: \(error.localizedDescription, privacy: .public)")
             return
         }
         dropSessions()
@@ -77,7 +75,6 @@ final class EmailService {
         }
         messages = []
         unreadCount = 0
-        lastError = nil
         log.info("account saved host=\(newConfig.imapHost, privacy: .public)")
         startPolling()
         refresh()
@@ -206,8 +203,6 @@ final class EmailService {
                 }
                 self.messages = merged
                 self.connection = .online
-                self.lastRefresh = Date()
-                self.lastError = nil
                 self.log.info("refreshed exists=\(result.0, privacy: .public) unread=\(result.1, privacy: .public)")
                 self.prefetchBodies()
             } catch {
@@ -295,7 +290,6 @@ final class EmailService {
                 self?.log.info("archived uid=\(uid, privacy: .public)")
             } catch {
                 guard let self else { return }
-                self.lastError = error.localizedDescription
                 self.log.error("archive failed: \(error.localizedDescription, privacy: .public)")
                 self.refresh()
             }

@@ -5,14 +5,19 @@ import OSLog
 /// search, header fetch, body fetch, mark seen. Connection lifetime is
 /// `MailSession`'s job — this type owns the wire protocol only.
 actor IMAPClient {
-    private let transport: TLSTransport
+    private let transport: any MailLineTransport
     private var tagCounter = 0
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
     /// Cap for the structure-free body fetch (256 KB).
     private static let bodyByteLimit = 262_144
 
     init(host: String, port: UInt16) {
-        transport = TLSTransport(host: host, port: port)
+        self.init(transport: TLSTransport(host: host, port: port))
+    }
+
+    /// Wire the protocol onto any transport — tests pass a scripted one.
+    init(transport: any MailLineTransport) {
+        self.transport = transport
     }
 
     // MARK: - Session
@@ -20,7 +25,7 @@ actor IMAPClient {
     func connect() async throws {
         try await transport.connect()
         // Server greeting: "* OK ..."
-        let greeting = try await transport.readLine()
+        let greeting = try await transport.readLine(timeout: .seconds(15))
         let text = String(decoding: greeting, as: UTF8.self)
         guard text.uppercased().contains("OK") else {
             throw MailError.badResponse(text.trimmingCharacters(in: .whitespacesAndNewlines))

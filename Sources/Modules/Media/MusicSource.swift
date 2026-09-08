@@ -4,6 +4,8 @@ import AppKit
 final class MusicSource: MediaSource {
     static let bundleID = "com.apple.Music"
 
+    private(set) var lastCommandFailed = false
+
     func isAvailable() -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).isEmpty
     }
@@ -60,33 +62,34 @@ final class MusicSource: MediaSource {
         return NSImage(data: data)
     }
 
-    func togglePlayPause() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.apple.Music\" to playpause")
-    }
-
-    func next() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.apple.Music\" to next track")
-    }
-
-    func previous() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.apple.Music\" to previous track")
-    }
-
-    func seek(to seconds: Double) async {
-        _ = await AppleScriptRunner.run(
-            "tell application id \"com.apple.Music\" to set player position to \(Int(seconds))"
-        )
-    }
+    func togglePlayPause() async { await command("playpause") }
+    func next() async { await command("next track") }
+    func previous() async { await command("previous track") }
+    func seek(to seconds: Double) async { await command("set player position to \(Int(seconds))") }
 
     func like() async {
-        _ = await AppleScriptRunner.run("""
-        tell application id "com.apple.Music"
-        	try
-        		set favorited of current track to true
-        	on error
-        		set loved of current track to true
-        	end try
-        end tell
+        await command("""
+        try
+        	set favorited of current track to true
+        on error
+        	set loved of current track to true
+        end try
         """)
+    }
+
+    /// Transport commands sit behind the same `is running` guard as
+    /// `fetchTrack` — a bare `tell` would launch a quit player. The trailing
+    /// `return "ok"` tells a silent success apart from a failure (osascript
+    /// prints nothing to stdout in either case).
+    private func command(_ body: String) async {
+        let script = """
+        if application id "com.apple.Music" is running then
+        	tell application id "com.apple.Music"
+        		\(body)
+        	end tell
+        	return "ok"
+        end if
+        """
+        lastCommandFailed = await AppleScriptRunner.run(script) != "ok"
     }
 }

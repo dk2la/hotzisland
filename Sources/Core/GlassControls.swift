@@ -171,8 +171,9 @@ struct GlassProgressBar: View {
     }
 }
 
-/// Empty state for modules whose service is not wired up yet (Email, Notes,
-/// Chats). Ships disabled by default; the tile explains itself when enabled.
+/// Empty state for modules whose service is not wired up yet (currently
+/// only Chats). Ships disabled by default; the tile explains itself when
+/// enabled.
 struct ComingSoonModuleView: View {
     let tab: NotchTab
 

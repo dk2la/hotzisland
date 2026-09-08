@@ -49,7 +49,26 @@ final class PlaybookStore {
             playbooks = try JSONDecoder().decode([Playbook].self, from: data)
         } catch {
             log.error("failed to decode playbooks.json: \(error, privacy: .public)")
+            quarantineCorruptFile()
             playbooks = []
+        }
+    }
+
+    /// Sets the unreadable file aside as "playbooks.corrupt-<timestamp>.json"
+    /// so the next save never silently destroys the user's data.
+    private func quarantineCorruptFile() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let stamp = formatter.string(from: Date())
+        let name = Self.fileURL.deletingPathExtension().lastPathComponent
+        let target = Self.fileURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("\(name).corrupt-\(stamp).json")
+        do {
+            try FileManager.default.moveItem(at: Self.fileURL, to: target)
+            log.error("moved unreadable playbooks.json to \(target.lastPathComponent, privacy: .public)")
+        } catch {
+            log.error("failed to quarantine playbooks.json: \(error, privacy: .public)")
         }
     }
 

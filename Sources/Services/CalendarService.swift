@@ -165,14 +165,14 @@ final class CalendarService {
               let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth),
               // Pad by a week on both sides so leading/trailing grid days
               // also show their event dots.
-              let start = calendar.date(byAdding: .day, value: -7, to: monthInterval.start),
-              let end = calendar.date(byAdding: .day, value: 7, to: monthInterval.end)
+              let rangeStart = calendar.date(byAdding: .day, value: -7, to: monthInterval.start),
+              let rangeEnd = calendar.date(byAdding: .day, value: 7, to: monthInterval.end)
         else {
             eventsByDay = [:]
             return
         }
 
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: active)
+        let predicate = store.predicateForEvents(withStart: rangeStart, end: rangeEnd, calendars: active)
         var grouped: [Date: [CalendarEvent]] = [:]
         // The same meeting often exists in several calendars (work Exchange +
         // Google invite) — deduplicate by title and exact time.
@@ -181,18 +181,28 @@ final class CalendarService {
             guard let start = event.startDate else { continue }
             let dedupKey = "\(event.title ?? "")|\(start.timeIntervalSince1970)|\(event.endDate?.timeIntervalSince1970 ?? 0)"
             guard seen.insert(dedupKey).inserted else { continue }
-            let day = calendar.startOfDay(for: start)
-            grouped[day, default: []].append(
-                CalendarEvent(
-                    id: event.eventIdentifier ?? UUID().uuidString,
-                    title: event.title ?? "(No title)",
-                    start: start,
-                    end: event.endDate ?? start,
-                    isAllDay: event.isAllDay,
-                    color: Color(nsColor: event.calendar.color ?? .systemBlue),
-                    joinURL: Self.meetingURL(for: event)
-                )
+            let end = event.endDate ?? start
+            let calendarEvent = CalendarEvent(
+                id: event.eventIdentifier ?? UUID().uuidString,
+                title: event.title ?? "(No title)",
+                start: start,
+                end: end,
+                isAllDay: event.isAllDay,
+                color: Color(nsColor: event.calendar.color ?? .systemBlue),
+                joinURL: Self.meetingURL(for: event)
             )
+            // A multi-day event belongs to every day it covers. The last day
+            // is the one containing (end − 1s): an event ending exactly at
+            // midnight — which is how EventKit ends all-day events — must
+            // not spill onto the next day. Clipped to the loaded window so
+            // a months-long event does not register hundreds of days.
+            var day = max(calendar.startOfDay(for: start), rangeStart)
+            let lastDay = min(calendar.startOfDay(for: max(start, end - 1)), rangeEnd)
+            while day <= lastDay {
+                grouped[day, default: []].append(calendarEvent)
+                guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
+            }
         }
         for (day, events) in grouped {
             grouped[day] = events.sorted { lhs, rhs in

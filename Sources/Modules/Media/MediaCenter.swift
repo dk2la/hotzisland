@@ -41,12 +41,34 @@ final class MediaCenter {
     @ObservationIgnored private var lastLoggedSources: [String] = []
     /// Last known automation-permission statuses, refreshed off-thread.
     @ObservationIgnored private var permissionCache: [String: AutomationPermission.Status] = [:]
-    @ObservationIgnored private var permissionProbe: Task<Void, Never>?
+    /// Per player: when its latest probe started. Drives the 30 s cadence
+    /// and the 60 s "stop waiting on a hung probe" rule; cleared when the
+    /// player quits so a relaunch is probed at once.
+    @ObservationIgnored private var permissionProbeStarted: [String: Date] = [:]
+    /// Players whose latest probe has not returned yet.
+    @ObservationIgnored private var permissionProbesInFlight: Set<String> = []
+    /// Players whose last user command failed — re-probed on the next tick
+    /// instead of waiting out the cadence.
+    @ObservationIgnored private var permissionRecheckRequested: Set<String> = []
+    /// Bumped by every `refresh()` call — see there.
+    @ObservationIgnored private var refreshGeneration = 0
+
+    private static let permissionProbeInterval: TimeInterval = 30
+    private static let permissionProbeTimeout: TimeInterval = 60
+    /// Idle back-off: a silent machine is refreshed every N ticks.
+    private static let idleTicksPerRefresh = 3
 
     init() {
         pollTask = Task { [weak self] in
+            var tick = 0
             while !Task.isCancelled {
-                await self?.refresh()
+                // Every tick while playing (the progress bar needs it), every
+                // third tick otherwise — a refresh costs MediaRemote calls, a
+                // running-app scan and an osascript fork for Spotify/Music.
+                if let self, self.track?.isPlaying == true || tick % MediaCenter.idleTicksPerRefresh == 0 {
+                    await self.refresh()
+                }
+                tick += 1
                 try? await Task.sleep(for: .seconds(1))
             }
         }
@@ -54,7 +76,7 @@ final class MediaCenter {
 
     func select(_ kind: MediaSourceKind) {
         pinnedSource = kind
-        activeSource = kind
+        if activeSource != kind { activeSource = kind }
         Task { await refresh() }
     }
 
@@ -106,6 +128,11 @@ final class MediaCenter {
         let source = source(for: activeSource)
         Task {
             await operation(source)
+            if source.lastCommandFailed {
+                // Most likely a revoked Automation permission — re-probe on
+                // the next tick rather than after the regular cadence.
+                permissionRecheckRequested.insert(activeSource.id)
+            }
             // Give the player a moment to apply the command before re-reading.
             try? await Task.sleep(for: .milliseconds(150))
             await refresh()
@@ -122,11 +149,22 @@ final class MediaCenter {
         }
     }
 
+    /// `select`, `command` and the poll loop all call this, so passes can
+    /// overlap. Rather than serialising them, each pass takes a generation
+    /// number and bails out after every `await` once a newer pass has
+    /// started — the newest request always wins and an older snapshot can
+    /// never land on top of a newer one.
     private func refresh() async {
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+
         let systemTrack = await system.fetchTrack()
+        guard generation == refreshGeneration else { return }
         activeClientBundleID = system.nowPlayingBundleID
 
-        availableSources = await discoverSources()
+        let sources = await discoverSources(running: runningPlayers())
+        guard generation == refreshGeneration else { return }
+        if sources != availableSources { availableSources = sources }
         resolveActiveSource(systemIsPlaying: systemTrack?.isPlaying ?? false)
 
         let ids = availableSources.map(\.id)
@@ -154,6 +192,7 @@ final class MediaCenter {
         case .client(let bundleID):
             newTrack = bundleID == activeClientBundleID ? systemTrack : nil
         }
+        guard generation == refreshGeneration else { return }
         apply(newTrack.map { track in
             var track = track
             track.source = activeSource
@@ -161,21 +200,29 @@ final class MediaCenter {
         })
     }
 
+    /// Bundle IDs of the dedicated players currently running — one scan per
+    /// tick, shared by source discovery and the permission scheduler instead
+    /// of a `runningApplications(withBundleIdentifier:)` lookup per player.
+    private func runningPlayers() -> Set<String> {
+        let players: Set<String> = [SpotifySource.bundleID, MusicSource.bundleID]
+        return players.intersection(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+    }
+
     /// Every app publishing media state, plus running dedicated players that
     /// have not published anything yet.
-    private func discoverSources() async -> [MediaSourceKind] {
+    private func discoverSources(running: Set<String>) async -> [MediaSourceKind] {
         var sources: [MediaSourceKind] = []
         for bundleID in await NowPlayingClients.bundleIDs() {
             let kind = MediaSourceKind(bundleID: bundleID)
             if !sources.contains(kind) { sources.append(kind) }
         }
-        if spotify.isAvailable(), !sources.contains(.spotify) {
+        if running.contains(SpotifySource.bundleID), !sources.contains(.spotify) {
             sources.append(.spotify)
         }
-        if music.isAvailable(), !sources.contains(.appleMusic) {
+        if running.contains(MusicSource.bundleID), !sources.contains(.appleMusic) {
             sources.append(.appleMusic)
         }
-        refreshPermissionCache()
+        refreshPermissionCache(running: running)
         return sources.filter { kind in
             switch kind {
             case .spotify:
@@ -188,26 +235,47 @@ final class MediaCenter {
         }
     }
 
+    /// Probes each running player at most every 30 s — immediately on first
+    /// sight of it, and once more after a user command fails. Between probes
+    /// the cached (or undetermined) status keeps the source visible.
+    ///
     /// AEDeterminePermissionToAutomateTarget synchronously round-trips to
     /// the target app and hangs indefinitely when that app is not servicing
     /// Apple Events (observed with Spotify) — it must never run on the main
-    /// thread. At most one probe in flight; while an answer is pending the
-    /// cached (or undetermined) status keeps the source visible.
-    private func refreshPermissionCache() {
-        guard permissionProbe == nil else { return }
-        let spotifyID = SpotifySource.bundleID
-        let musicID = MusicSource.bundleID
-        permissionProbe = Task { [weak self] in
-            async let spotify = Task.detached {
-                AutomationPermission.status(towardsBundleID: spotifyID)
-            }.value
-            async let music = Task.detached {
-                AutomationPermission.status(towardsBundleID: musicID)
-            }.value
-            let statuses = await [spotifyID: spotify, musicID: music]
-            guard let self else { return }
-            self.permissionCache = statuses
-            self.permissionProbe = nil
+    /// thread, and a hung probe must not freeze the cache: after 60 s a new
+    /// probe may start alongside it, and only the latest probe's answer is
+    /// kept.
+    private func refreshPermissionCache(running: Set<String>) {
+        let now = Date()
+        for bundleID in [SpotifySource.bundleID, MusicSource.bundleID] {
+            guard running.contains(bundleID) else {
+                permissionProbeStarted[bundleID] = nil
+                continue
+            }
+            let due: Bool
+            if let started = permissionProbeStarted[bundleID] {
+                let age = now.timeIntervalSince(started)
+                due = if permissionProbesInFlight.contains(bundleID) {
+                    age >= Self.permissionProbeTimeout
+                } else {
+                    age >= Self.permissionProbeInterval || permissionRecheckRequested.contains(bundleID)
+                }
+            } else {
+                due = true
+            }
+            guard due else { continue }
+
+            permissionRecheckRequested.remove(bundleID)
+            permissionProbeStarted[bundleID] = now
+            permissionProbesInFlight.insert(bundleID)
+            Task { [weak self] in
+                let status = await Task.detached {
+                    AutomationPermission.status(towardsBundleID: bundleID)
+                }.value
+                guard let self, self.permissionProbeStarted[bundleID] == now else { return }
+                self.permissionProbesInFlight.remove(bundleID)
+                self.permissionCache[bundleID] = status
+            }
         }
     }
 
@@ -221,26 +289,30 @@ final class MediaCenter {
         if let pinned = pinnedSource, !availableSources.contains(pinned) {
             pinnedSource = nil
         }
-        if let active = activeSource, !availableSources.contains(active) {
-            activeSource = nil
+        // Resolved locally and stored once — assigning the observable on
+        // every tick would invalidate views even when nothing changed.
+        var resolved = activeSource
+        if let active = resolved, !availableSources.contains(active) {
+            resolved = nil
         }
 
         if let pinned = pinnedSource {
-            activeSource = pinned
-        } else if activeSource == nil {
-            activeSource = playingKind ?? availableSources.first
-        } else if let playingKind, playingKind != activeSource, !(track?.isPlaying ?? false) {
+            resolved = pinned
+        } else if resolved == nil {
+            resolved = playingKind ?? availableSources.first
+        } else if let playingKind, playingKind != resolved, !(track?.isPlaying ?? false) {
             // No explicit pin, the current context is silent and something
             // else is playing — follow the sound.
-            activeSource = playingKind
+            resolved = playingKind
         }
+        if resolved != activeSource { activeSource = resolved }
     }
 
     private func apply(_ newTrack: MediaTrack?) {
         let isPlaying = newTrack?.isPlaying ?? false
         let playbackChanged = isPlaying != wasPlaying
         wasPlaying = isPlaying
-        track = newTrack
+        if newTrack != track { track = newTrack }
 
         if let newTrack {
             if newTrack.artworkKey != lastArtworkKey {
@@ -255,8 +327,8 @@ final class MediaCenter {
                 }
             }
         } else {
-            artwork = nil
-            artworkAccent = nil
+            if artwork != nil { artwork = nil }
+            if artworkAccent != nil { artworkAccent = nil }
             lastArtworkKey = nil
         }
 

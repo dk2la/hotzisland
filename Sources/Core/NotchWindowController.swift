@@ -169,23 +169,25 @@ final class NotchWindowController: NSObject {
     /// SwiftUI `.onHover` does not fire in a non-activating agent app, so
     /// hover is computed manually from the global cursor position.
     private func setUpMouseTracking() {
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: { _ in
-            MainActor.assumeIsolated {
-                NotchWindowControllerRegistry.shared?.updateHover()
+        // The closures are formed in this @MainActor method and inherit its
+        // isolation; AppKit delivers monitor callbacks on the main thread.
+        if let global = NSEvent.addGlobalMonitorForEvents(
+            matching: .mouseMoved,
+            handler: { [weak self] _ in
+                self?.updateHover()
             }
-        }) {
+        ) {
             mouseMonitors.append(global)
         }
-        let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in
-            MainActor.assumeIsolated {
-                NotchWindowControllerRegistry.shared?.updateHover()
+        if let local = NSEvent.addLocalMonitorForEvents(
+            matching: .mouseMoved,
+            handler: { [weak self] event in
+                self?.updateHover()
+                return event
             }
-            return event
-        }
-        if let local {
+        ) {
             mouseMonitors.append(local)
         }
-        NotchWindowControllerRegistry.shared = self
     }
 
     private func updateHover() {
@@ -331,10 +333,4 @@ final class NotchWindowController: NSObject {
         settings.revalidatePanelSize()
         attachToScreen()
     }
-}
-
-/// Bridge between non-isolated NSEvent monitor callbacks and the MainActor controller.
-@MainActor
-enum NotchWindowControllerRegistry {
-    static weak var shared: NotchWindowController?
 }

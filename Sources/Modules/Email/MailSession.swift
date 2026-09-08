@@ -21,10 +21,14 @@ extension Duration {
 /// A dropped or timed-out connection is transparent: the call is retried
 /// once on a freshly opened session.
 actor MailSession {
+    /// Builds the transport for a fresh connection to (host, port).
+    typealias TransportFactory = @Sendable (String, UInt16) -> any MailLineTransport
+
     private let host: String
     private let port: UInt16
     private let user: String
     private let password: String
+    private let makeTransport: TransportFactory
     private var client: IMAPClient?
     private var openedAt = Date.distantPast
     private var lastUsedAt = Date.distantPast
@@ -37,11 +41,18 @@ actor MailSession {
     /// round trip to every user action. Probe only after real idle time.
     private static let pingAfterIdle: TimeInterval = 30
 
-    init(host: String, port: UInt16, user: String, password: String) {
+    init(
+        host: String,
+        port: UInt16,
+        user: String,
+        password: String,
+        makeTransport: @escaping TransportFactory = { TLSTransport(host: $0, port: $1) }
+    ) {
         self.host = host
         self.port = port
         self.user = user
         self.password = password
+        self.makeTransport = makeTransport
     }
 
     /// Tail of the command chain; the next `run` waits for it to settle.
@@ -102,7 +113,7 @@ actor MailSession {
             }
         }
         await close()
-        let fresh = IMAPClient(host: host, port: port)
+        let fresh = IMAPClient(transport: makeTransport(host, port))
         try await fresh.connect()
         try await fresh.login(user: user, password: password)
         _ = try await fresh.selectInbox()

@@ -3,8 +3,8 @@ import OSLog
 import SwiftUI
 
 /// Owns the edge-docked widget window (widget display mode). Click-driven:
-/// unlike the notch it registers no mouse monitors and never touches
-/// NotchWindowControllerRegistry — that slot belongs to the notch.
+/// unlike the notch it tracks no hover — its only mouse monitors are the
+/// optional close-on-outside-click ones, installed while a panel is open.
 @MainActor
 final class WidgetWindowController: NSObject {
     private let panel = NotchPanel()
@@ -71,10 +71,6 @@ final class WidgetWindowController: NSObject {
 
     // MARK: - Minimize (⌃⌥H)
 
-    func toggleMinimized() {
-        setMinimized(!viewModel.isMinimized)
-    }
-
     /// Rolls the strip up into its first button (or back down). The window
     /// stays at full size for the length of the animation — it is
     /// transparent, so only the strip is visible shrinking — and is resized
@@ -134,20 +130,22 @@ final class WidgetWindowController: NSObject {
         // (settings, onboarding) that are not the widget panel. Mouse
         // monitors need no permissions, unlike keyboard ones.
         if let global = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] _ in
-            self?.closePanel()
-        } {
+            matching: [.leftMouseDown, .rightMouseDown],
+            handler: { [weak self] _ in
+                self?.closePanel()
+            }
+        ) {
             outsideClickMonitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] event in
-            if let self, event.window !== self.panel {
-                self.closePanel()
+            matching: [.leftMouseDown, .rightMouseDown],
+            handler: { [weak self] event in
+                if let self, event.window !== self.panel {
+                    self.closePanel()
+                }
+                return event
             }
-            return event
-        } {
+        ) {
             outsideClickMonitors.append(local)
         }
     }

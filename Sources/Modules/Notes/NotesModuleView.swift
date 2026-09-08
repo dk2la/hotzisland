@@ -173,6 +173,15 @@ struct NoteEditorView: View {
                 .onChange(of: store.editorText) { _, _ in
                     store.editorChanged()
                 }
+            if let notice = store.lastError {
+                // Save failures and conflict diversions surface here.
+                Text(notice)
+                    .font(Theme.captionFont)
+                    .foregroundStyle(Theme.textTertiary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+            }
             SpeechStatusRow(speech: speech)
             HStack {
                 SpeechMicControl(speech: speech) { text in
