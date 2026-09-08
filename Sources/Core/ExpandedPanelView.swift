@@ -57,7 +57,7 @@ struct ExpandedPanelView: View {
                     } label: {
                         Image(systemName: tab.icon)
                             .font(.system(size: 12.5, weight: .medium))
-                            .foregroundStyle(isActive ? Theme.accent : Theme.textPrimary.opacity(0.6))
+                            .foregroundStyle(isActive ? Theme.accent : Theme.textSecondary)
                             .frame(width: 40, height: 28)
                             .background(cellShape.fill(isActive ? Theme.accentWash : .clear))
                             .contentShape(cellShape)
@@ -69,9 +69,14 @@ struct ExpandedPanelView: View {
             .padding(4)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.cardFill))
             Spacer(minLength: 0)
+            // Same back/actions pieces as the widget's panel header — the
+            // modules carry no chrome of their own on either surface.
+            ModuleBackButton(tab: effectiveTab, services: services)
+            ModuleAccessoriesView(tab: effectiveTab, services: services)
             Text(effectiveTab.title)
                 .font(Theme.headlineFont)
                 .foregroundStyle(Theme.textTertiary)
+                .padding(.leading, 4)
         }
         .padding(.horizontal, Theme.panelInset)
         .padding(.vertical, 8)

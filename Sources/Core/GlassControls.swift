@@ -55,7 +55,7 @@ struct CircleGlassButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: size * 0.38, weight: .medium))
-                .foregroundStyle(solid ? Theme.inkOnAccent : Theme.textPrimary.opacity(0.85))
+                .foregroundStyle(solid ? Theme.inkOnAccent : Theme.textPrimary)
                 .frame(width: size, height: size)
                 .background(shape.fill(solid ? Theme.accent : Theme.raisedFill))
                 .contentShape(shape)
@@ -84,9 +84,10 @@ struct GlassCapsuleButton: View {
                         .font(.system(size: 11, weight: .semibold))
                 }
                 Text(label)
-                    .font(.system(size: 12.5, weight: isPrimary ? .semibold : .medium))
+                    .font(Theme.subFont)
+                    .fontWeight(isPrimary ? .semibold : .medium)
             }
-            .foregroundStyle(isPrimary ? Theme.inkOnAccent : Theme.textPrimary.opacity(0.9))
+            .foregroundStyle(isPrimary ? Theme.inkOnAccent : Theme.textPrimary)
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .background(shape.fill(isPrimary ? Theme.accent : Theme.raisedFill))
@@ -95,6 +96,50 @@ struct GlassCapsuleButton: View {
         .buttonStyle(PressableStyle())
         .opacity(enabled ? 1 : 0.35)
         .disabled(!enabled)
+    }
+}
+
+/// Interactive continuous track: drag or click anywhere to jump. The knob
+/// follows the pointer live; `onSeek` fires once with the target fraction
+/// on release.
+struct ScrubberBar: View {
+    let fraction: Double
+    var fillColor: Color = Theme.accent
+    let onSeek: (Double) -> Void
+
+    @State private var dragFraction: Double?
+
+    var body: some View {
+        GeometryReader { proxy in
+            let shown = dragFraction ?? max(0, min(1, fraction))
+            let x = proxy.size.width * shown
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.18))
+                    .frame(height: 4)
+                Capsule().fill(fillColor)
+                    .frame(width: max(4, x), height: 4)
+                Circle().fill(Color.white)
+                    .frame(width: 11, height: 11)
+                    // The knob grows while held — "picked up", like a real
+                    // fader cap under a finger.
+                    .scaleEffect(dragFraction != nil ? 1.25 : 1)
+                    .offset(x: min(max(0, x - 5.5), max(0, proxy.size.width - 11)))
+                    .animation(.easeOut(duration: 0.15), value: dragFraction != nil)
+            }
+            .frame(maxHeight: .infinity, alignment: .center)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        dragFraction = max(0, min(1, value.location.x / max(proxy.size.width, 1)))
+                    }
+                    .onEnded { value in
+                        dragFraction = nil
+                        onSeek(max(0, min(1, value.location.x / max(proxy.size.width, 1))))
+                    }
+            )
+        }
+        .frame(height: 14)
     }
 }
 
@@ -144,9 +189,5 @@ struct ComingSoonModuleView: View {
                 .foregroundStyle(Theme.textTertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .stroke(Theme.dashedBorder, style: StrokeStyle(lineWidth: 1, dash: [5, 6]))
-        )
     }
 }

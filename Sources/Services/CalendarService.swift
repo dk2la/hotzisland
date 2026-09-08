@@ -23,7 +23,12 @@ final class CalendarService {
 
     /// Calendars the user picked. Empty means "all of them".
     private(set) var enabledCalendarIDs: Set<String> = []
-    private(set) var displayMode: CalendarDisplayMode = .gridAndList
+    /// Agenda-first: the list is what answers "when is my next meeting";
+    /// the grid stays one toggle away.
+    private(set) var displayMode: CalendarDisplayMode = .listOnly
+    /// Calendar-visibility picker, shown in place of the content. Lives here
+    /// because the panel header owns the toggle.
+    var showingPicker = false
 
     var displayedMonth: Date = Date()
     var selectedDay: Date = Calendar.current.startOfDay(for: Date())
@@ -79,6 +84,11 @@ final class CalendarService {
     func setDisplayMode(_ mode: CalendarDisplayMode) {
         displayMode = mode
         defaults.set(mode.rawValue, forKey: Self.modeKey)
+        // The agenda always starts from now; a month browsed in grid mode
+        // would otherwise leave it staring at unloaded days.
+        if mode == .listOnly {
+            goToToday()
+        }
     }
 
     func isEnabled(_ calendarID: String) -> Bool {

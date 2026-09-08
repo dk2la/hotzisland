@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Design tokens — "HotzIsland V3" design system, visionOS material language.
@@ -93,16 +94,21 @@ enum Theme {
     static let readoutLFont = mono(22)
     static let readoutMFont = mono(13)
     static let readoutSFont = mono(10.5)
-    /// The big countdown.
-    static let timerFont = mono(44)
+    /// The big countdown — sized to sit inside the timer ring.
+    static let timerFont = mono(36)
 
+    // The text scale. Five sizes cover every module: title 15 / headline 13sb
+    // / body 13 / sub 12 / caption 10.5. Weight may vary via .fontWeight, the
+    // size may not — no raw .system(size:) in module views. Brightness comes
+    // from the four text* levels above, never from .opacity() on text.
     static let titleFont = Font.system(size: 15, weight: .semibold)
     static let headlineFont = Font.system(size: 13, weight: .semibold)
     static let bodyFont = Font.system(size: 13)
     static let subFont = Font.system(size: 12)
+    /// Row meta: timestamps, sizes, kinds.
+    static let captionFont = Font.system(size: 10.5)
 
     // Legacy aliases still used by shared chrome.
-    static let captionFont = Font.system(size: 10.5)
     static let valueFont = readoutLFont
     static let smallValueFont = mono(12, .medium)
     static let dayFont = mono(11)
@@ -119,8 +125,19 @@ enum Theme {
     // Data never animates — readouts jump like real instruments. Springs
     // exist only for surface geometry; indicators may blink.
 
+    /// System "Reduce Motion": positional movement goes away, opacity-only
+    /// fades stay — fewer and gentler, not zero.
+    static var reduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     /// Island open/close, panel open/close.
-    static let stateSpring = Animation.spring(response: 0.30, dampingFraction: 0.82)
+    static var stateSpring: Animation {
+        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.30, dampingFraction: 0.82)
+    }
+
     /// Live event bulge — the one place bounce is allowed.
-    static let eventSpring = Animation.spring(response: 0.24, dampingFraction: 0.76)
+    static var eventSpring: Animation {
+        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.24, dampingFraction: 0.76)
+    }
 }

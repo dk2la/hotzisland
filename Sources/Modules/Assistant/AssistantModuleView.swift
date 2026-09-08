@@ -25,8 +25,11 @@ struct AssistantModuleView: View {
     private var chat: some View {
         VStack(spacing: 8) {
             if assistant.transcript.isEmpty {
-                DashedZone(
-                    label: assistant.isVoiceMode ? L10n.t(.asstVoiceHint) : L10n.t(.asstHint)
+                // Same register as the Notes empty state: short caps label,
+                // the hint as the quiet subline.
+                EmptyStateZone(
+                    label: L10n.t(.asstEmptyTitle),
+                    sublabel: assistant.isVoiceMode ? L10n.t(.asstVoiceHint) : L10n.t(.asstHint)
                 )
                 .frame(maxHeight: 90)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -87,7 +90,7 @@ struct AssistantModuleView: View {
                 Spacer(minLength: 40)
                 Text(message.text)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
+                    .foregroundStyle(Theme.textPrimary)
                     .textSelection(.enabled)
                     .padding(.horizontal, 11)
                     .padding(.vertical, 7)
@@ -100,7 +103,7 @@ struct AssistantModuleView: View {
             HStack {
                 Text(message.text)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(message.isError ? Theme.critical : Theme.textPrimary.opacity(0.85))
+                    .foregroundStyle(message.isError ? Theme.critical : Theme.textSecondary)
                     .textSelection(.enabled)
                     .padding(.horizontal, 11)
                     .padding(.vertical, 7)
@@ -129,7 +132,7 @@ struct AssistantModuleView: View {
                 TextField(L10n.t(.asstPlaceholder), text: Bindable(assistant).draft)
                     .textFieldStyle(.plain)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.92))
+                    .foregroundStyle(Theme.textPrimary)
                     .focused($composerFocused)
                     .onSubmit { assistant.send() }
                 if !assistant.draft.isEmpty, !assistant.isThinking {
@@ -149,27 +152,13 @@ struct AssistantModuleView: View {
                 voice.stop() // barge-in: speaking over the answer replaces it
                 assistant.acceptDictation(text)
             }
-            // Voice mode: dictation sends itself and answers are read aloud.
-            CircleGlassButton(
-                systemName: assistant.isVoiceMode ? "waveform.circle.fill" : "waveform",
-                size: 30,
-                solid: assistant.isVoiceMode
-            ) {
-                let enabled = !assistant.isVoiceMode
-                assistant.setVoiceMode(enabled)
-                if !enabled { voice.stop() }
-            }
+            // Voice-mode toggle and transcript clearing live in the panel
+            // header; only the in-the-moment mute belongs down here.
             if voice.isSpeaking {
                 CircleGlassButton(systemName: "speaker.slash", size: 30) {
                     voice.stop()
                 }
                 .transition(.opacity)
-            }
-            if !assistant.transcript.isEmpty {
-                CircleGlassButton(systemName: "trash", size: 30) {
-                    voice.stop()
-                    assistant.clearTranscript()
-                }
             }
         }
         .animation(Theme.stateSpring, value: voice.isSpeaking)

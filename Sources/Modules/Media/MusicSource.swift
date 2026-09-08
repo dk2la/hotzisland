@@ -68,6 +68,12 @@ final class MusicSource: MediaSource {
         _ = await AppleScriptRunner.run("tell application id \"com.apple.Music\" to previous track")
     }
 
+    func seek(to seconds: Double) async {
+        _ = await AppleScriptRunner.run(
+            "tell application id \"com.apple.Music\" to set player position to \(Int(seconds))"
+        )
+    }
+
     func like() async {
         _ = await AppleScriptRunner.run("""
         tell application id "com.apple.Music"

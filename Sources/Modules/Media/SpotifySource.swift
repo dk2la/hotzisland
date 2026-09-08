@@ -52,4 +52,10 @@ final class SpotifySource: MediaSource {
     func previous() async {
         _ = await AppleScriptRunner.run("tell application id \"com.spotify.client\" to previous track")
     }
+
+    func seek(to seconds: Double) async {
+        _ = await AppleScriptRunner.run(
+            "tell application id \"com.spotify.client\" to set player position to \(Int(seconds))"
+        )
+    }
 }

@@ -74,6 +74,20 @@ actor IMAPClient {
         let units = try await command(
             "FETCH \(from):* (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)"
         )
+        return Self.buildMessages(from: units, log: log)
+    }
+
+    /// Same header fetch, addressed by UID — search results come as UIDs.
+    func fetchHeaders(uids: [UInt32]) async throws -> [EmailMessage] {
+        guard !uids.isEmpty else { return [] }
+        let set = uids.map(String.init).joined(separator: ",")
+        let units = try await command(
+            "UID FETCH \(set) (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)"
+        )
+        return Self.buildMessages(from: units, log: log)
+    }
+
+    private static func buildMessages(from units: [Data], log: Logger) -> [EmailMessage] {
         var messages: [EmailMessage] = []
         for unit in units {
             guard let item = IMAPParser.parseFetch(unit), let uid = item.uid else { continue }
@@ -99,6 +113,38 @@ actor IMAPClient {
         return messages
     }
 
+    /// Server-side full-text search over INBOX; newest `limit` UIDs. The
+    /// local list only ever holds 30 headers, so "find yesterday's mail"
+    /// has to ask the server.
+    func searchUIDs(query: String, limit: Int) async throws -> [UInt32] {
+        let bytes = Data(query.utf8)
+        let isPlainASCII = bytes.allSatisfy { $0 >= 32 && $0 < 127 }
+        let units: [Data]
+        if isPlainASCII {
+            units = try await command("UID SEARCH CHARSET UTF-8 TEXT \(quote(query))")
+        } else {
+            // Non-ASCII (Cyrillic…) cannot ride in a quoted string — RFC
+            // requires a literal. The non-synchronizing `{n+}` form goes out
+            // in one write; Gmail/Yandex/iCloud all speak LITERAL+.
+            units = try await command(
+                "UID SEARCH CHARSET UTF-8 TEXT ",
+                literal: bytes
+            )
+        }
+        for unit in units {
+            if let uids = IMAPParser.parseSearch(unit) {
+                return Array(uids.sorted(by: >).prefix(limit))
+            }
+        }
+        return []
+    }
+
+    /// RFC 6851 UID MOVE — archive is "move out of INBOX" everywhere; on
+    /// Gmail the destination is All Mail (labels, not folders).
+    func move(uid: UInt32, to mailbox: String) async throws {
+        _ = try await command("UID MOVE \(uid) \(quote(mailbox))")
+    }
+
     /// Fetches and decodes the readable text of one message: the part that
     /// BODYSTRUCTURE pointed at, or — when it pointed at nothing — the raw
     /// body plus its content headers, walked locally. The References header
@@ -113,9 +159,16 @@ actor IMAPClient {
                       let payload = item.bodyPayloads[part.section.uppercased()]
                 else { continue }
                 let decoded = MIMEDecode.decodeBody(payload, encoding: part.encoding, charset: part.charset)
-                let text = part.isHTML ? MIMEDecode.htmlToPlainText(decoded) : decoded
-                log.info("body uid=\(uid, privacy: .public) section=\(part.section, privacy: .public) enc=\(part.encoding, privacy: .public) chars=\(text.count, privacy: .public)")
-                return MessageBody(text: text, references: Self.references(in: item))
+                // Senders routinely mislabel HTML as text/plain — detect by
+                // content, not just by the declared subtype.
+                let isHTML = part.isHTML || MIMEDecode.looksLikeHTML(decoded)
+                let text = isHTML ? MIMEDecode.htmlToPlainText(decoded) : decoded
+                log.info("body uid=\(uid, privacy: .public) section=\(part.section, privacy: .public) enc=\(part.encoding, privacy: .public) chars=\(text.count, privacy: .public) html=\(isHTML, privacy: .public)")
+                return MessageBody(
+                    text: text,
+                    references: Self.references(in: item),
+                    html: isHTML ? decoded : nil
+                )
             }
         }
         return try await fetchWholeBody(uid: uid)
@@ -132,13 +185,13 @@ actor IMAPClient {
             guard let item = IMAPParser.parseFetch(unit), let body = item.bodyPayloads["TEXT"] else { continue }
             let rawHeaders = item.bodyPayloads.first { $0.key.hasPrefix("HEADER.FIELDS") }?.value ?? Data()
             let headers = MIMEDecode.parseHeaders(rawHeaders)
-            let text = MIMEDecode.extractText(
+            let readable = MIMEDecode.extractReadable(
                 rawBody: body,
                 contentType: headers["content-type"] ?? "text/plain",
                 transferEncoding: headers["content-transfer-encoding"] ?? "7bit"
             )
-            log.info("body fallback uid=\(uid, privacy: .public) bytes=\(body.count, privacy: .public) chars=\(text.count, privacy: .public)")
-            return MessageBody(text: text, references: Self.references(in: item))
+            log.info("body fallback uid=\(uid, privacy: .public) bytes=\(body.count, privacy: .public) chars=\(readable.text.count, privacy: .public)")
+            return MessageBody(text: readable.text, references: Self.references(in: item), html: readable.html)
         }
         return MessageBody(text: "", references: [])
     }
@@ -177,7 +230,27 @@ actor IMAPClient {
         tagCounter += 1
         let tag = "A\(tagCounter)"
         try await transport.send(Data("\(tag) \(text)\r\n".utf8))
+        return try await readResponse(tag: tag, timeout: timeout)
+    }
 
+    /// Command whose last argument is a non-synchronizing literal (LITERAL+,
+    /// RFC 7888): `{n+}` needs no continuation round trip, so the whole
+    /// command goes out in one write.
+    private func command(
+        _ prefix: String,
+        literal: Data,
+        timeout: Duration = .seconds(15)
+    ) async throws -> [Data] {
+        tagCounter += 1
+        let tag = "A\(tagCounter)"
+        var payload = Data("\(tag) \(prefix){\(literal.count)+}\r\n".utf8)
+        payload.append(literal)
+        payload.append(Data("\r\n".utf8))
+        try await transport.send(payload)
+        return try await readResponse(tag: tag, timeout: timeout)
+    }
+
+    private func readResponse(tag: String, timeout: Duration) async throws -> [Data] {
         var units: [Data] = []
         while true {
             let unit = try await readUnit(timeout: timeout)

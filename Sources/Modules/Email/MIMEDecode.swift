@@ -220,8 +220,16 @@ enum MIMEDecode {
 
     // MARK: - Raw body → readable text
 
+    struct ReadableBody {
+        var text: String
+        /// The HTML source when the chosen part was HTML — the reader
+        /// renders it richly; `text` is the flattened fallback.
+        var html: String?
+    }
+
     private struct TextCandidate {
         var text: String
+        var html: String?
         var isPlain: Bool
     }
 
@@ -229,7 +237,31 @@ enum MIMEDecode {
     /// containers and preferring text/plain over text/html. Used as the
     /// fallback when BODYSTRUCTURE gave us no usable text part.
     static func extractText(rawBody: Data, contentType: String, transferEncoding: String) -> String {
-        candidate(rawBody: rawBody, contentType: contentType, transferEncoding: transferEncoding)?.text ?? ""
+        extractReadable(rawBody: rawBody, contentType: contentType, transferEncoding: transferEncoding).text
+    }
+
+    /// Same walk, but the chosen part's HTML source rides along.
+    static func extractReadable(
+        rawBody: Data,
+        contentType: String,
+        transferEncoding: String
+    ) -> ReadableBody {
+        let found = candidate(rawBody: rawBody, contentType: contentType, transferEncoding: transferEncoding)
+        return ReadableBody(text: found?.text ?? "", html: found?.html)
+    }
+
+    /// A cheap sniff for HTML shipped under a text/plain label — senders
+    /// mislabel constantly, and showing tag soup to the user is worse than
+    /// an occasional false positive on someone literally mailing markup.
+    static func looksLikeHTML(_ text: String) -> Bool {
+        let head = text.prefix(512).lowercased()
+        if head.contains("<html") || head.contains("<!doctype html") || head.contains("<body") {
+            return true
+        }
+        // Several structural tags in the head of the text is markup, not
+        // someone quoting a single tag in prose.
+        let structural = ["<div", "<table", "<p>", "<p ", "<br", "<td", "<span"]
+        return structural.filter { head.contains($0) }.count >= 2
     }
 
     private static func candidate(
@@ -240,7 +272,9 @@ enum MIMEDecode {
         let type = mediaType(of: contentType)
         if type.hasPrefix("multipart/") {
             guard let boundary = parameter("boundary", in: contentType) else { return nil }
-            var htmlFallback: TextCandidate?
+            // HTML first — see IMAPParser.findTextPart for why the plain
+            // alternative is the fallback, not the preference.
+            var plainFallback: TextCandidate?
             for part in splitParts(rawBody, boundary: boundary) {
                 let (headerData, bodyData) = splitHeaderAndBody(part)
                 let headers = parseHeaders(headerData)
@@ -249,17 +283,18 @@ enum MIMEDecode {
                     contentType: headers["content-type"] ?? "text/plain",
                     transferEncoding: headers["content-transfer-encoding"] ?? "7bit"
                 ), !found.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-                if found.isPlain { return found }
-                htmlFallback = htmlFallback ?? found
+                if !found.isPlain { return found }
+                plainFallback = plainFallback ?? found
             }
-            return htmlFallback
+            return plainFallback
         }
         guard type.hasPrefix("text/") || type.isEmpty else { return nil } // skip attachments
         let charset = parameter("charset", in: contentType) ?? "utf-8"
         let decoded = decodeBody(rawBody, encoding: transferEncoding, charset: charset)
-        return type == "text/html"
-            ? TextCandidate(text: htmlToPlainText(decoded), isPlain: false)
-            : TextCandidate(text: decoded, isPlain: true)
+        if type == "text/html" || looksLikeHTML(decoded) {
+            return TextCandidate(text: htmlToPlainText(decoded), html: decoded, isPlain: false)
+        }
+        return TextCandidate(text: decoded, isPlain: true)
     }
 
     /// Splits a multipart body on its "--boundary" delimiters.
@@ -310,7 +345,7 @@ enum MIMEDecode {
     /// tags into line breaks, strips the rest, resolves common entities.
     static func htmlToPlainText(_ html: String) -> String {
         var text = html
-        for tag in ["script", "style", "head"] {
+        for tag in ["script", "style", "head", "title"] {
             while let open = text.range(of: "<\(tag)", options: .caseInsensitive),
                   let close = text.range(of: "</\(tag)>", options: .caseInsensitive, range: open.upperBound..<text.endIndex) {
                 text.removeSubrange(open.lowerBound..<close.upperBound)

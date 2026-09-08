@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import OSLog
@@ -17,13 +18,25 @@ final class EmailService {
     private(set) var lastRefresh: Date?
     private(set) var lastError: String?
 
-    /// Reply composer state. It lives here, not in the view, so collapsing
-    /// the panel mid-sentence does not throw the draft away.
+    /// Compose state — a Gmail-like To/Subject/Body form used for both
+    /// replies (prefilled, threaded) and new mail. It lives here, not in
+    /// the view, so collapsing the panel mid-sentence keeps the draft.
+    private(set) var isComposeOpen = false
+    var composeTo = ""
+    var composeSubject = ""
     var draft = ""
-    private(set) var isComposing = false
+    @ObservationIgnored private var composeInReplyTo: String?
+    @ObservationIgnored private var composeReferences: [String] = []
     private(set) var isSending = false
     private(set) var didSend = false
     private(set) var sendError: String?
+
+    /// Server-side search. State lives here so the panel header (which owns
+    /// the search toggle) and the module view share it.
+    private(set) var isSearchOpen = false
+    var searchQuery = ""
+    private(set) var searchResults: [EmailMessage]?
+    private(set) var isSearching = false
 
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
     @ObservationIgnored private let defaults = UserDefaults.standard
@@ -187,6 +200,7 @@ final class EmailService {
                 for index in merged.indices {
                     if let cached = known[merged[index].uid], cached.bodyPlain != nil {
                         merged[index].bodyPlain = cached.bodyPlain
+                        merged[index].bodyHTML = cached.bodyHTML
                         merged[index].references = cached.references
                     }
                 }
@@ -204,7 +218,111 @@ final class EmailService {
         }
     }
 
+    /// "18811" reads as noise, not information — the badge caps at 99+.
+    var unreadBadge: String? {
+        guard unreadCount > 0 else { return nil }
+        return unreadCount > 99 ? "99+" : "\(unreadCount)"
+    }
+
+    // MARK: - Search
+
+    func toggleSearch() {
+        isSearchOpen.toggle()
+        if !isSearchOpen {
+            clearSearch()
+        }
+    }
+
+    /// Back to the live inbox list; the search row stays open.
+    func clearSearch() {
+        searchQuery = ""
+        searchResults = nil
+    }
+
+    func runSearch() {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty, !isSearching, let session = activeUserSession() else { return }
+        isSearching = true
+        let limit = Self.messageLimit
+        Task { [weak self] in
+            do {
+                let found = try await session.run { client -> [EmailMessage] in
+                    let uids = try await client.searchUIDs(query: query, limit: limit)
+                    return try await client.fetchHeaders(uids: uids)
+                }
+                guard let self else { return }
+                self.searchResults = found
+                self.log.info("search hits=\(found.count, privacy: .public)")
+            } catch {
+                guard let self else { return }
+                self.searchResults = []
+                self.log.error("search failed: \(error.localizedDescription, privacy: .public)")
+            }
+            self?.isSearching = false
+        }
+    }
+
     // MARK: - Message actions
+
+    /// Moves the message out of INBOX. Optimistic: the row disappears at
+    /// once; a failed move logs, surfaces, and the next poll resyncs.
+    func archive(_ message: EmailMessage) {
+        guard let session = activeUserSession() else { return }
+        if message.isUnread {
+            unreadCount = max(0, unreadCount - 1)
+        }
+        messages.removeAll { $0.uid == message.uid }
+        searchResults?.removeAll { $0.uid == message.uid }
+        if openMessage?.uid == message.uid {
+            closeMessage()
+        }
+        let uid = message.uid
+        let folders = archiveFolders
+        Task { [weak self] in
+            do {
+                try await session.run { client in
+                    var lastError: Error = MailError.badResponse("no archive folder")
+                    for folder in folders {
+                        do {
+                            try await client.move(uid: uid, to: folder)
+                            return
+                        } catch {
+                            lastError = error
+                        }
+                    }
+                    throw lastError
+                }
+                self?.log.info("archived uid=\(uid, privacy: .public)")
+            } catch {
+                guard let self else { return }
+                self.lastError = error.localizedDescription
+                self.log.error("archive failed: \(error.localizedDescription, privacy: .public)")
+                self.refresh()
+            }
+        }
+    }
+
+    /// Candidate destinations, most likely first. Gmail files everything in
+    /// All Mail; the rest of the world calls the folder Archive.
+    private var archiveFolders: [String] {
+        switch EmailProvider(rawValue: config?.presetID ?? "") {
+        case .gmail: ["[Gmail]/All Mail", "Archive"]
+        default: ["Archive", "[Gmail]/All Mail", "Archived"]
+        }
+    }
+
+    /// Deep link into Mail.app by Message-ID, with a bare mailto: fallback.
+    func openInMailApp() {
+        guard let message = openMessage else { return }
+        if let raw = message.messageID?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
+            .addingPercentEncoding(withAllowedCharacters: .urlHostAllowed),
+            let url = URL(string: "message://%3C\(raw)%3E") {
+            NSWorkspace.shared.open(url)
+        } else if let url = URL(string: "mailto:") {
+            NSWorkspace.shared.open(url)
+        }
+    }
 
     func open(_ message: EmailMessage) {
         if openMessage?.uid != message.uid {
@@ -225,8 +343,15 @@ final class EmailService {
     }
 
     private func resetComposer() {
-        draft = ""
-        isComposing = false
+        // A reply draft belongs to the previous message; a new-mail draft
+        // survives navigation.
+        if composeInReplyTo != nil {
+            composeTo = ""
+            composeSubject = ""
+            draft = ""
+            composeInReplyTo = nil
+            composeReferences = []
+        }
         sendError = nil
         didSend = false
     }
@@ -253,14 +378,23 @@ final class EmailService {
 
     /// Puts a fetched body into the list and, when relevant, the open view.
     private func store(_ body: MessageBody, uid: UInt32) {
-        let text = body.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = body.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Table-heavy marketing HTML can flatten to nothing; the real
+        // renderer still extracts readable text, and the list preview and
+        // the reply quote both need it.
+        if text.isEmpty, let html = body.html {
+            text = EmailHTMLRenderer.render(html)?.string
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
         if var open = openMessage, open.uid == uid {
             open.bodyPlain = text
+            open.bodyHTML = body.html
             open.references = body.references
             openMessage = open
         }
         if let index = messages.firstIndex(where: { $0.uid == uid }) {
             messages[index].bodyPlain = text
+            messages[index].bodyHTML = body.html
             messages[index].references = body.references
         }
     }
@@ -294,37 +428,74 @@ final class EmailService {
         }
     }
 
-    // MARK: - Reply
+    // MARK: - Compose
 
+    /// Reply to the open message: To and Subject prefilled, threading
+    /// headers carried over. Re-opening the same reply keeps its draft.
     func startReply() {
-        isComposing = true
+        guard let message = openMessage else { return }
+        if composeInReplyTo != message.messageID || composeTo != message.fromAddress {
+            composeTo = message.fromAddress
+            composeSubject = MailComposer.replySubject(message.subject)
+            draft = ""
+            composeInReplyTo = message.messageID
+            composeReferences = message.references
+        }
         sendError = nil
         didSend = false
+        isComposeOpen = true
     }
 
-    func cancelReply() {
-        isComposing = false
+    /// Blank message. An unsent new-mail draft survives closing the form;
+    /// only leftovers of a reply are cleared.
+    func startNewMail() {
+        if composeInReplyTo != nil {
+            composeTo = ""
+            composeSubject = ""
+            draft = ""
+            composeInReplyTo = nil
+            composeReferences = []
+        }
+        sendError = nil
+        didSend = false
+        isComposeOpen = true
+    }
+
+    /// Back: the form closes, the draft stays.
+    func closeCompose() {
+        isComposeOpen = false
+    }
+
+    /// Cancel: the draft is gone.
+    func discardCompose() {
+        isComposeOpen = false
+        composeTo = ""
+        composeSubject = ""
         draft = ""
+        composeInReplyTo = nil
+        composeReferences = []
         sendError = nil
     }
 
-    /// Sends the draft as a reply to the open message and threads it with
-    /// In-Reply-To / References so the provider files it in the conversation.
-    func sendReply() {
-        guard let config, let message = openMessage, !isSending else { return }
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !message.fromAddress.isEmpty else { return }
+    var canSendCompose: Bool {
+        !isSending
+            && composeTo.trimmingCharacters(in: .whitespaces).contains("@")
+            && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func sendCompose() {
+        guard let config, canSendCompose else { return }
         guard let password = accountPassword() else {
             sendError = "No password in Keychain"
             return
         }
         let mail = OutgoingMail(
             from: config.email,
-            to: message.fromAddress,
-            subject: MailComposer.replySubject(message.subject),
-            body: text,
-            inReplyTo: message.messageID,
-            references: message.references
+            to: composeTo.trimmingCharacters(in: .whitespaces),
+            subject: composeSubject.trimmingCharacters(in: .whitespacesAndNewlines),
+            body: draft.trimmingCharacters(in: .whitespacesAndNewlines),
+            inReplyTo: composeInReplyTo,
+            references: composeReferences
         )
         isSending = true
         sendError = nil
@@ -342,9 +513,8 @@ final class EmailService {
                 guard let self else { return }
                 self.isSending = false
                 self.didSend = true
-                self.isComposing = false
-                self.draft = ""
-                self.log.info("reply sent uid=\(message.uid, privacy: .public)")
+                self.discardCompose()
+                self.log.info("mail sent reply=\(mail.inReplyTo != nil, privacy: .public)")
             } catch {
                 await client.quit()
                 guard let self else { return }

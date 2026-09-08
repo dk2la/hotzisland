@@ -79,7 +79,7 @@ enum L10nKey {
     case comingSoon, comingSoonSub
 
     // Widget chrome
-    case menuSettings, menuIslandMode, menuQuit
+    case menuSettings, menuIslandMode, menuWidgetMode, menuQuit
 
     // Timer
     case focusReady, focusRunning, timerStart, timerPause, timerReset, timerDoneNote
@@ -95,7 +95,8 @@ enum L10nKey {
     case shelfDrop, shelfLinksNote
 
     // Calendar
-    case calAllDay, calJoin, calNow, calNoEvents
+    case calAllDay, calJoin, calNow, calNoEvents, calToday, calTomorrow
+    case timerCustomPlaceholder
 
     // Notes
     case notesEmptyTitle, notesEmptySub, notesQuickPlaceholder, notesNew, notesDone
@@ -111,16 +112,19 @@ enum L10nKey {
     case mailProvider, mailAddress, mailPassword, mailPasswordHint, mailOutlookWarning
     case mailImapHost, mailSmtpHost
     case mailCheck, mailChecking, mailCheckOk, mailSave, mailRemove
-    case mailReply, mailReplyPlaceholder, mailSend, mailSending, mailSent, mailCancel
+    case mailReply, mailReplyPlaceholder, mailSend, mailSending, mailSent, mailCancel, mailShowImages, mailHideImages
+    case mailSearchPlaceholder, mailNoResults, mailArchive, mailRefresh, mailSearch
+    case mailToField, mailSubjectField, mailNewMessage, mailBodyPlaceholder
 
     // Assistant
     case asstSetupTitle, asstSetupSub, asstHint, asstPlaceholder, asstThinking
     case asstBaseURL, asstModel, asstKey, asstKeyHint
     case asstProviderClaude, asstProviderCodex, asstProviderAPI
-    case asstPreset, asstModelOptional, asstCLIMissing, asstVoiceHint
+    case asstPreset, asstModelOptional, asstCLIMissing, asstVoiceHint, asstEmptyTitle
 
     // Playbooks
     case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playEdit, playAdd
+    case playApps, playCloseRest, playFocus, playLaunch
 
     // Metrics
     case sysMemory, sysNetwork, sysBattery, sysCharging, sysVolume
@@ -136,6 +140,7 @@ enum L10nKey {
     case setOpenSettings, setExpandIsland, setExpandIslandSub
     case setOutsideClick, setOutsideClickSub
     case setHideWidget, setHideWidgetSub, setPinPanel, setPinPanelSub
+    case setModeToggle, setModeToggleSub
 
     var row: [String] {
         switch self {
@@ -155,6 +160,7 @@ enum L10nKey {
 
         case .menuSettings: return ["Settings…", "Настройки…", "Réglages…", "Ajustes…", "设置…", "Ajustes…", "Einstellungen…", "Impostazioni…", "設定…", "설정…"]
         case .menuIslandMode: return ["Island mode", "Режим острова", "Mode îlot", "Modo isla", "灵动岛模式", "Modo ilha", "Insel-Modus", "Modalità isola", "アイランドモード", "아일랜드 모드"]
+        case .menuWidgetMode: return ["Widget mode", "Режим виджета", "Mode widget", "Modo widget", "小组件模式", "Modo widget", "Widget-Modus", "Modalità widget", "ウィジェットモード", "위젯 모드"]
         case .menuQuit: return ["Quit HotzIsland", "Завершить HotzIsland", "Quitter HotzIsland", "Salir de HotzIsland", "退出 HotzIsland", "Sair do HotzIsland", "HotzIsland beenden", "Esci da HotzIsland", "HotzIslandを終了", "HotzIsland 종료"]
 
         case .focusReady: return ["focus · ready", "фокус · готов", "focus · prêt", "foco · listo", "专注 · 就绪", "foco · pronto", "Fokus · bereit", "focus · pronto", "フォーカス · 準備完了", "집중 · 준비"]
@@ -186,6 +192,9 @@ enum L10nKey {
         case .calJoin: return ["join", "войти", "rejoindre", "unirse", "加入", "entrar", "beitreten", "entra", "参加", "참여"]
         case .calNow: return ["now", "сейчас", "maintenant", "ahora", "现在", "agora", "jetzt", "ora", "今", "지금"]
         case .calNoEvents: return ["no events", "нет событий", "aucun événement", "sin eventos", "没有日程", "sem eventos", "keine Termine", "nessun evento", "予定なし", "일정 없음"]
+        case .calToday: return ["Today", "Сегодня", "Aujourd'hui", "Hoy", "今天", "Hoje", "Heute", "Oggi", "今日", "오늘"]
+        case .calTomorrow: return ["Tomorrow", "Завтра", "Demain", "Mañana", "明天", "Amanhã", "Morgen", "Domani", "明日", "내일"]
+        case .timerCustomPlaceholder: return ["min", "мин", "min", "min", "分", "min", "Min", "min", "分", "분"]
 
         case .notesEmptyTitle: return ["no notes", "нет заметок", "aucune note", "sin notas", "没有备忘录", "sem notas", "keine Notizen", "nessuna nota", "メモなし", "메모 없음"]
         case .notesEmptySub: return ["Type below — Enter saves a note", "Напишите ниже — Enter сохранит заметку", "Écrivez ci-dessous — Entrée enregistre", "Escribe abajo — Enter guarda la nota", "在下方输入 — 回车保存", "Escreva abaixo — Enter guarda a nota", "Unten tippen — Enter speichert", "Scrivi sotto — Invio salva la nota", "下に入力 — Enterで保存", "아래에 입력 — Enter로 저장"]
@@ -213,6 +222,17 @@ enum L10nKey {
         case .mailSending: return ["Sending…", "Отправка…", "Envoi…", "Enviando…", "发送中…", "A enviar…", "Senden…", "Invio…", "送信中…", "보내는 중…"]
         case .mailSent: return ["Sent", "Отправлено", "Envoyé", "Enviado", "已发送", "Enviado", "Gesendet", "Inviato", "送信済み", "보냄"]
         case .mailCancel: return ["Cancel", "Отмена", "Annuler", "Cancelar", "取消", "Cancelar", "Abbrechen", "Annulla", "キャンセル", "취소"]
+        case .mailShowImages: return ["Show images", "Показать картинки", "Afficher les images", "Mostrar imágenes", "显示图片", "Mostrar imagens", "Bilder anzeigen", "Mostra immagini", "画像を表示", "이미지 표시"]
+        case .mailHideImages: return ["Hide images", "Скрыть картинки", "Masquer les images", "Ocultar imágenes", "隐藏图片", "Ocultar imagens", "Bilder ausblenden", "Nascondi immagini", "画像を隠す", "이미지 숨기기"]
+        case .mailSearchPlaceholder: return ["Search mail…", "Поиск по почте…", "Rechercher…", "Buscar…", "搜索邮件…", "Pesquisar…", "Mail durchsuchen…", "Cerca…", "メールを検索…", "메일 검색…"]
+        case .mailNoResults: return ["nothing found", "ничего не найдено", "aucun résultat", "sin resultados", "未找到", "nada encontrado", "nichts gefunden", "nessun risultato", "見つかりません", "결과 없음"]
+        case .mailArchive: return ["Archive", "В архив", "Archiver", "Archivar", "归档", "Arquivar", "Archivieren", "Archivia", "アーカイブ", "보관"]
+        case .mailRefresh: return ["Refresh", "Обновить", "Actualiser", "Actualizar", "刷新", "Atualizar", "Aktualisieren", "Aggiorna", "更新", "새로 고침"]
+        case .mailSearch: return ["Search", "Поиск", "Rechercher", "Buscar", "搜索", "Pesquisar", "Suchen", "Cerca", "検索", "검색"]
+        case .mailToField: return ["To", "Кому", "À", "Para", "收件人", "Para", "An", "A", "宛先", "받는 사람"]
+        case .mailSubjectField: return ["Subject", "Тема", "Objet", "Asunto", "主题", "Assunto", "Betreff", "Oggetto", "件名", "제목"]
+        case .mailNewMessage: return ["New message", "Новое письмо", "Nouveau message", "Mensaje nuevo", "新邮件", "Nova mensagem", "Neue Nachricht", "Nuovo messaggio", "新規メッセージ", "새 메시지"]
+        case .mailBodyPlaceholder: return ["Message…", "Сообщение…", "Message…", "Mensaje…", "正文…", "Mensagem…", "Nachricht…", "Messaggio…", "本文…", "메시지…"]
         case .asstSetupTitle: return ["no provider", "нет провайдера", "aucun fournisseur", "sin proveedor", "未设置服务商", "sem fornecedor", "kein Anbieter", "nessun provider", "プロバイダなし", "제공자 없음"]
         case .asstSetupSub: return ["Connect any OpenAI-compatible endpoint — OpenAI, OpenRouter or a local Ollama", "Подключите любой OpenAI-совместимый эндпоинт — OpenAI, OpenRouter или локальную Ollama", "Connectez tout point d'accès compatible OpenAI — OpenAI, OpenRouter ou Ollama local", "Conecta cualquier endpoint compatible con OpenAI — OpenAI, OpenRouter u Ollama local", "连接任意兼容 OpenAI 的接口 — OpenAI、OpenRouter 或本地 Ollama", "Ligue qualquer endpoint compatível com OpenAI — OpenAI, OpenRouter ou Ollama local", "Beliebigen OpenAI-kompatiblen Endpunkt verbinden — OpenAI, OpenRouter oder lokales Ollama", "Collega qualsiasi endpoint compatibile OpenAI — OpenAI, OpenRouter o Ollama locale", "OpenAI互換のエンドポイントを接続 — OpenAI、OpenRouter、ローカルのOllama", "OpenAI 호환 엔드포인트 연결 — OpenAI, OpenRouter 또는 로컬 Ollama"]
         case .asstHint: return ["Set a timer, check today's events, capture a note — just ask", "Поставить таймер, узнать события на сегодня, записать заметку — просто спросите", "Minuteur, agenda du jour, note rapide — demandez simplement", "Pon un temporizador, revisa la agenda, guarda una nota — solo pide", "设定计时器、查看今日日程、记笔记 — 直接开口", "Temporizador, agenda de hoje, nota rápida — é só pedir", "Timer stellen, heutige Termine, Notiz erfassen — einfach fragen", "Timer, eventi di oggi, una nota al volo — basta chiedere", "タイマー設定、今日の予定、メモ — 何でも聞いて", "타이머 설정, 오늘 일정, 메모 — 그냥 물어보세요"]
@@ -225,6 +245,7 @@ enum L10nKey {
         case .asstProviderCodex: return ["Uses the local codex CLI — covered by your ChatGPT subscription", "Через локальный codex CLI — расходует вашу подписку ChatGPT", "Via le CLI codex local — inclus dans votre abonnement ChatGPT", "Usa el CLI codex local — incluido en tu suscripción de ChatGPT", "使用本地 codex CLI — 计入你的 ChatGPT 订阅", "Usa o CLI codex local — incluído na sua subscrição ChatGPT", "Nutzt die lokale codex-CLI — über dein ChatGPT-Abo", "Usa la CLI codex locale — inclusa nel tuo abbonamento ChatGPT", "ローカルの codex CLI を使用 — ChatGPTサブスクリプションに含まれます", "로컬 codex CLI 사용 — ChatGPT 구독에 포함"]
         case .asstProviderAPI: return ["Any OpenAI-compatible endpoint, billed per token", "Любой OpenAI-совместимый эндпоинт, оплата за токены", "Tout point d'accès compatible OpenAI, facturé au token", "Cualquier endpoint compatible con OpenAI, pago por tokens", "任意兼容 OpenAI 的接口，按 token 计费", "Qualquer endpoint compatível com OpenAI, pago por token", "Beliebiger OpenAI-kompatibler Endpunkt, Abrechnung pro Token", "Qualsiasi endpoint compatibile OpenAI, a consumo", "OpenAI互換エンドポイント、トークン課金", "OpenAI 호환 엔드포인트, 토큰 과금"]
         case .asstVoiceHint: return ["Voice mode — tap the mic, speak, and the answer is read back", "Голосовой режим — нажмите микрофон, говорите, ответ прозвучит вслух", "Mode vocal — appuyez sur le micro, parlez, la réponse est lue", "Modo voz — toca el micro, habla y la respuesta se lee en voz alta", "语音模式 — 点击麦克风说话，答案会朗读出来", "Modo de voz — toque no micro, fale e a resposta é lida", "Sprachmodus — Mikro antippen, sprechen, die Antwort wird vorgelesen", "Modalità vocale — tocca il microfono, parla, la risposta viene letta", "音声モード — マイクをタップして話すと、回答が読み上げられます", "음성 모드 — 마이크를 누르고 말하면 답변을 읽어 줍니다"]
+        case .asstEmptyTitle: return ["no messages", "нет сообщений", "aucun message", "sin mensajes", "没有消息", "sem mensagens", "keine Nachrichten", "nessun messaggio", "メッセージなし", "메시지 없음"]
         case .asstPreset: return ["Preset", "Пресет", "Préréglage", "Preajuste", "预设", "Predefinição", "Voreinstellung", "Preset", "プリセット", "프리셋"]
         case .asstModelOptional: return ["Optional — leave empty for the CLI's default", "Необязательно — пусто = модель по умолчанию в CLI", "Facultatif — vide pour le modèle par défaut du CLI", "Opcional — vacío para el modelo por defecto del CLI", "可选 — 留空则使用 CLI 默认模型", "Opcional — vazio para o modelo padrão do CLI", "Optional — leer für das Standardmodell der CLI", "Opzionale — vuoto per il modello predefinito della CLI", "任意 — 空欄でCLIの既定モデル", "선택 사항 — 비우면 CLI 기본 모델"]
         case .asstCLIMissing: return ["%@ CLI not found. Install it and sign in, then press Check.", "%@ CLI не найден. Установите его, войдите в аккаунт и нажмите «Проверить».", "CLI %@ introuvable. Installez-le, connectez-vous, puis cliquez sur Vérifier.", "No se encontró el CLI %@. Instálalo, inicia sesión y pulsa Comprobar.", "未找到 %@ CLI。请安装并登录后点击检查。", "CLI %@ não encontrado. Instale, inicie sessão e prima Verificar.", "%@-CLI nicht gefunden. Installieren, anmelden, dann auf Prüfen klicken.", "CLI %@ non trovata. Installala, accedi e premi Verifica.", "%@ CLI が見つかりません。インストールしてサインイン後、チェックを押してください。", "%@ CLI를 찾을 수 없습니다. 설치 후 로그인하고 확인을 누르세요."]
@@ -244,6 +265,10 @@ enum L10nKey {
 
         case .playNew: return ["+ new", "+ новый", "+ nouveau", "+ nuevo", "+ 新建", "+ novo", "+ neu", "+ nuovo", "+ 新規", "+ 새로 만들기"]
         case .playEmpty: return ["empty", "пустой", "vide", "vacío", "空", "vazio", "leer", "vuoto", "空", "비어 있음"]
+        case .playApps: return ["%d apps", "%d прил.", "%d apps", "%d apps", "%d 个应用", "%d apps", "%d Apps", "%d app", "%d個のApp", "앱 %d개"]
+        case .playCloseRest: return ["closes others", "закрывает прочие", "ferme le reste", "cierra el resto", "关闭其他", "fecha o resto", "schließt andere", "chiude il resto", "他を閉じる", "다른 앱 닫기"]
+        case .playFocus: return ["focus", "фокус", "focus", "enfoque", "专注", "foco", "Fokus", "focus", "集中", "집중"]
+        case .playLaunch: return ["Launch", "Запустить", "Lancer", "Iniciar", "启动", "Iniciar", "Starten", "Avvia", "起動", "실행"]
         case .playDone: return ["done", "выполнен", "terminé", "hecho", "已完成", "concluído", "fertig", "fatto", "完了", "완료"]
         case .playClosed: return ["closed %d", "закрыто %d", "fermé %d", "cerradas %d", "已关闭 %d", "fechadas %d", "geschlossen %d", "chiuse %d", "終了 %d", "닫음 %d"]
         case .playOpened: return ["opened %d", "открыто %d", "ouvert %d", "abiertas %d", "已打开 %d", "abertas %d", "geöffnet %d", "aperte %d", "起動 %d", "열림 %d"]
@@ -294,6 +319,8 @@ enum L10nKey {
         case .setOutsideClickSub: return ["Off = the panel stays pinned. ⌃⌥P toggles this anywhere.", "Выкл = панель закреплена. ⌃⌥P переключает откуда угодно.", "Désactivé = panneau épinglé. ⌃⌥P bascule partout.", "Desactivado = panel fijado. ⌃⌥P lo alterna en cualquier lugar.", "关闭 = 面板固定。⌃⌥P 随处切换。", "Desligado = painel fixado. ⌃⌥P alterna em qualquer lugar.", "Aus = Panel bleibt angeheftet. ⌃⌥P schaltet überall um.", "Off = pannello fissato. ⌃⌥P lo commuta ovunque.", "オフ = パネルを固定。⌃⌥P でどこでも切替。", "끄면 패널 고정. ⌃⌥P로 어디서든 전환."]
         case .setHideWidget: return ["Hide / show the widget", "Скрыть / показать виджет", "Masquer / afficher le widget", "Ocultar / mostrar el widget", "隐藏 / 显示小组件", "Ocultar / mostrar o widget", "Widget aus- / einblenden", "Nascondi / mostra il widget", "ウィジェットを隠す / 表示", "위젯 숨기기 / 표시"]
         case .setHideWidgetSub: return ["Collapses the strip into a small square when it is in the way", "Сворачивает рейку в маленький квадрат, когда она мешает", "Réduit la barre en petit carré quand elle gêne", "Colapsa la barra en un cuadrito cuando estorba", "碍事时把工具条折叠成小方块", "Recolhe a barra num quadradinho quando atrapalha", "Faltet die Leiste zu einem kleinen Quadrat, wenn sie stört", "Riduce la barra a un quadratino quando è d'intralcio", "邪魔なときにストリップを小さな四角に畳みます", "방해될 때 스트립을 작은 사각형으로 접기"]
+        case .setModeToggle: return ["Widget / island", "Виджет / остров", "Widget / îlot", "Widget / isla", "小组件 / 灵动岛", "Widget / ilha", "Widget / Insel", "Widget / isola", "ウィジェット / アイランド", "위젯 / 아일랜드"]
+        case .setModeToggleSub: return ["Flips between the edge widget and the notch island", "Переключает между виджетом у края и островом у выреза", "Bascule entre le widget de bord et l'îlot du notch", "Alterna entre el widget lateral y la isla del notch", "在边缘小组件和刘海灵动岛之间切换", "Alterna entre o widget na borda e a ilha do notch", "Wechselt zwischen Rand-Widget und Notch-Insel", "Alterna tra il widget sul bordo e l'isola del notch", "端のウィジェットとノッチのアイランドを切り替えます", "가장자리 위젯과 노치 아일랜드 사이를 전환합니다"]
         case .setPinPanel: return ["Pin the panel", "Закрепить панель", "Épingler le panneau", "Fijar el panel", "固定面板", "Fixar o painel", "Panel anheften", "Fissa il pannello", "パネルを固定", "패널 고정"]
         case .setPinPanelSub: return ["Toggles \"close on outside click\"", "Переключает «закрывать по клику вне виджета»", "Bascule « fermer au clic extérieur »", "Alterna «cerrar al hacer clic fuera»", "切换「点击外部关闭」", "Alterna «fechar ao clicar fora»", "Schaltet \"bei Klick außerhalb schließen\" um", "Commuta «chiudi al clic esterno»", "「外側クリックで閉じる」を切替", "\"밖 클릭 시 닫기\" 전환"]
         }

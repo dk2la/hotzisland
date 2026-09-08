@@ -21,7 +21,7 @@ struct NotesModuleView: View {
     private var list: some View {
         VStack(alignment: .leading, spacing: 8) {
             if store.notes.isEmpty {
-                DashedZone(
+                EmptyStateZone(
                     label: L10n.t(.notesEmptyTitle),
                     sublabel: L10n.t(.notesEmptySub)
                 )
@@ -39,6 +39,7 @@ struct NotesModuleView: View {
             SpeechStatusRow(speech: speech)
             captureBar
         }
+        .animation(Theme.stateSpring, value: speech.isRecording)
     }
 
     private func row(_ note: NoteFile) -> some View {
@@ -48,12 +49,13 @@ struct NotesModuleView: View {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(note.title)
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(Theme.bodyFont)
+                        .fontWeight(.medium)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .foregroundStyle(Theme.textPrimary.opacity(0.9))
+                        .foregroundStyle(Theme.textPrimary)
                     Text(Self.age(of: note))
-                        .font(.system(size: 10.5))
+                        .font(Theme.captionFont)
                         .foregroundStyle(Theme.textQuaternary)
                 }
                 Spacer(minLength: 0)
@@ -62,7 +64,7 @@ struct NotesModuleView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary.opacity(0.6))
+                        .foregroundStyle(Theme.textTertiary)
                         .frame(width: 24, height: 24)
                         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.raisedFill))
                         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -83,7 +85,7 @@ struct NotesModuleView: View {
                 TextField(L10n.t(.notesQuickPlaceholder), text: $captureText)
                     .textFieldStyle(.plain)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.92))
+                    .foregroundStyle(Theme.textPrimary)
                     .focused($captureFocused)
                     .onSubmit(submitCapture)
                 if !captureText.isEmpty {
@@ -103,9 +105,6 @@ struct NotesModuleView: View {
             .animation(Theme.stateSpring, value: captureText.isEmpty)
             SpeechMicControl(speech: speech) { text in
                 captureText = captureText.isEmpty ? text : captureText + " " + text
-            }
-            GlassCapsuleButton(label: L10n.t(.notesNew)) {
-                store.create()
             }
             CircleGlassButton(systemName: "folder", size: 30) {
                 pickFolder()
@@ -147,7 +146,8 @@ struct NotesModuleView: View {
 }
 
 /// Inline Markdown editor: editable title (rename on commit), body with
-/// debounced autosave, dictation, Done to flush and return to the list.
+/// debounced autosave, dictation. The way back to the list is the panel
+/// header's chevron — the editor carries no chrome of its own.
 struct NoteEditorView: View {
     var store: NotesStore
     var speech: SpeechCaptureService
@@ -157,29 +157,16 @@ struct NoteEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                CircleGlassButton(systemName: "chevron.left", size: 28) {
-                    store.closeEditor()
-                }
-                TextField("", text: Bindable(store).editorTitle)
-                    .textFieldStyle(.plain)
-                    .font(Theme.titleFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
-                    .focused($titleFocused)
-                    .onSubmit { store.commitTitle() }
-                Spacer(minLength: 0)
-                SpeechMicControl(speech: speech) { text in
-                    appendDictation(text)
-                }
-                GlassCapsuleButton(label: L10n.t(.notesDone), isPrimary: true) {
-                    store.commitTitle()
-                    store.closeEditor()
-                }
-            }
+            TextField("", text: Bindable(store).editorTitle)
+                .textFieldStyle(.plain)
+                .font(Theme.titleFont)
+                .foregroundStyle(Theme.textPrimary)
+                .focused($titleFocused)
+                .onSubmit { store.commitTitle() }
             TextEditor(text: Bindable(store).editorText)
                 .scrollContentBackground(.hidden)
                 .font(Theme.bodyFont)
-                .foregroundStyle(Theme.textPrimary.opacity(0.92))
+                .foregroundStyle(Theme.textPrimary)
                 .focused($bodyFocused)
                 .padding(8)
                 .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
@@ -187,7 +174,14 @@ struct NoteEditorView: View {
                     store.editorChanged()
                 }
             SpeechStatusRow(speech: speech)
+            HStack {
+                SpeechMicControl(speech: speech) { text in
+                    appendDictation(text)
+                }
+                Spacer(minLength: 0)
+            }
         }
+        .animation(Theme.stateSpring, value: speech.isRecording)
         .onChange(of: titleFocused) { _, focused in
             if !focused {
                 store.commitTitle()

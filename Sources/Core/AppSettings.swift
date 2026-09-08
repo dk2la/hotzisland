@@ -145,6 +145,23 @@ final class AppSettings {
         }
     }
 
+    /// Size of the widget-mode panel, each axis dragged by its own grip.
+    /// Separate from the island's `expandedPanelSize` — the two surfaces
+    /// have different geometry.
+    private(set) var widgetPanelWidth: CGFloat {
+        didSet {
+            defaults.set(Double(widgetPanelWidth), forKey: Self.widgetPanelWidthKey)
+            notifyChange()
+        }
+    }
+
+    private(set) var widgetPanelHeight: CGFloat {
+        didSet {
+            defaults.set(Double(widgetPanelHeight), forKey: Self.widgetPanelHeightKey)
+            notifyChange()
+        }
+    }
+
     /// User-chosen size of the expanded panel (dragged by the corner grip).
     private(set) var expandedPanelSize: CGSize {
         didSet {
@@ -218,6 +235,8 @@ final class AppSettings {
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
     @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
     @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
+    @ObservationIgnored private static let widgetPanelWidthKey = "settings.widgetPanelWidth"
+    @ObservationIgnored private static let widgetPanelHeightKey = "settings.widgetPanelHeight"
 
     init() {
         let defaults = UserDefaults.standard
@@ -227,6 +246,14 @@ final class AppSettings {
             width: storedWidth > 0 ? storedWidth : NotchMetrics.expandedMinSize.width,
             height: storedHeight > 0 ? storedHeight : NotchMetrics.expandedMinSize.height
         ))
+        let storedPanelWidth = defaults.double(forKey: Self.widgetPanelWidthKey)
+        widgetPanelWidth = Self.clampWidgetPanelWidth(
+            storedPanelWidth > 0 ? storedPanelWidth : WidgetMetrics.panelDefaultWidth
+        )
+        let storedPanelHeight = defaults.double(forKey: Self.widgetPanelHeightKey)
+        widgetPanelHeight = Self.clampWidgetPanelHeight(
+            storedPanelHeight > 0 ? storedPanelHeight : WidgetMetrics.panelDefaultHeight
+        )
         theme = defaults.string(forKey: Self.themeKey)
             .flatMap(IslandTheme.init(rawValue:)) ?? .stealth
         idleMode = defaults.string(forKey: Self.idleKey)
@@ -278,12 +305,45 @@ final class AppSettings {
         """)
     }
 
+    /// The ⌃⌥M hotkey and the menu items flip between the two surfaces.
+    func toggleDisplayMode() {
+        displayMode = displayMode == .widget ? .island : .widget
+    }
+
     func setWidgetPlacement(edge: WidgetEdge, offset: Double) {
         let clamped = min(max(offset, 0), 1)
         guard edge != widgetEdge || clamped != widgetOffset else { return }
         log.info("widget placement -> \(edge.rawValue, privacy: .public) @ \(clamped, privacy: .public)")
         widgetEdge = edge
         widgetOffset = clamped
+    }
+
+    func setWidgetPanelWidth(_ raw: CGFloat) {
+        let clamped = Self.clampWidgetPanelWidth(raw)
+        guard clamped != widgetPanelWidth else { return }
+        widgetPanelWidth = clamped
+    }
+
+    private static func clampWidgetPanelWidth(_ width: CGFloat) -> CGFloat {
+        var maxWidth = WidgetMetrics.panelMaxWidth
+        if let screen = NotchGeometry.targetScreen {
+            maxWidth = min(maxWidth, screen.frame.width - 80)
+        }
+        return min(max(width, WidgetMetrics.panelMinWidth), maxWidth)
+    }
+
+    func setWidgetPanelHeight(_ raw: CGFloat) {
+        let clamped = Self.clampWidgetPanelHeight(raw)
+        guard clamped != widgetPanelHeight else { return }
+        widgetPanelHeight = clamped
+    }
+
+    private static func clampWidgetPanelHeight(_ height: CGFloat) -> CGFloat {
+        var maxHeight = WidgetMetrics.panelMaxHeight
+        if let screen = NotchGeometry.targetScreen {
+            maxHeight = min(maxHeight, screen.visibleFrame.height - 2 * WidgetMetrics.edgeInset)
+        }
+        return min(max(height, WidgetMetrics.panelMinHeight), maxHeight)
     }
 
     func setPanelSize(_ raw: CGSize) {
