@@ -14,9 +14,12 @@ extension Duration {
 /// large mailbox that is seconds, which is why the widget used to freeze on
 /// "…" every time a message was opened.
 ///
-/// An actor, so commands can never interleave on the shared socket. A dropped
-/// or timed-out connection is transparent: the call is retried once on a
-/// freshly opened session.
+/// Actor isolation alone does not serialize callers: an actor is reentrant
+/// at every `await`, so two `run` calls would send tagged commands on the
+/// same socket and steal each other's replies. Calls are therefore chained —
+/// each waits for the previous one to finish before touching the client.
+/// A dropped or timed-out connection is transparent: the call is retried
+/// once on a freshly opened session.
 actor MailSession {
     private let host: String
     private let port: UInt16
@@ -41,15 +44,32 @@ actor MailSession {
         self.password = password
     }
 
-    /// Runs `body` against a live, INBOX-selected client.
-    func run<T: Sendable>(_ body: @Sendable (IMAPClient) async throws -> T) async throws -> T {
+    /// Tail of the command chain; the next `run` waits for it to settle.
+    private var tail: Task<Void, Never>?
+
+    /// Runs `body` against a live, INBOX-selected client, strictly after
+    /// every earlier `run` on this session has finished.
+    func run<T: Sendable>(_ body: @escaping @Sendable (IMAPClient) async throws -> T) async throws -> T {
+        let previous = tail
+        let task = Task<T, Error> {
+            await previous?.value
+            return try await perform(body)
+        }
+        // The chain only cares about ordering, not about the outcome.
+        tail = Task { _ = try? await task.value }
+        return try await task.value
+    }
+
+    private func perform<T: Sendable>(_ body: @Sendable (IMAPClient) async throws -> T) async throws -> T {
         do {
             let result = try await body(open())
             lastUsedAt = Date()
             return result
-        } catch {
+        } catch let error as MailError where error.isTransportFailure {
             // The connection may simply have gone stale; one clean retry
-            // tells a dead socket apart from a real protocol error.
+            // tells a dead socket apart from a real protocol error. Only
+            // transport failures qualify: a NO/BAD or a rejected LOGIN would
+            // come back identical (and a repeated MOVE could act twice).
             log.info("session retry after: \(error.localizedDescription, privacy: .public)")
             await close()
             let result = try await body(open())

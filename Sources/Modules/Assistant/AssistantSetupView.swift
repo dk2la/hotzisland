@@ -163,6 +163,8 @@ struct AssistantSetupView: View {
             provider = config.provider
             baseURL = config.baseURL
             model = config.model
+            // Otherwise Save with an untouched form would wipe the key.
+            key = assistant.storedKey()
         }
         refreshCLIInstalled()
     }

@@ -121,6 +121,7 @@ enum L10nKey {
     case asstBaseURL, asstModel, asstKey, asstKeyHint
     case asstProviderClaude, asstProviderCodex, asstProviderAPI
     case asstPreset, asstModelOptional, asstCLIMissing, asstVoiceHint, asstEmptyTitle
+    case asstPlaybookConfirm, asstPlaybookRun, asstPlaybookCancel
 
     // Playbooks
     case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playEdit, playAdd
@@ -249,6 +250,9 @@ enum L10nKey {
         case .asstPreset: return ["Preset", "Пресет", "Préréglage", "Preajuste", "预设", "Predefinição", "Voreinstellung", "Preset", "プリセット", "프리셋"]
         case .asstModelOptional: return ["Optional — leave empty for the CLI's default", "Необязательно — пусто = модель по умолчанию в CLI", "Facultatif — vide pour le modèle par défaut du CLI", "Opcional — vacío para el modelo por defecto del CLI", "可选 — 留空则使用 CLI 默认模型", "Opcional — vazio para o modelo padrão do CLI", "Optional — leer für das Standardmodell der CLI", "Opzionale — vuoto per il modello predefinito della CLI", "任意 — 空欄でCLIの既定モデル", "선택 사항 — 비우면 CLI 기본 모델"]
         case .asstCLIMissing: return ["%@ CLI not found. Install it and sign in, then press Check.", "%@ CLI не найден. Установите его, войдите в аккаунт и нажмите «Проверить».", "CLI %@ introuvable. Installez-le, connectez-vous, puis cliquez sur Vérifier.", "No se encontró el CLI %@. Instálalo, inicia sesión y pulsa Comprobar.", "未找到 %@ CLI。请安装并登录后点击检查。", "CLI %@ não encontrado. Instale, inicie sessão e prima Verificar.", "%@-CLI nicht gefunden. Installieren, anmelden, dann auf Prüfen klicken.", "CLI %@ non trovata. Installala, accedi e premi Verifica.", "%@ CLI が見つかりません。インストールしてサインイン後、チェックを押してください。", "%@ CLI를 찾을 수 없습니다. 설치 후 로그인하고 확인을 누르세요."]
+        case .asstPlaybookConfirm: return ["Run playbook “%@”?", "Запустить плейбук «%@»?", "Lancer le playbook « %@ » ?", "¿Iniciar el playbook «%@»?", "运行行动手册“%@”？", "Iniciar o playbook “%@”?", "Playbook „%@“ starten?", "Avviare il playbook “%@”?", "プレイブック「%@」を実行しますか？", "플레이북 “%@”을(를) 실행할까요?"]
+        case .asstPlaybookRun: return ["Run", "Запустить", "Lancer", "Iniciar", "运行", "Iniciar", "Starten", "Avvia", "実行", "실행"]
+        case .asstPlaybookCancel: return ["Cancel", "Отмена", "Annuler", "Cancelar", "取消", "Cancelar", "Abbrechen", "Annulla", "キャンセル", "취소"]
         case .asstKeyHint: return ["Stored in the Keychain; leave empty for a local Ollama", "Хранится в Keychain; для локальной Ollama оставьте пустым", "Stockée dans le trousseau ; vide pour Ollama local", "Se guarda en el llavero; vacía para Ollama local", "保存在钥匙串；本地 Ollama 可留空", "Guardada nas Chaves; vazia para Ollama local", "Im Schlüsselbund gespeichert; für lokales Ollama leer lassen", "Salvata nel portachiavi; vuota per Ollama locale", "キーチェーンに保存。ローカルのOllamaは空欄でOK", "키체인에 저장. 로컬 Ollama는 비워 두세요"]
         case .mailProvider: return ["Provider", "Провайдер", "Fournisseur", "Proveedor", "服务商", "Fornecedor", "Anbieter", "Provider", "プロバイダ", "제공업체"]
         case .mailAddress: return ["Email address", "Адрес почты", "Adresse e-mail", "Dirección de correo", "邮箱地址", "Endereço de e-mail", "E-Mail-Adresse", "Indirizzo e-mail", "メールアドレス", "이메일 주소"]

@@ -6,6 +6,9 @@ import OSLog
 struct ToolOutcome {
     var text: String
     var isError = false
+    /// Set by `run_playbook`: the playbook waits for the user's confirmation
+    /// instead of running — a playbook can close every open app.
+    var playbookToConfirm: Playbook?
 
     static func failure(_ text: String) -> ToolOutcome {
         ToolOutcome(text: text, isError: true)
@@ -119,8 +122,15 @@ final class AssistantToolbox {
                 return .failure("'minutes' must be a positive number.")
             }
             let clamped = min(max(minutes, 1), 240)
-            services.timerService.setDuration(clamped * 60)
-            services.timerService.start()
+            let timer = services.timerService
+            // setDuration/start are no-ops on a running timer: stop it first,
+            // and report only what actually happened.
+            timer.reset()
+            timer.setDuration(clamped * 60)
+            timer.start()
+            guard timer.isRunning else {
+                return .failure("The timer could not be started.")
+            }
             return ToolOutcome(text: "Timer started for \(Int(clamped)) minutes.")
 
         case "run_playbook":
@@ -136,8 +146,12 @@ final class AssistantToolbox {
                 let names = all.map(\.name).joined(separator: ", ")
                 return ToolOutcome(text: "No playbook matches \"\(query)\". Available: \(names).")
             }
-            services.playbookRunner.run(match)
-            return ToolOutcome(text: "Playbook \"\(match.name)\" started.")
+            // Never run silently: the service shows a Confirm/Cancel row and
+            // calls `runPlaybook` only on the user's say-so.
+            return ToolOutcome(
+                text: "Asked the user to confirm running playbook \"\(match.name)\". Do not claim it ran.",
+                playbookToConfirm: match
+            )
 
         case "now_playing":
             guard let track = services.mediaCenter.track else {
@@ -173,6 +187,12 @@ final class AssistantToolbox {
         default:
             return .failure("Unknown tool \"\(name)\".")
         }
+    }
+
+    /// The confirmed half of `run_playbook`.
+    func runPlaybook(_ playbook: Playbook) {
+        log.info("tool run_playbook confirmed")
+        services.playbookRunner.run(playbook)
     }
 
     // MARK: - Argument helpers

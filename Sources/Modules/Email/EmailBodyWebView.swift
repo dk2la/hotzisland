@@ -76,15 +76,30 @@ struct EmailBodyWebView: NSViewRepresentable {
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction
         ) async -> WKNavigationActionPolicy {
-            guard navigationAction.navigationType == .linkActivated,
-                  let url = navigationAction.request.url
-            else {
-                // The initial loadHTMLString is `.other` — allow only that.
-                return navigationAction.navigationType == .other ? .allow : .cancel
+            let url = navigationAction.request.url
+            switch navigationAction.navigationType {
+            case .linkActivated:
+                // Only web and mail links leave for the system; a mail must
+                // not be able to open file:// or an arbitrary app scheme.
+                if let url, let scheme = url.scheme?.lowercased(),
+                   Self.openableSchemes.contains(scheme) {
+                    NSWorkspace.shared.open(url)
+                }
+                return .cancel
+            case .other:
+                // `loadHTMLString(_, baseURL: nil)` arrives as an about:blank
+                // main-frame load — that one is ours. Anything else of this
+                // type is the document acting on its own (a meta refresh, a
+                // surviving frame) and stays blocked.
+                let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? false
+                let isBlank = url == nil || url?.scheme?.lowercased() == "about"
+                return isMainFrame && isBlank ? .allow : .cancel
+            default:
+                return .cancel
             }
-            NSWorkspace.shared.open(url)
-            return .cancel
         }
+
+        private static let openableSchemes: Set<String> = ["http", "https", "mailto"]
 
         private static func document(from html: String, loadImages: Bool) -> String {
             """

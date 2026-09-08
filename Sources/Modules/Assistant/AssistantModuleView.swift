@@ -36,12 +36,18 @@ struct AssistantModuleView: View {
             } else {
                 transcript
             }
+            // A playbook closes apps, so the model only gets to ask.
+            if let playbook = assistant.pendingPlaybook {
+                playbookConfirmation(playbook)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
             // Same live dictation line the Notes module shows: the words
             // appear as they are recognised, before the turn is sent.
             SpeechStatusRow(speech: speech)
             composer
         }
         .animation(Theme.stateSpring, value: speech.isRecording)
+        .animation(Theme.stateSpring, value: assistant.pendingPlaybook)
         // Answers are spoken from here, not from the service, so the audio
         // follows the view that is actually on screen.
         .onChange(of: assistant.pendingSpeech) { _, pending in
@@ -124,6 +130,24 @@ struct AssistantModuleView: View {
             }
             .padding(.horizontal, 4)
         }
+    }
+
+    private func playbookConfirmation(_ playbook: Playbook) -> some View {
+        HStack(spacing: 8) {
+            Text(L10n.f(.asstPlaybookConfirm, playbook.name))
+                .font(Theme.subFont)
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+            GlassCapsuleButton(label: L10n.t(.asstPlaybookCancel)) {
+                assistant.cancelPendingPlaybook()
+            }
+            GlassCapsuleButton(label: L10n.t(.asstPlaybookRun), isPrimary: true) {
+                assistant.confirmPendingPlaybook()
+            }
+        }
+        .padding(.horizontal, 4)
     }
 
     private var composer: some View {

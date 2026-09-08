@@ -27,15 +27,16 @@ enum NowPlayingClients {
     /// Bundle IDs of all current media clients, most recent first.
     static func bundleIDs() async -> [String] {
         guard let getClients, let getBundleID else { return [] }
-        return await withCheckedContinuation { continuation in
+        let ids: [String]? = await SystemNowPlayingSource.withTimeout { resume in
             getClients(DispatchQueue.main) { array in
                 let clients = (array as? [AnyObject]) ?? []
                 let ids = clients.compactMap { client in
                     getBundleID(client)?.takeUnretainedValue() as String?
                 }
-                continuation.resume(returning: ids)
+                resume(ids)
             }
         }
+        return ids ?? []
     }
 
     static func displayName(for bundleID: String) -> String {
