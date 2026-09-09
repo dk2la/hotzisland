@@ -14,7 +14,7 @@ struct CompactMediaView: View {
             Spacer(minLength: 0)
             Text("−" + TimeFormat.mmss(track.duration - track.position))
                 .font(Theme.smallValueFont)
-                .foregroundStyle(Theme.textPrimary.opacity(0.8))
+                .foregroundStyle(Theme.textSecondary)
         }
         .padding(.horizontal, 14)
     }

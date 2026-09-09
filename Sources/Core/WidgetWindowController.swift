@@ -3,8 +3,8 @@ import OSLog
 import SwiftUI
 
 /// Owns the edge-docked widget window (widget display mode). Click-driven:
-/// unlike the notch it registers no mouse monitors and never touches
-/// NotchWindowControllerRegistry — that slot belongs to the notch.
+/// unlike the notch it tracks no hover — its only mouse monitors are the
+/// optional close-on-outside-click ones, installed while a panel is open.
 @MainActor
 final class WidgetWindowController: NSObject {
     private let panel = NotchPanel()
@@ -17,6 +17,10 @@ final class WidgetWindowController: NSObject {
     private var dragStartMouse: CGPoint?
     private var dragStartOrigin: CGPoint?
     private var isDragging = false
+    private var resizeStartMouseX: CGFloat?
+    private var resizeStartWidth: CGFloat?
+    private var resizeStartMouseY: CGFloat?
+    private var resizeStartHeight: CGFloat?
     /// Mouse monitors active only while the panel is open and the
     /// close-on-outside-click setting is on.
     private var outsideClickMonitors: [Any] = []
@@ -40,6 +44,10 @@ final class WidgetWindowController: NSObject {
         viewModel.onRestore = { [weak self] in self?.setMinimized(false) }
         viewModel.onDragChanged = { [weak self] in self?.dragChanged() }
         viewModel.onDragEnded = { [weak self] in self?.dragEnded() }
+        viewModel.onResizeChanged = { [weak self] in self?.resizeChanged() }
+        viewModel.onResizeEnded = { [weak self] in self?.resizeEnded() }
+        viewModel.onHeightResizeChanged = { [weak self] in self?.heightResizeChanged() }
+        viewModel.onHeightResizeEnded = { [weak self] in self?.heightResizeEnded() }
         viewModel.isMinimized = settings.widgetMinimized
 
         NotificationCenter.default.addObserver(
@@ -62,10 +70,6 @@ final class WidgetWindowController: NSObject {
     }
 
     // MARK: - Minimize (⌃⌥H)
-
-    func toggleMinimized() {
-        setMinimized(!viewModel.isMinimized)
-    }
 
     /// Rolls the strip up into its first button (or back down). The window
     /// stays at full size for the length of the animation — it is
@@ -126,20 +130,22 @@ final class WidgetWindowController: NSObject {
         // (settings, onboarding) that are not the widget panel. Mouse
         // monitors need no permissions, unlike keyboard ones.
         if let global = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] _ in
-            self?.closePanel()
-        } {
+            matching: [.leftMouseDown, .rightMouseDown],
+            handler: { [weak self] _ in
+                self?.closePanel()
+            }
+        ) {
             outsideClickMonitors.append(global)
         }
         if let local = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] event in
-            if let self, event.window !== self.panel {
-                self.closePanel()
+            matching: [.leftMouseDown, .rightMouseDown],
+            handler: { [weak self] event in
+                if let self, event.window !== self.panel {
+                    self.closePanel()
+                }
+                return event
             }
-            return event
-        } {
+        ) {
             outsideClickMonitors.append(local)
         }
     }
@@ -247,7 +253,7 @@ final class WidgetWindowController: NSObject {
             edge: settings.widgetEdge,
             offset: settings.widgetOffset,
             iconCount: iconCount,
-            panelSize: settings.expandedPanelSize,
+            panelSize: widgetPanelSize(on: screen),
             on: screen
         ))
         openTask = Task { [weak self] in
@@ -352,9 +358,65 @@ final class WidgetWindowController: NSObject {
             edge: settings.widgetEdge,
             offset: settings.widgetOffset,
             iconCount: iconCount,
-            panelSize: settings.expandedPanelSize,
+            panelSize: widgetPanelSize(on: screen),
             on: screen
         ))
+    }
+
+    /// User-sized in both axes, clamped to the screen.
+    private func widgetPanelSize(on screen: NSScreen) -> CGSize {
+        CGSize(
+            width: settings.widgetPanelWidth,
+            height: min(
+                settings.widgetPanelHeight,
+                screen.visibleFrame.height - 2 * WidgetMetrics.edgeInset
+            )
+        )
+    }
+
+    // MARK: - Panel resize
+
+    private func resizeChanged() {
+        let mouseX = NSEvent.mouseLocation.x
+        guard let startX = resizeStartMouseX, let startWidth = resizeStartWidth else {
+            resizeStartMouseX = mouseX
+            resizeStartWidth = settings.widgetPanelWidth
+            return
+        }
+        // The grip sits on the panel's outer edge; on a right-docked widget
+        // the panel grows leftwards, so the axis flips.
+        let sign: CGFloat = settings.widgetEdge == .right ? -1 : 1
+        settings.setWidgetPanelWidth(startWidth + sign * (mouseX - startX))
+    }
+
+    private func resizeEnded() {
+        resizeStartMouseX = nil
+        resizeStartWidth = nil
+        log.info("panel width -> \(Int(self.settings.widgetPanelWidth), privacy: .public)")
+    }
+
+    private func heightResizeChanged() {
+        let mouseY = NSEvent.mouseLocation.y
+        guard let startY = resizeStartMouseY, let startHeight = resizeStartHeight else {
+            resizeStartMouseY = mouseY
+            resizeStartHeight = settings.widgetPanelHeight
+            return
+        }
+        // Side docks keep the panel centered on the strip, so both ends move
+        // by half the height change — double the delta to keep the dragged
+        // bottom edge under the cursor. Top/bottom docks grow one-way, 1:1.
+        let delta: CGFloat = switch settings.widgetEdge {
+        case .bottom: mouseY - startY // grip on the top edge, grows upward
+        case .top: startY - mouseY // grip on the bottom edge, grows downward
+        case .left, .right: (startY - mouseY) * 2
+        }
+        settings.setWidgetPanelHeight(startHeight + delta)
+    }
+
+    private func heightResizeEnded() {
+        resizeStartMouseY = nil
+        resizeStartHeight = nil
+        log.info("panel height -> \(Int(self.settings.widgetPanelHeight), privacy: .public)")
     }
 
     private func applyLayout(_ layout: WidgetGeometry.ExpandedLayout) {

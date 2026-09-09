@@ -12,10 +12,10 @@ struct MediaModuleView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(track.title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(Theme.titleFont)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .foregroundStyle(Theme.textPrimary.opacity(0.95))
+                            .foregroundStyle(Theme.textPrimary)
                         Spacer(minLength: 12)
                         sourceTag
                     }
@@ -26,12 +26,13 @@ struct MediaModuleView: View {
                             .foregroundStyle(Theme.textTertiary)
                             .padding(.top, 2)
                     }
-                    SegmentBar(
-                        fraction: track.duration > 0 ? track.position / track.duration : 0,
-                        segments: 15,
-                        fillColor: Theme.accent
-                    )
-                    .padding(.top, 12)
+                    ScrubberBar(
+                        fraction: track.duration > 0 ? track.position / track.duration : 0
+                    ) { target in
+                        media.seek(toFraction: target)
+                    }
+                    .disabled(!media.canControlActive)
+                    .padding(.top, 8)
                     HStack {
                         Text(TimeFormat.mmss(track.position))
                         Spacer()
@@ -50,7 +51,7 @@ struct MediaModuleView: View {
                 if media.availableSources.count > 1 {
                     sourceSwitcher
                 }
-                DashedZone(label: L10n.t(.mediaNoSignal), sublabel: idleMessage)
+                EmptyStateZone(label: L10n.t(.mediaNoSignal), sublabel: idleMessage)
                     .frame(maxHeight: 110)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -10,22 +10,6 @@ enum IslandTheme: String, CaseIterable, Identifiable {
     case glow
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .stealth: "Stealth"
-        case .glass: "Glass"
-        case .glow: "Glow"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .stealth: "Pure black — blends into the notch."
-        case .glass: "Dark translucent material."
-        case .glow: "Accent ring tinted by the current artwork."
-        }
-    }
 }
 
 /// What the island does when nothing demands attention.
@@ -36,13 +20,6 @@ enum IdleMode: String, CaseIterable, Identifiable {
     case compact
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .invisible: "Invisible"
-        case .compact: "Compact indicators"
-        }
-    }
 }
 
 /// Where the module panel lives: attached to the notch or as a free
@@ -52,13 +29,12 @@ enum DisplayMode: String, CaseIterable, Identifiable {
     case widget
 
     var id: String { rawValue }
+}
 
-    var title: String {
-        switch self {
-        case .island: "Island"
-        case .widget: "Widget"
-        }
-    }
+extension Notification.Name {
+    /// Posted by island/widget UI that wants the settings window opened;
+    /// the AppDelegate observes it.
+    static let hotzOpenSettings = Notification.Name("hotzOpenSettings")
 }
 
 /// User preferences, persisted to UserDefaults.
@@ -135,12 +111,29 @@ final class AppSettings {
         }
     }
 
-    /// Widget collapsed to a small square (⌃⌥H). Persisted so a restart
-    /// brings the widget back the way it was left.
+    /// Widget rolled up to its grip plus the first module button (⌃⌥H).
+    /// Persisted so a restart brings the widget back the way it was left.
     var widgetMinimized: Bool {
         didSet {
             defaults.set(widgetMinimized, forKey: Self.widgetMinimizedKey)
             log.info("widgetMinimized -> \(self.widgetMinimized, privacy: .public)")
+            notifyChange()
+        }
+    }
+
+    /// Size of the widget-mode panel, each axis dragged by its own grip.
+    /// Separate from the island's `expandedPanelSize` — the two surfaces
+    /// have different geometry.
+    private(set) var widgetPanelWidth: CGFloat {
+        didSet {
+            defaults.set(Double(widgetPanelWidth), forKey: Self.widgetPanelWidthKey)
+            notifyChange()
+        }
+    }
+
+    private(set) var widgetPanelHeight: CGFloat {
+        didSet {
+            defaults.set(Double(widgetPanelHeight), forKey: Self.widgetPanelHeightKey)
             notifyChange()
         }
     }
@@ -198,9 +191,9 @@ final class AppSettings {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    // v4: bumped when the email tab shipped (v3 = notes, v2 = playbooks) —
-    // a stored older set would silently hide new tabs, since "missing" is
-    // indistinguishable from "disabled by the user".
+    // v5: bumped when the assistant tab shipped (v4 = email, v3 = notes,
+    // v2 = playbooks) — a stored older set would silently hide new tabs,
+    // since "missing" is indistinguishable from "disabled by the user".
     @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
     /// (legacy key, tabs to surface when migrating from it)
     @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [
@@ -218,6 +211,8 @@ final class AppSettings {
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
     @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
     @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
+    @ObservationIgnored private static let widgetPanelWidthKey = "settings.widgetPanelWidth"
+    @ObservationIgnored private static let widgetPanelHeightKey = "settings.widgetPanelHeight"
 
     init() {
         let defaults = UserDefaults.standard
@@ -227,6 +222,14 @@ final class AppSettings {
             width: storedWidth > 0 ? storedWidth : NotchMetrics.expandedMinSize.width,
             height: storedHeight > 0 ? storedHeight : NotchMetrics.expandedMinSize.height
         ))
+        let storedPanelWidth = defaults.double(forKey: Self.widgetPanelWidthKey)
+        widgetPanelWidth = Self.clampWidgetPanelWidth(
+            storedPanelWidth > 0 ? storedPanelWidth : WidgetMetrics.panelDefaultWidth
+        )
+        let storedPanelHeight = defaults.double(forKey: Self.widgetPanelHeightKey)
+        widgetPanelHeight = Self.clampWidgetPanelHeight(
+            storedPanelHeight > 0 ? storedPanelHeight : WidgetMetrics.panelDefaultHeight
+        )
         theme = defaults.string(forKey: Self.themeKey)
             .flatMap(IslandTheme.init(rawValue:)) ?? .stealth
         idleMode = defaults.string(forKey: Self.idleKey)
@@ -278,12 +281,45 @@ final class AppSettings {
         """)
     }
 
+    /// The ⌃⌥M hotkey and the menu items flip between the two surfaces.
+    func toggleDisplayMode() {
+        displayMode = displayMode == .widget ? .island : .widget
+    }
+
     func setWidgetPlacement(edge: WidgetEdge, offset: Double) {
         let clamped = min(max(offset, 0), 1)
         guard edge != widgetEdge || clamped != widgetOffset else { return }
         log.info("widget placement -> \(edge.rawValue, privacy: .public) @ \(clamped, privacy: .public)")
         widgetEdge = edge
         widgetOffset = clamped
+    }
+
+    func setWidgetPanelWidth(_ raw: CGFloat) {
+        let clamped = Self.clampWidgetPanelWidth(raw)
+        guard clamped != widgetPanelWidth else { return }
+        widgetPanelWidth = clamped
+    }
+
+    private static func clampWidgetPanelWidth(_ width: CGFloat) -> CGFloat {
+        var maxWidth = WidgetMetrics.panelMaxWidth
+        if let screen = NotchGeometry.targetScreen {
+            maxWidth = min(maxWidth, screen.frame.width - 80)
+        }
+        return min(max(width, WidgetMetrics.panelMinWidth), maxWidth)
+    }
+
+    func setWidgetPanelHeight(_ raw: CGFloat) {
+        let clamped = Self.clampWidgetPanelHeight(raw)
+        guard clamped != widgetPanelHeight else { return }
+        widgetPanelHeight = clamped
+    }
+
+    private static func clampWidgetPanelHeight(_ height: CGFloat) -> CGFloat {
+        var maxHeight = WidgetMetrics.panelMaxHeight
+        if let screen = NotchGeometry.targetScreen {
+            maxHeight = min(maxHeight, screen.visibleFrame.height - 2 * WidgetMetrics.edgeInset)
+        }
+        return min(max(height, WidgetMetrics.panelMinHeight), maxHeight)
     }
 
     func setPanelSize(_ raw: CGSize) {

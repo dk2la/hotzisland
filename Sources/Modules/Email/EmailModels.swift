@@ -61,6 +61,9 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
     var messageID: String?
     var references: [String]
     var bodyPlain: String?
+    /// Raw HTML of the body when the message is HTML — rendered richly in
+    /// the reader; `bodyPlain` stays as the flattened fallback/preview.
+    var bodyHTML: String?
     /// Where the readable part lives and how it is encoded.
     var textPart: TextPartInfo?
 
@@ -80,6 +83,8 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
 struct MessageBody: Sendable {
     var text: String
     var references: [String]
+    /// Present when the readable part was HTML.
+    var html: String?
 }
 
 /// A reply ready for the wire.
@@ -113,6 +118,15 @@ enum MailError: Error, LocalizedError {
         case .badResponse(let s): s
         case .authFailed(let s): s
         case .tls(let s): s
+        }
+    }
+
+    /// Errors where the socket, not the request, is the suspect — the only
+    /// ones a session may transparently retry on a fresh connection.
+    var isTransportFailure: Bool {
+        switch self {
+        case .timeout, .connectionClosed, .tls: true
+        case .badResponse, .authFailed: false
         }
     }
 }

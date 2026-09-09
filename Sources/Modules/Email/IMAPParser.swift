@@ -37,17 +37,6 @@ indirect enum IMAPValue: Equatable, Sendable {
 enum IMAPParser {
     // MARK: - Tokenizer / value parser
 
-    /// Parses the remainder of a FETCH-style line into values. `data` must
-    /// contain the full unit including literal payloads inline.
-    static func parseValues(_ data: Data) -> [IMAPValue] {
-        var index = data.startIndex
-        var values: [IMAPValue] = []
-        while let value = parseValue(data, &index) {
-            values.append(value)
-        }
-        return values
-    }
-
     private static func skipSpaces(_ data: Data, _ index: inout Data.Index) {
         while index < data.endIndex, data[index] == UInt8(ascii: " ") {
             index = data.index(after: index)
@@ -226,12 +215,14 @@ enum IMAPParser {
         return envelope
     }
 
-    /// Picks the part to show for a message: the first text/plain leaf, or
-    /// the first text/html one when the sender shipped HTML only.
+    /// Picks the part to show. HTML wins over the plain alternative: the
+    /// widget renders HTML properly, and senders' auto-generated plain-text
+    /// alternatives are routinely garbage (stripped tags with the CSS and
+    /// entities left in). Plain is the fallback for plain-only mail.
     static func findTextPart(_ value: IMAPValue, path: [Int]) -> EmailMessage.TextPartInfo? {
         var found: [EmailMessage.TextPartInfo] = []
         collectTextParts(value, path: path, into: &found)
-        return found.first { !$0.isHTML } ?? found.first
+        return found.first { $0.isHTML } ?? found.first
     }
 
     /// Walks a BODYSTRUCTURE, tracking the IMAP section path ("1", "1.2", …).

@@ -13,6 +13,7 @@ final class SystemNowPlayingSource: MediaSource {
     private typealias GetInfoFn = @convention(c) (DispatchQueue, @escaping (CFDictionary?) -> Void) -> Void
     private typealias GetPIDFn = @convention(c) (DispatchQueue, @escaping (Int32) -> Void) -> Void
     private typealias SendCommandFn = @convention(c) (Int32, CFDictionary?) -> Bool
+    private typealias SetElapsedFn = @convention(c) (Double) -> Void
 
     private enum Command: Int32 {
         case togglePlayPause = 2
@@ -23,6 +24,7 @@ final class SystemNowPlayingSource: MediaSource {
     private let getInfo: GetInfoFn?
     private let getPID: GetPIDFn?
     private let sendCommand: SendCommandFn?
+    private let setElapsed: SetElapsedFn?
     private var lastArtworkData: Data?
 
     init() {
@@ -36,6 +38,7 @@ final class SystemNowPlayingSource: MediaSource {
         getInfo = symbol("MRMediaRemoteGetNowPlayingInfo", as: GetInfoFn.self)
         getPID = symbol("MRMediaRemoteGetNowPlayingApplicationPID", as: GetPIDFn.self)
         sendCommand = symbol("MRMediaRemoteSendCommand", as: SendCommandFn.self)
+        setElapsed = symbol("MRMediaRemoteSetElapsedTime", as: SetElapsedFn.self)
     }
 
     func isAvailable() -> Bool { getInfo != nil }
@@ -53,20 +56,35 @@ final class SystemNowPlayingSource: MediaSource {
         var artworkID: String?
     }
 
+    /// Bridges a MediaRemote callback into async with a deadline: if the
+    /// framework never calls back (future macOS hardening), the caller gets
+    /// `nil` instead of hanging the poll loop forever. Resumes exactly once.
+    static func withTimeout<T: Sendable>(
+        _ seconds: Double = 2,
+        _ body: (@escaping @Sendable (T?) -> Void) -> Void
+    ) async -> T? {
+        await withCheckedContinuation { continuation in
+            let box = ResumeOnce(continuation)
+            body { box.resume(returning: $0) }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) {
+                box.resume(returning: nil)
+            }
+        }
+    }
+
     func fetchTrack() async -> MediaTrack? {
         guard let getInfo else { return nil }
-        // NOTE: if MediaRemote stops invoking callbacks (future macOS
-        // hardening), this await would hang the poll loop — revisit with a
-        // timeout when that becomes real.
-        let raw: RawNowPlaying? = await withCheckedContinuation { continuation in
+        // NOTE: MediaRemote is not guaranteed to call back (future macOS
+        // hardening) — `withTimeout` turns a silent callback into `nil`.
+        let raw: RawNowPlaying? = await Self.withTimeout { resume in
             getInfo(DispatchQueue.main) { dict in
                 guard let info = dict as? [String: Any],
                       let title = info["kMRMediaRemoteNowPlayingInfoTitle"] as? String
                 else {
-                    continuation.resume(returning: nil)
+                    resume(nil)
                     return
                 }
-                continuation.resume(returning: RawNowPlaying(
+                resume(RawNowPlaying(
                     title: title,
                     artist: info["kMRMediaRemoteNowPlayingInfoArtist"] as? String ?? "",
                     duration: info["kMRMediaRemoteNowPlayingInfoDuration"] as? Double ?? 0,
@@ -106,10 +124,10 @@ final class SystemNowPlayingSource: MediaSource {
 
     private func refreshNowPlayingApp() async {
         guard let getPID else { return }
-        let pid: Int32 = await withCheckedContinuation { continuation in
-            getPID(DispatchQueue.main) { continuation.resume(returning: $0) }
+        let pid: Int32? = await Self.withTimeout { resume in
+            getPID(DispatchQueue.main) { resume($0) }
         }
-        guard pid > 0, let app = NSRunningApplication(processIdentifier: pid) else { return }
+        guard let pid, pid > 0, let app = NSRunningApplication(processIdentifier: pid) else { return }
         nowPlayingAppName = app.localizedName
         nowPlayingBundleID = app.bundleIdentifier
     }
@@ -122,8 +140,28 @@ final class SystemNowPlayingSource: MediaSource {
     func togglePlayPause() async { send(.togglePlayPause) }
     func next() async { send(.nextTrack) }
     func previous() async { send(.previousTrack) }
+    func seek(to seconds: Double) async { setElapsed?(seconds) }
 
     private func send(_ command: Command) {
         _ = sendCommand?(command.rawValue, nil)
+    }
+}
+
+/// Resume-once guard shared by a MediaRemote callback and its timeout —
+/// whichever fires first wins, the other becomes a no-op.
+private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T?, Never>?
+
+    init(_ continuation: CheckedContinuation<T?, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(returning value: T?) {
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(returning: value)
     }
 }

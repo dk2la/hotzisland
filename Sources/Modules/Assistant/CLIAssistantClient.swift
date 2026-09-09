@@ -14,9 +14,13 @@ enum CLIToolProtocol {
         var argumentsJSON: String
     }
 
-    /// Extracts a call from a model turn, if it emitted one.
+    /// Extracts a call from a model turn, if it emitted one. The marker must
+    /// open the (trimmed) turn: the protocol asks for ONLY that line, and a
+    /// marker buried in prose is far more likely quoted text — an email or
+    /// note the model is relaying — than an intent to act.
     static func parse(_ text: String) -> Call? {
-        guard let start = text.range(of: marker),
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let start = text.range(of: marker), start.lowerBound == text.startIndex,
               let end = text.range(of: ">>", range: start.upperBound..<text.endIndex)
         else { return nil }
         let body = text[start.upperBound..<end.lowerBound]
@@ -67,9 +71,11 @@ struct CLIAssistantClient: Sendable {
 
     /// A GUI app launched from Finder inherits a minimal PATH, so the usual
     /// install roots are searched explicitly before giving up.
-    static func locateExecutable(_ name: String) -> URL? {
+    /// `searchPath` overrides the process PATH (tests pass a temp dir);
+    /// the well-known install roots below are always appended.
+    static func locateExecutable(_ name: String, searchPath: String? = nil) -> URL? {
         var roots: [String] = []
-        if let path = ProcessInfo.processInfo.environment["PATH"] {
+        if let path = searchPath ?? ProcessInfo.processInfo.environment["PATH"] {
             roots += path.split(separator: ":").map(String.init)
         }
         let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -324,6 +330,13 @@ struct CLIAssistantClient: Sendable {
             group.addTask {
                 try await Task.sleep(for: timeout)
                 box.terminate()
+                // A child that ignores SIGTERM keeps its pipes open and the
+                // worker thread blocked forever. SIGKILL cannot be ignored:
+                // the pipes close, the reads return, `send()` finishes.
+                Task.detached {
+                    try? await Task.sleep(for: .seconds(3))
+                    box.kill()
+                }
                 throw CLIError.timedOut
             }
             guard let first = try await group.next() else { throw CLIError.timedOut }
@@ -354,41 +367,89 @@ struct CLIAssistantClient: Sendable {
 
         try process.run()
         box.adopt(process)
-        // Drain before waiting: a full pipe buffer would deadlock the child.
-        let outData = out.fileHandleForReading.readDataToEndOfFile()
-        let errData = err.fileHandleForReading.readDataToEndOfFile()
+        // Drain both pipes before waiting, and drain them at the same time:
+        // a full pipe buffer (64 KB) blocks the child, and reading stdout to
+        // EOF first would never return for a child stuck writing to stderr.
+        let outDrain = PipeDrain(out.fileHandleForReading)
+        let errDrain = PipeDrain(err.fileHandleForReading)
+        let drains = DispatchGroup()
+        outDrain.start(in: drains)
+        errDrain.start(in: drains)
+        drains.wait()
         process.waitUntilExit()
         box.release()
 
         return ProcessResult(
             exitCode: process.terminationStatus,
-            stdout: String(decoding: outData, as: UTF8.self),
-            stderr: String(decoding: errData, as: UTF8.self)
+            stdout: outDrain.text,
+            stderr: errDrain.text
         )
     }
 
-    /// Lets the timeout task reach a process the worker thread owns.
+    /// Reads one pipe to EOF on a background queue. The buffer is locked so
+    /// the worker thread may read it back once the group has finished.
+    private final class PipeDrain: @unchecked Sendable {
+        private let handle: FileHandle
+        private let lock = NSLock()
+        private var data = Data()
+
+        init(_ handle: FileHandle) {
+            self.handle = handle
+        }
+
+        func start(in group: DispatchGroup) {
+            DispatchQueue.global(qos: .userInitiated).async(group: group) { [self] in
+                let read = handle.readDataToEndOfFile()
+                lock.lock()
+                defer { lock.unlock() }
+                data = read
+            }
+        }
+
+        var text: String {
+            lock.lock()
+            defer { lock.unlock() }
+            return String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    /// Lets the timeout task reach a process the worker thread owns. The pid
+    /// is kept alongside so a polite terminate can be escalated to SIGKILL.
     private final class ProcessBox: @unchecked Sendable {
         private let lock = NSLock()
         private var process: Process?
+        private var pid: pid_t?
 
         func adopt(_ process: Process) {
             lock.lock()
             defer { lock.unlock() }
             self.process = process
+            pid = process.processIdentifier
         }
 
+        /// Called once the process has exited and been reaped; after this
+        /// neither signal path touches the (possibly reused) pid.
         func release() {
             lock.lock()
             defer { lock.unlock() }
             process = nil
+            pid = nil
         }
 
         func terminate() {
             lock.lock()
             defer { lock.unlock() }
             process?.terminate()
-            process = nil
+        }
+
+        /// SIGKILL, only if the worker has not released the process yet. A
+        /// child that already exited is still a zombie until reaped, so the
+        /// pid cannot have been reused and the extra signal is harmless.
+        func kill() {
+            lock.lock()
+            defer { lock.unlock() }
+            guard let pid else { return }
+            Darwin.kill(pid, SIGKILL)
         }
     }
 }

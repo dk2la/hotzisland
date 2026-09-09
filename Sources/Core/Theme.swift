@@ -1,10 +1,13 @@
+import AppKit
 import SwiftUI
 
 /// Design tokens — "HotzIsland V3" design system, visionOS material language.
-/// Glass surfaces over the desktop, white vibrancy instead of color, circular
-/// controls, SF Pro. The one allowed accent is a solid white surface with a
-/// dark glyph; red appears only for critical states and badges.
-/// Views must not use raw colors/fonts/springs directly.
+/// Glass surfaces over the desktop, a white vibrancy ramp for text, rounded
+/// rectangles (never full capsules), SF Pro with monospace readouts. The one
+/// chromatic accent is acid green (`accent`, with `inkOnAccent` glyphs on
+/// solid controls); red is reserved for critical states and badges.
+/// Module views draw from these tokens; shared chrome and settings still
+/// use a few raw `.system(size:)` fonts and `Color.white.opacity(...)` fills.
 enum Theme {
     // MARK: - Colors
 
@@ -14,8 +17,6 @@ enum Theme {
     static let cardFill = Color.white.opacity(0.06)
     /// Raised controls (buttons, toggles, chips).
     static let raisedFill = Color.white.opacity(0.12)
-    /// Windows (settings, onboarding) — opaque fallback surface.
-    static let panelFill = Color(red: 0.071, green: 0.071, blue: 0.067) // #121211
 
     /// White vibrancy ramp.
     static let textPrimary = Color.white
@@ -29,14 +30,11 @@ enum Theme {
 
     static let hairline = textPrimary.opacity(0.12)
     static let hairlineSoft = textPrimary.opacity(0.08)
-    static let controlBorder = textPrimary.opacity(0.14)
     static let dashedBorder = textPrimary.opacity(0.25)
     /// Unfilled segments of meters.
     static let segmentOff = textPrimary.opacity(0.15)
     /// Filled segments below the warning threshold.
     static let segmentOn = textPrimary.opacity(0.70)
-    /// Island edge (top edge is masked off at the notch seam).
-    static let islandBorder = textPrimary.opacity(0.10)
 
     /// The one chromatic accent — acid green, the app's signature. Solid
     /// accent controls carry `inkOnAccent` glyphs.
@@ -75,7 +73,6 @@ enum Theme {
     static let cardRadius: CGFloat = 12
     /// Buttons and key caps.
     static let controlRadius: CGFloat = 9
-    static let surfaceRadius: CGFloat = 12
     /// Uniform inner inset of the expanded panel.
     static let panelInset: CGFloat = 14
 
@@ -91,36 +88,45 @@ enum Theme {
     static let labelFont = mono(9.5, .medium)
     /// Large readout (percent cells).
     static let readoutLFont = mono(22)
-    static let readoutMFont = mono(13)
     static let readoutSFont = mono(10.5)
-    /// The big countdown.
-    static let timerFont = mono(44)
+    /// The big countdown — sized to sit inside the timer ring.
+    static let timerFont = mono(36)
 
+    // The text scale. Five sizes cover every module: title 15 / headline 13sb
+    // / body 13 / sub 12 / caption 10.5. Weight may vary via .fontWeight, the
+    // size may not — no raw .system(size:) in module views. Brightness comes
+    // from the four text* levels above, never from .opacity() on text.
     static let titleFont = Font.system(size: 15, weight: .semibold)
     static let headlineFont = Font.system(size: 13, weight: .semibold)
     static let bodyFont = Font.system(size: 13)
     static let subFont = Font.system(size: 12)
+    /// Row meta: timestamps, sizes, kinds.
+    static let captionFont = Font.system(size: 10.5)
 
     // Legacy aliases still used by shared chrome.
-    static let captionFont = Font.system(size: 10.5)
-    static let valueFont = readoutLFont
     static let smallValueFont = mono(12, .medium)
     static let dayFont = mono(11)
     static let iconFont = Font.system(size: 14, weight: .semibold)
     static let iconSmallFont = Font.system(size: 12, weight: .semibold)
     static let iconLargeFont = Font.system(size: 22, weight: .medium)
-    static let tabIconFont = Font.system(size: 15, weight: .medium)
-
-    static func iconFont(size: CGFloat) -> Font {
-        .system(size: size, weight: .semibold)
-    }
 
     // MARK: - Motion
     // Data never animates — readouts jump like real instruments. Springs
     // exist only for surface geometry; indicators may blink.
 
+    /// System "Reduce Motion": positional movement goes away, opacity-only
+    /// fades stay — fewer and gentler, not zero.
+    static var reduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     /// Island open/close, panel open/close.
-    static let stateSpring = Animation.spring(response: 0.30, dampingFraction: 0.82)
+    static var stateSpring: Animation {
+        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.30, dampingFraction: 0.82)
+    }
+
     /// Live event bulge — the one place bounce is allowed.
-    static let eventSpring = Animation.spring(response: 0.24, dampingFraction: 0.76)
+    static var eventSpring: Animation {
+        reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.24, dampingFraction: 0.76)
+    }
 }
