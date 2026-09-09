@@ -197,10 +197,9 @@ struct EmailMessageView: View {
     var speech: SpeechCaptureService
     let message: EmailMessage
 
-    /// Images load by default — newsletters are unreadable without them.
-    /// The escape hatch is per message: hiding them also stops the sender's
-    /// tracking pixels for that view.
-    @State private var showImages = true
+    /// Remote content stays off until the user asks for it, per message —
+    /// a tracking pixel must not fire just because the mail was opened.
+    @State private var showImages = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -270,7 +269,7 @@ struct EmailMessageView: View {
             }
             .animation(Theme.stateSpring, value: service.didSend)
         }
-        .onChange(of: message.uid) { showImages = true }
+        .onChange(of: message.uid) { showImages = false }
     }
 
     /// The HTML travels in through the service as the body downloads.

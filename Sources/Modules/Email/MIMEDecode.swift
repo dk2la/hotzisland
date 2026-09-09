@@ -6,15 +6,21 @@ enum MIMEDecode {
     // MARK: - Charsets
 
     static func encoding(forCharset name: String) -> String.Encoding {
-        switch name.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "\"' ")) {
-        case "utf-8", "utf8", "us-ascii", "ascii": .utf8
-        case "iso-8859-1", "latin1", "latin-1": .isoLatin1
-        case "iso-8859-5": .isoLatin1 // closest lossless byte mapping we ship
-        case "windows-1251", "cp1251": .windowsCP1251
-        case "windows-1252", "cp1252": .windowsCP1252
-        case "koi8-r": String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.KOI8_R.rawValue)))
-        default: .utf8
+        let normalized = name.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+        switch normalized {
+        case "utf-8", "utf8", "us-ascii", "ascii": return .utf8
+        case "iso-8859-1", "latin1", "latin-1": return .isoLatin1
+        case "windows-1251", "cp1251": return .windowsCP1251
+        case "windows-1252", "cp1252": return .windowsCP1252
+        default: break
         }
+        // Everything else (ISO-8859-5, KOI8-R/U, GBK, Shift_JIS, EUC-KR, …)
+        // goes through Core Foundation's IANA table, which knows far more
+        // charsets than String.Encoding exposes as named cases. Names it
+        // does not recognise fall back to UTF-8 (then Latin-1 in `string`).
+        let cfEncoding = CFStringConvertIANACharSetNameToEncoding(normalized as CFString)
+        guard cfEncoding != kCFStringEncodingInvalidId else { return .utf8 }
+        return String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(cfEncoding))
     }
 
     static func string(from data: Data, charset: String) -> String {
@@ -83,7 +89,12 @@ enum MIMEDecode {
     }
 
     static func decodeBase64Text(_ text: String, charset: String) -> String {
-        guard let data = Data(base64Encoded: Data(text.utf8), options: .ignoreUnknownCharacters) else {
+        // Some senders drop the trailing "=" padding inside encoded words;
+        // Foundation refuses those, so pad back up to a multiple of four.
+        var padded = text.filter { !$0.isWhitespace }
+        let remainder = padded.count % 4
+        if remainder != 0 { padded += String(repeating: "=", count: 4 - remainder) }
+        guard let data = Data(base64Encoded: Data(padded.utf8), options: .ignoreUnknownCharacters) else {
             return text
         }
         return string(from: data, charset: charset)
@@ -111,58 +122,61 @@ enum MIMEDecode {
         var result = ""
         var rest = Substring(header)
         var lastWasEncoded = false
-        var pendingSpace = ""
 
         while let start = rest.range(of: "=?") {
             let before = rest[..<start.lowerBound]
             // Whitespace between adjacent encoded words disappears.
-            if lastWasEncoded, before.allSatisfy(\.isWhitespace) {
-                // drop
-            } else {
-                result += pendingSpace + before
+            if !(lastWasEncoded && before.allSatisfy(\.isWhitespace)) {
+                result += before
             }
-            pendingSpace = ""
-            rest = rest[start.upperBound...]
 
-            guard let charsetEnd = rest.firstIndex(of: "?") else {
+            // A malformed word is passed through verbatim exactly once: emit
+            // the "=?" and resume scanning right after it, so whatever
+            // followed lands in `result` as ordinary text on the next round.
+            guard let word = parseEncodedWord(rest[start.lowerBound...]) else {
                 result += "=?"
-                break
-            }
-            let charset = String(rest[..<charsetEnd])
-            var cursor = rest.index(after: charsetEnd)
-            guard cursor < rest.endIndex else { result += "=?" + charset + "?"; break }
-            let kind = Character(rest[cursor].lowercased())
-            cursor = rest.index(after: cursor)
-            guard cursor < rest.endIndex, rest[cursor] == "?" else {
-                result += "=?" + charset + "?"
+                rest = rest[start.upperBound...]
+                lastWasEncoded = false
                 continue
             }
-            cursor = rest.index(after: cursor)
-            guard let end = rest[cursor...].range(of: "?=") else {
-                result += "=?" + rest[rest.startIndex...]
-                rest = rest[rest.endIndex...]
-                break
-            }
-            let payload = String(rest[cursor..<end.lowerBound])
-            let decoded: String
-            switch kind {
+            switch word.kind {
             case "b":
-                decoded = decodeBase64Text(payload, charset: charset)
+                result += decodeBase64Text(word.payload, charset: word.charset)
             case "q":
                 // Q-encoding: underscore is space.
-                decoded = decodeQuotedPrintable(
-                    payload.replacingOccurrences(of: "_", with: " "),
-                    charset: charset
+                result += decodeQuotedPrintable(
+                    word.payload.replacingOccurrences(of: "_", with: " "),
+                    charset: word.charset
                 )
             default:
-                decoded = payload
+                result += word.payload
             }
-            result += decoded
-            rest = rest[end.upperBound...]
+            rest = rest[word.end...]
             lastWasEncoded = true
         }
-        result += pendingSpace + rest
+        result += rest
         return result
+    }
+
+    /// Parses one "=?charset?B|Q?payload?=" sitting at the start of `text`
+    /// (which begins with "=?"); nil when the shape is incomplete.
+    private static func parseEncodedWord(
+        _ text: Substring
+    ) -> (charset: String, kind: Character, payload: String, end: Substring.Index)? {
+        let charsetStart = text.index(text.startIndex, offsetBy: 2)
+        guard let charsetEnd = text[charsetStart...].firstIndex(of: "?") else { return nil }
+        let kindIndex = text.index(after: charsetEnd)
+        guard kindIndex < text.endIndex else { return nil }
+        let separator = text.index(after: kindIndex)
+        guard separator < text.endIndex, text[separator] == "?" else { return nil }
+        let payloadStart = text.index(after: separator)
+        guard let close = text[payloadStart...].range(of: "?=") else { return nil }
+        return (
+            charset: String(text[charsetStart..<charsetEnd]),
+            kind: Character(text[kindIndex].lowercased()),
+            payload: String(text[payloadStart..<close.lowerBound]),
+            end: close.upperBound
+        )
     }
 
     // MARK: - Header blocks
@@ -297,25 +311,42 @@ enum MIMEDecode {
         return TextCandidate(text: decoded, isPlain: true)
     }
 
-    /// Splits a multipart body on its "--boundary" delimiters.
+    /// Splits a multipart body on its "--boundary" delimiters. A delimiter
+    /// only counts at the start of a line and must be exactly "--boundary",
+    /// optionally "--" (closing), then padding and CR/LF or end of data —
+    /// so boundary "abc" never matches a nested "--abcd" line. When the body
+    /// is truncated before the closing delimiter, the remaining text is
+    /// still emitted as the final part.
     static func splitParts(_ data: Data, boundary: String) -> [Data] {
         let delimiter = Data("--\(boundary)".utf8)
-        var starts: [Range<Data.Index>] = []
+        // Each delimiter line: where it begins, where its line break ends,
+        // and whether it closes the multipart.
+        var lines: [(start: Data.Index, end: Data.Index, closing: Bool)] = []
         var cursor = data.startIndex
         while cursor < data.endIndex, let found = data[cursor...].range(of: delimiter) {
-            starts.append(found)
             cursor = found.upperBound
+            guard found.lowerBound == data.startIndex || data[data.index(before: found.lowerBound)] == 10 else { continue }
+            var end = found.upperBound
+            let closing = data[end...].starts(with: [45, 45]) // "--"
+            if closing { end = data.index(end, offsetBy: 2) }
+            while end < data.endIndex, data[end] == 32 || data[end] == 9 { end = data.index(after: end) } // transport padding
+            guard end == data.endIndex || data[end] == 13 || data[end] == 10 else { continue }
+            if end < data.endIndex, data[end] == 13 { end = data.index(after: end) }
+            if end < data.endIndex, data[end] == 10 { end = data.index(after: end) }
+            lines.append((found.lowerBound, end, closing))
+            cursor = end
+            if closing { break }
         }
-        guard starts.count >= 2 else { return [] }
         var parts: [Data] = []
-        for (offset, marker) in starts.enumerated() where offset + 1 < starts.count {
-            var start = marker.upperBound
-            if start < data.endIndex, data[start] == 13 { start = data.index(after: start) }
-            if start < data.endIndex, data[start] == 10 { start = data.index(after: start) }
-            var end = starts[offset + 1].lowerBound
-            // Drop the CRLF that belongs to the following delimiter line.
-            if end > start, data[data.index(before: end)] == 10 { end = data.index(before: end) }
-            if end > start, data[data.index(before: end)] == 13 { end = data.index(before: end) }
+        for (offset, line) in lines.enumerated() where !line.closing {
+            let start = line.end
+            var end = data.endIndex
+            if offset + 1 < lines.count {
+                end = lines[offset + 1].start
+                // Drop the CRLF that belongs to the following delimiter line.
+                if end > start, data[data.index(before: end)] == 10 { end = data.index(before: end) }
+                if end > start, data[data.index(before: end)] == 13 { end = data.index(before: end) }
+            }
             if end > start { parts.append(Data(data[start..<end])) }
         }
         return parts
@@ -346,9 +377,16 @@ enum MIMEDecode {
     static func htmlToPlainText(_ html: String) -> String {
         var text = html
         for tag in ["script", "style", "head", "title"] {
-            while let open = text.range(of: "<\(tag)", options: .caseInsensitive),
-                  let close = text.range(of: "</\(tag)>", options: .caseInsensitive, range: open.upperBound..<text.endIndex) {
+            var searchStart = text.startIndex
+            while let open = text.range(of: "<\(tag)", options: .caseInsensitive, range: searchStart..<text.endIndex) {
+                // The tag name must end here — "<head" must not swallow "<header".
+                if open.upperBound < text.endIndex, text[open.upperBound].isLetter || text[open.upperBound].isNumber {
+                    searchStart = open.upperBound
+                    continue
+                }
+                guard let close = text.range(of: "</\(tag)>", options: .caseInsensitive, range: open.upperBound..<text.endIndex) else { break }
                 text.removeSubrange(open.lowerBound..<close.upperBound)
+                searchStart = text.startIndex // indices are stale after the removal
             }
         }
         for breakTag in ["<br>", "<br/>", "<br />", "</p>", "</div>", "</tr>", "</li>", "</h1>", "</h2>", "</h3>"] {
@@ -357,11 +395,23 @@ enum MIMEDecode {
 
         var stripped = ""
         var depth = 0
-        for character in text {
+        let characters = Array(text)
+        for (offset, character) in characters.enumerated() {
             if character == "<" {
-                depth += 1
+                // Only "<x", "</x", "<!--" and "<?xml" open a tag; a bare "<"
+                // in prose ("a < b") is text and must not swallow what follows.
+                let next: Character? = offset + 1 < characters.count ? characters[offset + 1] : nil
+                if let next, next.isLetter || next == "/" || next == "!" || next == "?" {
+                    depth += 1
+                } else if depth == 0 {
+                    stripped.append(character)
+                }
             } else if character == ">" {
-                depth = max(0, depth - 1)
+                if depth > 0 {
+                    depth -= 1
+                } else {
+                    stripped.append(character) // stray ">" in prose stays too
+                }
             } else if depth == 0 {
                 stripped.append(character)
             }

@@ -2,7 +2,7 @@ import Foundation
 
 /// One Markdown note on disk. Title is the filename without the extension —
 /// the folder stays fully Obsidian-compatible (plain .md, no frontmatter).
-struct NoteFile: Identifiable, Equatable {
+struct NoteFile: Identifiable, Equatable, Sendable {
     let url: URL
     var title: String
     var modifiedAt: Date

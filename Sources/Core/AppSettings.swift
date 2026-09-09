@@ -10,22 +10,6 @@ enum IslandTheme: String, CaseIterable, Identifiable {
     case glow
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .stealth: "Stealth"
-        case .glass: "Glass"
-        case .glow: "Glow"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .stealth: "Pure black — blends into the notch."
-        case .glass: "Dark translucent material."
-        case .glow: "Accent ring tinted by the current artwork."
-        }
-    }
 }
 
 /// What the island does when nothing demands attention.
@@ -36,13 +20,6 @@ enum IdleMode: String, CaseIterable, Identifiable {
     case compact
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .invisible: "Invisible"
-        case .compact: "Compact indicators"
-        }
-    }
 }
 
 /// Where the module panel lives: attached to the notch or as a free
@@ -52,13 +29,12 @@ enum DisplayMode: String, CaseIterable, Identifiable {
     case widget
 
     var id: String { rawValue }
+}
 
-    var title: String {
-        switch self {
-        case .island: "Island"
-        case .widget: "Widget"
-        }
-    }
+extension Notification.Name {
+    /// Posted by island/widget UI that wants the settings window opened;
+    /// the AppDelegate observes it.
+    static let hotzOpenSettings = Notification.Name("hotzOpenSettings")
 }
 
 /// User preferences, persisted to UserDefaults.
@@ -135,8 +111,8 @@ final class AppSettings {
         }
     }
 
-    /// Widget collapsed to a small square (⌃⌥H). Persisted so a restart
-    /// brings the widget back the way it was left.
+    /// Widget rolled up to its grip plus the first module button (⌃⌥H).
+    /// Persisted so a restart brings the widget back the way it was left.
     var widgetMinimized: Bool {
         didSet {
             defaults.set(widgetMinimized, forKey: Self.widgetMinimizedKey)
@@ -215,9 +191,9 @@ final class AppSettings {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    // v4: bumped when the email tab shipped (v3 = notes, v2 = playbooks) —
-    // a stored older set would silently hide new tabs, since "missing" is
-    // indistinguishable from "disabled by the user".
+    // v5: bumped when the assistant tab shipped (v4 = email, v3 = notes,
+    // v2 = playbooks) — a stored older set would silently hide new tabs,
+    // since "missing" is indistinguishable from "disabled by the user".
     @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
     /// (legacy key, tabs to surface when migrating from it)
     @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [

@@ -3,7 +3,8 @@ import CoreGraphics
 enum NotchMetrics {
     /// Top "flared" corners — concave arcs blending the capsule into the
     /// screen edge (mimicking the physical notch fillets).
-    // Instrument DS: harder corners — 10 outside, 6 inside.
+    // Instrument DS: harder corners — closed capsule 8 top / 10 bottom,
+    // expanded panel 10 all round.
     static let closedTopRadius: CGFloat = 8
     static let closedBottomRadius: CGFloat = 10
     static let expandedTopRadius: CGFloat = 10

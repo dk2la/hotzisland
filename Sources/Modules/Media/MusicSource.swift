@@ -4,6 +4,8 @@ import AppKit
 final class MusicSource: MediaSource {
     static let bundleID = "com.apple.Music"
 
+    private(set) var lastCommandFailed = false
+
     func isAvailable() -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).isEmpty
     }
@@ -34,81 +36,60 @@ final class MusicSource: MediaSource {
         )
     }
 
-    /// Music has no artwork URL — AppleScript returns raw image bytes printed
-    /// as an AppleScript data literal («data tdta<hex>»), which we decode.
+    /// Music has no artwork URL — AppleScript writes the raw image bytes to a
+    /// temp file (printing ~1 MB as a «data tdta…» literal through the pipe
+    /// was far slower), which we read back and delete.
     func fetchArtwork(for track: MediaTrack) async -> NSImage? {
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("hotzisland-artwork-\(UUID().uuidString)")
         let script = """
         if application id "com.apple.Music" is running then
         	tell application id "com.apple.Music"
         		try
-        			return data of artwork 1 of current track
+        			set f to open for access POSIX file "\(file.path)" with write permission
+        			set eof f to 0
+        			write (data of artwork 1 of current track) to f
+        			close access f
+        			return "ok"
         		end try
         	end tell
         end if
         """
-        guard let output = await AppleScriptRunner.run(script),
-              let marker = output.range(of: "tdta")
+        defer { try? FileManager.default.removeItem(at: file) }
+        guard await AppleScriptRunner.run(script) == "ok",
+              let data = try? Data(contentsOf: file)
         else { return nil }
-        let hex = output[marker.upperBound...]
-            .replacingOccurrences(of: "»", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let data = Data(hexString: hex) else { return nil }
         return NSImage(data: data)
     }
 
-    func togglePlayPause() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.apple.Music\" to playpause")
-    }
-
-    func next() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.apple.Music\" to next track")
-    }
-
-    func previous() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.apple.Music\" to previous track")
-    }
-
-    func seek(to seconds: Double) async {
-        _ = await AppleScriptRunner.run(
-            "tell application id \"com.apple.Music\" to set player position to \(Int(seconds))"
-        )
-    }
+    func togglePlayPause() async { await command("playpause") }
+    func next() async { await command("next track") }
+    func previous() async { await command("previous track") }
+    func seek(to seconds: Double) async { await command("set player position to \(Int(seconds))") }
 
     func like() async {
-        _ = await AppleScriptRunner.run("""
-        tell application id "com.apple.Music"
-        	try
-        		set favorited of current track to true
-        	on error
-        		set loved of current track to true
-        	end try
-        end tell
+        await command("""
+        try
+        	set favorited of current track to true
+        on error
+        	set loved of current track to true
+        end try
         """)
     }
-}
 
-private extension Data {
-    init?(hexString: String) {
-        let chars = Array(hexString.utf8)
-        guard chars.count.isMultiple(of: 2) else { return nil }
-        var bytes = [UInt8]()
-        bytes.reserveCapacity(chars.count / 2)
-
-        func value(_ c: UInt8) -> UInt8? {
-            switch c {
-            case UInt8(ascii: "0")...UInt8(ascii: "9"): c - UInt8(ascii: "0")
-            case UInt8(ascii: "a")...UInt8(ascii: "f"): c - UInt8(ascii: "a") + 10
-            case UInt8(ascii: "A")...UInt8(ascii: "F"): c - UInt8(ascii: "A") + 10
-            default: nil
-            }
-        }
-
-        var index = 0
-        while index < chars.count {
-            guard let high = value(chars[index]), let low = value(chars[index + 1]) else { return nil }
-            bytes.append(high << 4 | low)
-            index += 2
-        }
-        self.init(bytes)
+    /// Transport commands sit behind the same `is running` guard as
+    /// `fetchTrack` — a bare `tell` would launch a quit player. The trailing
+    /// `return "ok"` tells a silent success apart from a failure (osascript
+    /// prints nothing to stdout in either case).
+    private func command(_ body: String) async {
+        let script = """
+        if application id "com.apple.Music" is running then
+        	tell application id "com.apple.Music"
+        		\(body)
+        	end tell
+        	return "ok"
+        end if
+        """
+        lastCommandFailed = await AppleScriptRunner.run(script) != "ok"
     }
 }

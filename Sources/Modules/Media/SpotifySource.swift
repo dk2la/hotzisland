@@ -4,6 +4,8 @@ import AppKit
 final class SpotifySource: MediaSource {
     static let bundleID = "com.spotify.client"
 
+    private(set) var lastCommandFailed = false
+
     func isAvailable() -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).isEmpty
     }
@@ -41,21 +43,24 @@ final class SpotifySource: MediaSource {
         return NSImage(data: data)
     }
 
-    func togglePlayPause() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.spotify.client\" to playpause")
-    }
+    func togglePlayPause() async { await command("playpause") }
+    func next() async { await command("next track") }
+    func previous() async { await command("previous track") }
+    func seek(to seconds: Double) async { await command("set player position to \(Int(seconds))") }
 
-    func next() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.spotify.client\" to next track")
-    }
-
-    func previous() async {
-        _ = await AppleScriptRunner.run("tell application id \"com.spotify.client\" to previous track")
-    }
-
-    func seek(to seconds: Double) async {
-        _ = await AppleScriptRunner.run(
-            "tell application id \"com.spotify.client\" to set player position to \(Int(seconds))"
-        )
+    /// Transport commands sit behind the same `is running` guard as
+    /// `fetchTrack` — a bare `tell` would launch a quit player. The trailing
+    /// `return "ok"` tells a silent success apart from a failure (osascript
+    /// prints nothing to stdout in either case).
+    private func command(_ body: String) async {
+        let script = """
+        if application id "com.spotify.client" is running then
+        	tell application id "com.spotify.client"
+        		\(body)
+        	end tell
+        	return "ok"
+        end if
+        """
+        lastCommandFailed = await AppleScriptRunner.run(script) != "ok"
     }
 }

@@ -172,8 +172,3 @@ struct PlaybooksModuleView: View {
         return "«\(last.playbook.name)» — \(detail)"
     }
 }
-
-extension Notification.Name {
-    /// Posted by island UI that wants the settings window opened.
-    static let hotzOpenSettings = Notification.Name("hotzOpenSettings")
-}

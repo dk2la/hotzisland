@@ -37,17 +37,6 @@ indirect enum IMAPValue: Equatable, Sendable {
 enum IMAPParser {
     // MARK: - Tokenizer / value parser
 
-    /// Parses the remainder of a FETCH-style line into values. `data` must
-    /// contain the full unit including literal payloads inline.
-    static func parseValues(_ data: Data) -> [IMAPValue] {
-        var index = data.startIndex
-        var values: [IMAPValue] = []
-        while let value = parseValue(data, &index) {
-            values.append(value)
-        }
-        return values
-    }
-
     private static func skipSpaces(_ data: Data, _ index: inout Data.Index) {
         while index < data.endIndex, data[index] == UInt8(ascii: " ") {
             index = data.index(after: index)

@@ -169,23 +169,25 @@ final class NotchWindowController: NSObject {
     /// SwiftUI `.onHover` does not fire in a non-activating agent app, so
     /// hover is computed manually from the global cursor position.
     private func setUpMouseTracking() {
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: { _ in
-            MainActor.assumeIsolated {
-                NotchWindowControllerRegistry.shared?.updateHover()
+        // The closures are formed in this @MainActor method and inherit its
+        // isolation; AppKit delivers monitor callbacks on the main thread.
+        if let global = NSEvent.addGlobalMonitorForEvents(
+            matching: .mouseMoved,
+            handler: { [weak self] _ in
+                self?.updateHover()
             }
-        }) {
+        ) {
             mouseMonitors.append(global)
         }
-        let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in
-            MainActor.assumeIsolated {
-                NotchWindowControllerRegistry.shared?.updateHover()
+        if let local = NSEvent.addLocalMonitorForEvents(
+            matching: .mouseMoved,
+            handler: { [weak self] event in
+                self?.updateHover()
+                return event
             }
-            return event
-        }
-        if let local {
+        ) {
             mouseMonitors.append(local)
         }
-        NotchWindowControllerRegistry.shared = self
     }
 
     private func updateHover() {
@@ -224,6 +226,9 @@ final class NotchWindowController: NSObject {
             eventDismissTask?.cancel()
             eventOwnsWindow = false
             viewModel.activeEvent = nil
+            // Module panels host text input — let the panel take key status
+            // without activating the app.
+            panel.allowsKeyFocus = true
             // Grow the window silently first: the island is pinned to the top
             // center and does not visually move. The animation starts on the
             // next tick, once the window's coordinate space is stable —
@@ -235,6 +240,10 @@ final class NotchWindowController: NSObject {
                 self?.viewModel.setState(.expanded)
             }
         case .closed, .compact:
+            panel.allowsKeyFocus = false
+            if panel.isKeyWindow {
+                panel.resignKey()
+            }
             // While a live event is on screen it owns the window frame; only
             // the logical state advances — the dismiss task settles the rest.
             guard !eventOwnsWindow else {
@@ -308,14 +317,20 @@ final class NotchWindowController: NSObject {
     }
 
     @objc private func screenParametersDidChange() {
+        // The island rebuilds from scratch on the (possibly new) screen, so
+        // every in-flight transition and the live-event ownership must go
+        // with it — otherwise `targetState` would still say "expanded" for a
+        // window that is now closed, and hover could never reopen it.
+        collapseTask?.cancel()
+        expandTask?.cancel()
+        eventShowTask?.cancel()
+        eventDismissTask?.cancel()
+        eventOwnsWindow = false
+        viewModel.activeEvent = nil
+        panel.allowsKeyFocus = false
+        targetState = .closed
         viewModel.setState(.closed)
         settings.revalidatePanelSize()
         attachToScreen()
     }
-}
-
-/// Bridge between non-isolated NSEvent monitor callbacks and the MainActor controller.
-@MainActor
-enum NotchWindowControllerRegistry {
-    static weak var shared: NotchWindowController?
 }

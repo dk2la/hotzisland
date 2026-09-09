@@ -59,4 +59,24 @@ final class EmailHTMLTests: XCTestCase {
         XCTAssertFalse(cleaned.lowercased().contains("<style"), "sender CSS wars with the reader restyle")
         XCTAssertTrue(cleaned.contains("Текст письма"))
     }
+
+    func testStripsSelfLoadingElements() {
+        let html = """
+        <html><body>
+        <meta http-equiv="refresh" content="0;url=https://evil.example">
+        <base href="https://evil.example/">
+        <link rel="stylesheet" href="https://evil.example/a.css">
+        <iframe src="https://evil.example/frame"><p>inside</p></iframe>
+        <object data="https://evil.example/o"></object>
+        <embed src="https://evil.example/e">
+        <p>Текст письма</p>
+        </body></html>
+        """
+        let cleaned = EmailHTMLSanitizer.strip(html).lowercased()
+        for tag in ["<meta", "<base", "<link", "<iframe", "<object", "<embed"] {
+            XCTAssertFalse(cleaned.contains(tag), "\(tag) must not survive")
+        }
+        XCTAssertFalse(cleaned.contains("inside"), "frame fallback content goes with the frame")
+        XCTAssertTrue(cleaned.contains("текст письма"))
+    }
 }

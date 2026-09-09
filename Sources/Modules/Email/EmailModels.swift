@@ -120,4 +120,13 @@ enum MailError: Error, LocalizedError {
         case .tls(let s): s
         }
     }
+
+    /// Errors where the socket, not the request, is the suspect — the only
+    /// ones a session may transparently retry on a fresh connection.
+    var isTransportFailure: Bool {
+        switch self {
+        case .timeout, .connectionClosed, .tls: true
+        case .badResponse, .authFailed: false
+        }
+    }
 }

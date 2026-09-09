@@ -144,7 +144,7 @@ final class SpeechCaptureService {
         // @Sendable: the tap runs on the audio thread — it must not inherit
         // MainActor isolation (Swift 6 would trap on the executor check).
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { @Sendable buffer, _ in
-            box.request?.append(buffer)
+            box.append(buffer)
         }
         engine.prepare()
         try engine.start()
@@ -314,8 +314,25 @@ final class SpeechCaptureService {
 }
 
 /// Shared mailbox between the MainActor service and the audio-render tap.
-/// The tap only appends buffers; swaps happen on the MainActor. The data
-/// race window is benign (a dropped buffer at segment rollover).
+/// The MainActor swaps the request at every segment rollover while the
+/// audio thread reads it for each buffer. An unsynchronized read of a class
+/// reference during a swap is a retain/release race (memory-unsafe), not a
+/// harmless dropped buffer — so every access goes through the lock. The
+/// tap copies the reference under the lock and appends outside it, keeping
+/// the lock hold time on the audio thread to a pointer copy.
 final class SpeechRequestBox: @unchecked Sendable {
-    var request: SFSpeechAudioBufferRecognitionRequest?
+    private let lock = NSLock()
+    private var storage: SFSpeechAudioBufferRecognitionRequest?
+
+    var request: SFSpeechAudioBufferRecognitionRequest? {
+        get { lock.withLock { storage } }
+        set { lock.withLock { storage = newValue } }
+    }
+
+    /// Audio-thread entry point: retain the current request under the
+    /// lock, feed the buffer outside it.
+    func append(_ buffer: AVAudioPCMBuffer) {
+        let current = lock.withLock { storage }
+        current?.append(buffer)
+    }
 }
