@@ -50,9 +50,44 @@ enum EmailProvider: String, CaseIterable, Identifiable {
     var isPasswordAuthUnreliable: Bool { self == .outlook }
 }
 
+/// Gmail-like inbox sections. Each one is a message list of its own; the
+/// IMAP folder (or search) behind it depends on the server — see
+/// `EmailService` for the mapping.
+enum Mailbox: String, CaseIterable, Sendable {
+    /// INBOX; on Gmail, the Primary category of it.
+    case primary
+    /// Flagged (starred) messages in INBOX.
+    case starred
+    /// Gmail's Important label; hidden elsewhere.
+    case important
+    case sent
+    case spam
+
+    static let defaultsKey = "email.mailbox.v1"
+
+    /// Sections that show mail still sitting in the inbox, where "archive"
+    /// (move out of INBOX) makes sense.
+    var allowsArchive: Bool {
+        switch self {
+        case .primary, .starred, .important: true
+        case .sent, .spam: false
+        }
+    }
+}
+
+/// UIDs are only unique inside one IMAP folder: the same number names a
+/// different message in INBOX and in Sent. Everything that caches or looks
+/// up a message keys by folder + UID.
+struct MessageKey: Hashable, Sendable {
+    var mailbox: String
+    var uid: UInt32
+}
+
 /// One inbox message. `bodyPlain` is filled lazily on open.
 struct EmailMessage: Identifiable, Equatable, Sendable {
     let uid: UInt32
+    /// The IMAP folder the UID belongs to.
+    var mailbox: String = "INBOX"
     var subject: String
     var fromName: String
     var fromAddress: String
@@ -60,6 +95,8 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
     /// and who else was on the message (for Reply all).
     var replyTo: String?
     var to: [String] = []
+    /// Display name of the first To recipient, when the envelope had one.
+    var toName: String?
     var cc: [String] = []
     var date: Date
     var isUnread: Bool
@@ -72,7 +109,15 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
     /// Where the readable part lives and how it is encoded.
     var textPart: TextPartInfo?
 
-    var id: UInt32 { uid }
+    var key: MessageKey { MessageKey(mailbox: mailbox, uid: uid) }
+    var id: MessageKey { key }
+
+    /// Who the message went to, for lists of outgoing mail: the first
+    /// recipient's name, else their address.
+    var recipientDisplay: String {
+        if let toName, !toName.isEmpty { return toName }
+        return to.first ?? ""
+    }
 
     struct TextPartInfo: Equatable, Sendable {
         var section: String

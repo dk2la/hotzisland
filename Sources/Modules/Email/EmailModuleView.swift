@@ -7,6 +7,19 @@ extension EmailMessage {
     var displaySubject: String { subject.isEmpty ? L10n.t(.mailNoSubject) : subject }
 }
 
+@MainActor
+extension Mailbox {
+    var title: String {
+        switch self {
+        case .primary: L10n.t(.mailboxPrimary)
+        case .starred: L10n.t(.mailboxStarred)
+        case .important: L10n.t(.mailboxImportant)
+        case .sent: L10n.t(.mailboxSent)
+        case .spam: L10n.t(.mailboxSpam)
+        }
+    }
+}
+
 /// "Email" module: inbox list with unread dots; opening a message loads its
 /// body and marks it read. Navigation chrome (back, search toggle, refresh,
 /// archive, open-in-Mail) lives in the shared panel header.
@@ -64,12 +77,32 @@ struct EmailModuleView: View {
 
     private var inbox: some View {
         VStack(alignment: .leading, spacing: 8) {
+            mailboxRow
             if service.isSearchOpen {
                 searchRow
             }
             list
             statusFooter
         }
+    }
+
+    /// Gmail-like sections as a row of pills. Scrolls sideways when the
+    /// panel is narrower than the row; no indicator, the cut-off pill says
+    /// enough.
+    private var mailboxRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                ForEach(service.availableMailboxes, id: \.self) { mailbox in
+                    MailboxPill(
+                        title: mailbox.title,
+                        selected: mailbox == service.selectedMailbox
+                    ) {
+                        service.select(mailbox)
+                    }
+                }
+            }
+        }
+        .animation(Theme.stateSpring, value: service.availableMailboxes)
     }
 
     @ViewBuilder
@@ -159,11 +192,15 @@ struct EmailModuleView: View {
     }
 
     private func row(_ message: EmailMessage) -> some View {
-        Button {
+        // Sent mail is about who it went to, not who wrote it (that is us).
+        let isSent = service.isSentMessage(message)
+        let name = isSent ? message.recipientDisplay : message.fromName
+        let address = isSent ? (message.to.first ?? "") : message.fromAddress
+        return Button {
             service.open(message)
         } label: {
             HStack(alignment: .center, spacing: 10) {
-                SenderAvatarView(name: message.fromName, address: message.fromAddress, store: avatars)
+                SenderAvatarView(name: name, address: address, store: avatars)
                     .overlay(alignment: .topTrailing) {
                         if message.isUnread {
                             Circle()
@@ -174,7 +211,7 @@ struct EmailModuleView: View {
                         }
                     }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(message.fromName)
+                    Text(name)
                         .font(Theme.bodyFont)
                         .fontWeight(message.isUnread ? .semibold : .medium)
                         .lineLimit(1)
@@ -209,6 +246,36 @@ struct EmailModuleView: View {
             formatter.dateFormat = "d MMM"
         }
         return formatter.string(from: date)
+    }
+}
+
+/// One section pill: the selected one reads as a raised, accent-washed
+/// capsule with primary text; the rest sit flat in tertiary.
+private struct MailboxPill: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(Theme.subFont)
+                .fontWeight(selected ? .semibold : .medium)
+                .lineLimit(1)
+                .foregroundStyle(selected ? Theme.textPrimary : Theme.textTertiary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    shape.fill(selected ? Theme.raisedFill : .clear)
+                        .overlay(shape.fill(selected ? Theme.accentWash : .clear))
+                )
+                .contentShape(shape)
+        }
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -320,7 +387,7 @@ struct EmailMessageView: View {
               .animation(Theme.stateSpring, value: service.didSend)
             }
         }
-        .onChange(of: message.uid) { showImages = false }
+        .onChange(of: message.key) { showImages = false }
     }
 
     /// The HTML travels in through the service as the body downloads.

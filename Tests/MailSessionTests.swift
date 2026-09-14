@@ -196,6 +196,78 @@ final class MailSessionTests: XCTestCase {
         XCTAssertEqual(written.last, "A3 UID MOVE 9 \"Archive\"")
     }
 
+    // MARK: - Mailboxes
+
+    /// `run(in:)` sends SELECT only when the connection has another
+    /// mailbox open: INBOX right after opening costs nothing, a second
+    /// command in the same folder costs nothing either.
+    func testRunInMailboxSelectsOnlyWhenItDiffers() async throws {
+        let transport = FakeMailTransport()
+        await scriptOpen(transport)
+        await transport.enqueueResponse(tag: "A3", status: "OK NOOP completed")
+        await transport.enqueueResponse(tag: "A4", untagged: ["* 3 EXISTS"], status: "OK SELECT completed")
+        await transport.enqueueResponse(tag: "A5", status: "OK NOOP completed")
+        await transport.enqueueResponse(tag: "A6", status: "OK NOOP completed")
+        await transport.enqueueResponse(tag: "A7", untagged: ["* 1 EXISTS"], status: "OK SELECT completed")
+        await transport.enqueueResponse(tag: "A8", status: "OK NOOP completed")
+        let factory = TransportFactory([transport])
+        let session = makeSession(factory)
+
+        try await session.run(in: "INBOX") { try await $0.ping() }
+        try await session.run(in: "[Gmail]/Sent Mail") { try await $0.ping() }
+        try await session.run(in: "[Gmail]/Sent Mail") { try await $0.ping() }
+        try await session.run(in: "INBOX") { try await $0.ping() }
+
+        let written = await transport.written
+        XCTAssertEqual(written, [
+            "A1 LOGIN \"u\" \"p\"",
+            "A2 SELECT INBOX",
+            "A3 NOOP",
+            "A4 SELECT \"[Gmail]/Sent Mail\"",
+            "A5 NOOP",
+            "A6 NOOP",
+            "A7 SELECT INBOX",
+            "A8 NOOP",
+        ])
+        XCTAssertEqual(factory.count, 1)
+    }
+
+    /// IDLE watches INBOX: after a command browsed another folder, the
+    /// idle re-selects INBOX before parking.
+    func testIdleReselectsInboxAfterRunInAnotherMailbox() async throws {
+        let transport = FakeMailTransport()
+        await scriptOpen(transport, capabilities: "IMAP4rev1 IDLE")
+        await transport.enqueueResponse(tag: "A3", untagged: ["* 8 EXISTS"], status: "OK SELECT completed")
+        await transport.enqueueResponse(tag: "A4", status: "OK NOOP completed")
+        await transport.enqueueResponse(tag: "A5", untagged: ["* 1 EXISTS"], status: "OK SELECT completed")
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueHold()
+        let factory = TransportFactory([transport])
+        let session = makeSession(factory)
+
+        try await session.run(in: "Spam") { try await $0.ping() }
+        let idle = Task { try await session.idle { _ in } }
+        await waitUntil { await transport.written.last == "A6 IDLE" }
+
+        let written = await transport.written
+        XCTAssertEqual(written, [
+            "A1 LOGIN \"u\" \"p\"",
+            "A2 SELECT INBOX",
+            "A3 SELECT \"Spam\"",
+            "A4 NOOP",
+            "A5 SELECT INBOX",
+            "A6 IDLE",
+        ])
+
+        let closing = Task { await session.close() }
+        await waitUntil { await transport.written.last == "DONE" }
+        await transport.enqueueLine("A6 OK IDLE terminated")
+        await transport.enqueueResponse(tag: "A7", untagged: ["* BYE"], status: "OK LOGOUT completed")
+        await closing.value
+        try await idle.value
+        XCTAssertEqual(factory.count, 1)
+    }
+
     // MARK: - IDLE
 
     /// A command arriving mid-IDLE ends the idle first (DONE, tagged OK),

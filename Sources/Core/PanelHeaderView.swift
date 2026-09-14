@@ -116,8 +116,11 @@ struct ModuleAccessoriesView: View {
         let service = services.emailService
         if service.config != nil, !service.isComposeOpen {
             if let message = service.openMessage {
-                HeaderIconButton("archivebox", help: L10n.t(.mailArchive)) {
-                    service.archive(message)
+                // Sent and Spam mail is not in the inbox — nothing to archive.
+                if service.canArchive(message) {
+                    HeaderIconButton("archivebox", help: L10n.t(.mailArchive)) {
+                        service.archive(message)
+                    }
                 }
                 HeaderIconButton("arrow.up.forward.app", help: L10n.t(.mailOpenInApp)) {
                     service.openInMailApp()

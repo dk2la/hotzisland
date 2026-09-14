@@ -78,8 +78,10 @@ actor MailSession {
     /// Tail of the command chain; the next `run` waits for it to settle.
     private var tail: Task<Void, Never>?
 
-    /// Runs `body` against a live, INBOX-selected client, strictly after
-    /// every earlier `run` on this session has finished.
+    /// Runs `body` against a live client, strictly after every earlier
+    /// `run` on this session has finished. A fresh connection opens with
+    /// INBOX selected; a body that needs a particular mailbox should go
+    /// through `run(in:)`, since an earlier call may have moved elsewhere.
     func run<T: Sendable>(_ body: @escaping @Sendable (IMAPClient) async throws -> T) async throws -> T {
         let previous = tail
         let task = Task<T, Error> {
@@ -89,6 +91,23 @@ actor MailSession {
         // The chain only cares about ordering, not about the outcome.
         tail = Task { _ = try? await task.value }
         return try await task.value
+    }
+
+    /// `run`, with `mailbox` selected first. SELECT only goes out when the
+    /// connection has a different mailbox open — the reply lists flags and
+    /// counts, a round trip not worth repeating on every command. The
+    /// select sits inside the chained body, so a retry on a fresh socket
+    /// (which opens on INBOX) re-selects too.
+    func run<T: Sendable>(
+        in mailbox: String,
+        _ body: @escaping @Sendable (IMAPClient) async throws -> T
+    ) async throws -> T {
+        try await run { client in
+            if await client.selectedMailbox != mailbox {
+                _ = try await client.select(mailbox)
+            }
+            return try await body(client)
+        }
     }
 
     private func perform<T: Sendable>(_ body: @Sendable (IMAPClient) async throws -> T) async throws -> T {
@@ -216,6 +235,12 @@ actor MailSession {
             try await client.fetchCapabilities()
         }
         guard await client.supportsIdle else { throw MailSessionError.idleUnsupported }
+        // IDLE watches the selected mailbox, and the watch is for new mail:
+        // a command that browsed Sent or Spam must not leave the idle
+        // parked there.
+        if await client.selectedMailbox != "INBOX" {
+            _ = try await client.selectInbox()
+        }
         try await client.beginIdle()
         idleInterrupted = false
         idleTask = Task { try await client.awaitIdle(onEvent: onEvent) }

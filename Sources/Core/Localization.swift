@@ -117,6 +117,7 @@ enum L10nKey {
     case mailReplyAll, mailForward, mailCc, mailForwardedHeader
     case mailSearchPlaceholder, mailNoResults, mailArchive, mailRefresh, mailSearch
     case mailToField, mailSubjectField, mailNewMessage, mailBodyPlaceholder
+    case mailboxPrimary, mailboxStarred, mailboxImportant, mailboxSent, mailboxSpam
 
     // Assistant
     case asstSetupTitle, asstSetupSub, asstHint, asstPlaceholder, asstThinking
@@ -240,6 +241,11 @@ enum L10nKey {
         case .mailSubjectField: return ["Subject", "Тема", "Objet", "Asunto", "主题", "Assunto", "Betreff", "Oggetto", "件名", "제목"]
         case .mailNewMessage: return ["New message", "Новое письмо", "Nouveau message", "Mensaje nuevo", "新邮件", "Nova mensagem", "Neue Nachricht", "Nuovo messaggio", "新規メッセージ", "새 메시지"]
         case .mailBodyPlaceholder: return ["Message…", "Сообщение…", "Message…", "Mensaje…", "正文…", "Mensagem…", "Nachricht…", "Messaggio…", "本文…", "메시지…"]
+        case .mailboxPrimary: return ["Primary", "Основные", "Principale", "Principal", "主要", "Principal", "Allgemein", "Principale", "メイン", "기본"]
+        case .mailboxStarred: return ["Starred", "Помеченные", "Suivis", "Destacados", "已加星标", "Com estrela", "Markiert", "Speciali", "スター付き", "별표"]
+        case .mailboxImportant: return ["Important", "Важные", "Importants", "Importantes", "重要", "Importantes", "Wichtig", "Importanti", "重要", "중요"]
+        case .mailboxSent: return ["Sent", "Отправленные", "Envoyés", "Enviados", "已发送", "Enviados", "Gesendet", "Inviati", "送信済み", "보낸편지함"]
+        case .mailboxSpam: return ["Spam", "Спам", "Spam", "Spam", "垃圾邮件", "Spam", "Spam", "Spam", "迷惑メール", "스팸"]
         case .asstSetupTitle: return ["no provider", "нет провайдера", "aucun fournisseur", "sin proveedor", "未设置服务商", "sem fornecedor", "kein Anbieter", "nessun provider", "プロバイダなし", "제공자 없음"]
         case .asstSetupSub: return ["Connect any OpenAI-compatible endpoint — OpenAI, OpenRouter or a local Ollama", "Подключите любой OpenAI-совместимый эндпоинт — OpenAI, OpenRouter или локальную Ollama", "Connectez tout point d'accès compatible OpenAI — OpenAI, OpenRouter ou Ollama local", "Conecta cualquier endpoint compatible con OpenAI — OpenAI, OpenRouter u Ollama local", "连接任意兼容 OpenAI 的接口 — OpenAI、OpenRouter 或本地 Ollama", "Ligue qualquer endpoint compatível com OpenAI — OpenAI, OpenRouter ou Ollama local", "Beliebigen OpenAI-kompatiblen Endpunkt verbinden — OpenAI, OpenRouter oder lokales Ollama", "Collega qualsiasi endpoint compatibile OpenAI — OpenAI, OpenRouter o Ollama locale", "OpenAI互換のエンドポイントを接続 — OpenAI、OpenRouter、ローカルのOllama", "OpenAI 호환 엔드포인트 연결 — OpenAI, OpenRouter 또는 로컬 Ollama"]
         case .asstHint: return ["Set a timer, check today's events, capture a note — just ask", "Поставить таймер, узнать события на сегодня, записать заметку — просто спросите", "Minuteur, agenda du jour, note rapide — demandez simplement", "Pon un temporizador, revisa la agenda, guarda una nota — solo pide", "设定计时器、查看今日日程、记笔记 — 直接开口", "Temporizador, agenda de hoje, nota rápida — é só pedir", "Timer stellen, heutige Termine, Notiz erfassen — einfach fragen", "Timer, eventi di oggi, una nota al volo — basta chiedere", "タイマー設定、今日の予定、メモ — 何でも聞いて", "타이머 설정, 오늘 일정, 메모 — 그냥 물어보세요"]

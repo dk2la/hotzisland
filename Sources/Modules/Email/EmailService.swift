@@ -3,17 +3,50 @@ import Foundation
 import Observation
 import OSLog
 
+/// What one refresh brings back from the poll connection.
+private struct RefreshResult: Sendable {
+    var folders: IMAPClient.SpecialFolders
+    var isGmail: Bool
+    var inboxExists: Int
+    var unread: Int
+    var messages: [EmailMessage]
+}
+
 /// "Email" module service: single IMAP account on two long-lived sessions.
 /// New mail arrives by IMAP IDLE when the server offers it; the 90s poll
 /// is the fallback (and the only refresh source while not idling). Errors
 /// keep the last good message list on screen.
+///
+/// The inbox is split into Gmail-like sections (`Mailbox`). Each section
+/// keeps its own list; a message carries the IMAP folder it was listed
+/// from, and everything that touches a message on the server — body,
+/// flags, move — selects that folder first, because a UID only means
+/// something inside one folder. The unread badge, IDLE and search stay
+/// INBOX affairs whatever section is showing.
 @MainActor
 @Observable
 final class EmailService {
     private(set) var config: EmailAccountConfig?
     private(set) var connection: MailConnectionState = .offline
     private(set) var unreadCount = 0
-    private(set) var messages: [EmailMessage] = []
+    /// The section on screen; remembered across launches.
+    private(set) var selectedMailbox: Mailbox
+    /// Sections the server can serve, in display order. Primary and
+    /// Starred always; the rest once the first refresh has listed the
+    /// folders.
+    private(set) var availableMailboxes: [Mailbox] = [.primary, .starred]
+    /// One list per section. The messages carry their fetched bodies, so
+    /// this doubles as the body cache — keyed by section, each message by
+    /// its (folder, UID).
+    private var messagesByMailbox: [Mailbox: [EmailMessage]] = [:]
+    /// When each section's list was last fetched; missing = never.
+    @ObservationIgnored private var refreshedAt: [Mailbox: Date] = [:]
+    /// The selected section's list.
+    var messages: [EmailMessage] { messagesByMailbox[selectedMailbox] ?? [] }
+    /// Folder roles as the server reported them; nil until the first
+    /// refresh asked.
+    @ObservationIgnored private var specialFolders: IMAPClient.SpecialFolders?
+    @ObservationIgnored private var isGmail = false
     private(set) var openMessage: EmailMessage?
     private(set) var isLoadingBody = false
 
@@ -30,7 +63,7 @@ final class EmailService {
     private(set) var composeMode: ReplyMode?
     /// The message the draft was seeded from, so re-opening it keeps the
     /// draft and opening another one clears it.
-    @ObservationIgnored private var composeSourceUID: UInt32?
+    @ObservationIgnored private var composeSourceKey: MessageKey?
     @ObservationIgnored private var composeInReplyTo: String?
     @ObservationIgnored private var composeReferences: [String] = []
     /// The forwarded block currently at the end of the draft, if any.
@@ -68,6 +101,8 @@ final class EmailService {
     /// An idle event landed while a refresh was in flight — run one more.
     @ObservationIgnored private var refreshAgain = false
     private static let messageLimit = 30
+    /// A section's list older than this is fetched again on switching to it.
+    private static let staleAfter: TimeInterval = 120
     private static let pollInterval: Duration = .seconds(90)
     private static let idleRetryDelay: Duration = .seconds(5)
     /// Commands come in bursts (a refresh, then its body prefetches); a
@@ -80,6 +115,7 @@ final class EmailService {
            let stored = try? JSONDecoder().decode(EmailAccountConfig.self, from: data) {
             config = stored
         }
+        selectedMailbox = defaults.string(forKey: Mailbox.defaultsKey).flatMap(Mailbox.init) ?? .primary
         startPolling()
         log.info("configured=\(self.config != nil, privacy: .public)")
     }
@@ -99,8 +135,7 @@ final class EmailService {
         if let data = try? JSONEncoder().encode(newConfig) {
             defaults.set(data, forKey: EmailAccountConfig.defaultsKey)
         }
-        messages = []
-        unreadCount = 0
+        resetLists()
         log.info("account saved host=\(newConfig.imapHost, privacy: .public)")
         startPolling()
         refresh()
@@ -113,12 +148,22 @@ final class EmailService {
         dropSessions()
         config = nil
         defaults.removeObject(forKey: EmailAccountConfig.defaultsKey)
-        messages = []
-        unreadCount = 0
+        resetLists()
         openMessage = nil
         connection = .offline
         pollTask?.cancel()
         log.info("account removed")
+    }
+
+    /// Forgets everything fetched for the previous account, folder roles
+    /// included — another server names its folders differently.
+    private func resetLists() {
+        messagesByMailbox = [:]
+        refreshedAt = [:]
+        specialFolders = nil
+        isGmail = false
+        availableMailboxes = [.primary, .starred]
+        unreadCount = 0
     }
 
     /// Standalone connectivity probe for the setup form.
@@ -204,6 +249,10 @@ final class EmailService {
 
     private func handleIdleEvent(_ event: IMAPClient.IdleEvent) {
         log.info("idle event \(event.description, privacy: .public)")
+        // INBOX changed: its sections are due a fetch on the next visit
+        // even if the refresh below only covers the one on screen.
+        refreshedAt[.primary] = nil
+        refreshedAt[.starred] = nil
         if refreshTask != nil {
             refreshAgain = true
         } else {
@@ -265,6 +314,8 @@ final class EmailService {
         guard let session = activePollSession() else { return }
         connection = messages.isEmpty ? .connecting : connection
         let limit = Self.messageLimit
+        let mailbox = selectedMailbox
+        let knownFolders = specialFolders
         refreshTask = Task { [weak self] in
             defer {
                 self?.refreshTask = nil
@@ -274,30 +325,35 @@ final class EmailService {
                 }
             }
             do {
-                let result = try await session.run { client -> (Int, Int, [EmailMessage]) in
-                    // SELECT again: EXISTS moves as mail arrives on a
-                    // connection we are keeping open across polls.
+                let result = try await session.run { client -> RefreshResult in
+                    // Folder roles are asked once per account; every
+                    // connection to the same server answers the same.
+                    let folders: IMAPClient.SpecialFolders
+                    if let knownFolders {
+                        folders = knownFolders
+                    } else {
+                        folders = try await client.listSpecialUse()
+                    }
+                    let gmail = await client.isGmail
+                    // INBOX first, whatever section is showing: the unread
+                    // badge is about the inbox. SELECT again: EXISTS moves
+                    // as mail arrives on a connection kept open across polls.
                     let exists = try await client.selectInbox()
                     let unread = try await client.searchUnseenCount()
-                    let fetched = try await client.fetchHeaders(exists: exists, limit: limit)
-                    return (exists, unread, fetched)
+                    let fetched = try await Self.fetchList(
+                        mailbox, on: client, folders: folders, isGmail: gmail, inboxExists: exists, limit: limit
+                    )
+                    return RefreshResult(
+                        folders: folders, isGmail: gmail, inboxExists: exists, unread: unread, messages: fetched
+                    )
                 }
                 guard let self, !Task.isCancelled else { return }
-                self.unreadCount = result.1
-                // A poll must not throw away bodies that are already in
-                // memory — that made a message lag again after every 90s.
-                var merged = result.2
-                let known = Dictionary(uniqueKeysWithValues: self.messages.map { ($0.uid, $0) })
-                for index in merged.indices {
-                    if let cached = known[merged[index].uid], cached.bodyPlain != nil {
-                        merged[index].bodyPlain = cached.bodyPlain
-                        merged[index].bodyHTML = cached.bodyHTML
-                        merged[index].references = cached.references
-                    }
-                }
-                self.messages = merged
+                self.adoptFolders(result.folders, isGmail: result.isGmail)
+                self.unreadCount = result.unread
+                self.store(list: result.messages, for: mailbox)
+                self.refreshedAt[mailbox] = Date()
                 self.connection = .online
-                self.log.info("refreshed exists=\(result.0, privacy: .public) unread=\(result.1, privacy: .public)")
+                self.log.info("refreshed \(mailbox.rawValue, privacy: .public) exists=\(result.inboxExists, privacy: .public) unread=\(result.unread, privacy: .public) n=\(result.messages.count, privacy: .public)")
                 self.prefetchBodies()
                 self.startIdling()
             } catch {
@@ -306,6 +362,155 @@ final class EmailService {
                 self.log.error("refresh failed: \(error.localizedDescription, privacy: .public)")
             }
         }
+    }
+
+    /// The messages of one section. A folder-backed section (Sent, Spam,
+    /// Gmail's Important) is selected and its newest messages fetched; a
+    /// slice of INBOX (Primary, Starred) is picked out by UID SEARCH with
+    /// INBOX selected, which `refresh` has just done.
+    nonisolated private static func fetchList(
+        _ mailbox: Mailbox,
+        on client: IMAPClient,
+        folders: IMAPClient.SpecialFolders,
+        isGmail: Bool,
+        inboxExists: Int,
+        limit: Int
+    ) async throws -> [EmailMessage] {
+        switch mailbox {
+        case .primary:
+            guard isGmail else {
+                return try await client.fetchHeaders(exists: inboxExists, limit: limit)
+            }
+            // Gmail: the Primary tab only. Should the server balk at the
+            // extension, the whole inbox is the honest fallback.
+            do {
+                return try await client.fetchHeaders(searching: "X-GM-RAW \"category:primary\"", limit: limit)
+            } catch MailError.badResponse {
+                return try await client.fetchHeaders(exists: inboxExists, limit: limit)
+            }
+        case .starred:
+            return try await client.fetchHeaders(searching: "FLAGGED", limit: limit)
+        case .important, .sent, .spam:
+            guard let folder = folder(for: mailbox, in: folders) else { return [] }
+            let exists = try await client.select(folder)
+            return try await client.fetchHeaders(exists: exists, limit: limit)
+        }
+    }
+
+    /// The IMAP folder behind a section; nil when the server has none.
+    nonisolated private static func folder(for mailbox: Mailbox, in folders: IMAPClient.SpecialFolders) -> String? {
+        switch mailbox {
+        case .primary, .starred: "INBOX"
+        case .important: folders.important
+        case .sent: folders.sent
+        case .spam: folders.junk
+        }
+    }
+
+    /// Settles which sections the server can serve. Important is a Gmail
+    /// label with no equivalent elsewhere; Sent and Spam need a folder.
+    private func adoptFolders(_ folders: IMAPClient.SpecialFolders, isGmail: Bool) {
+        specialFolders = folders
+        self.isGmail = isGmail
+        var available: [Mailbox] = [.primary, .starred]
+        if isGmail, folders.important != nil {
+            available.append(.important)
+        }
+        if folders.sent != nil {
+            available.append(.sent)
+        }
+        if folders.junk != nil {
+            available.append(.spam)
+        }
+        availableMailboxes = available
+        // A remembered section this account cannot serve.
+        if !available.contains(selectedMailbox) {
+            select(.primary)
+        }
+    }
+
+    /// Switches the section on screen. Its list is fetched again when it
+    /// was never fetched, came back empty, or has gone stale.
+    func select(_ mailbox: Mailbox) {
+        guard mailbox != selectedMailbox else { return }
+        selectedMailbox = mailbox
+        defaults.set(mailbox.rawValue, forKey: Mailbox.defaultsKey)
+        // Search results are INBOX hits; they do not belong to the new section.
+        if searchResults != nil {
+            clearSearch()
+        }
+        guard isStale(mailbox) else { return }
+        if refreshTask != nil {
+            refreshAgain = true
+        } else {
+            refresh()
+        }
+    }
+
+    private func isStale(_ mailbox: Mailbox) -> Bool {
+        guard let fetchedAt = refreshedAt[mailbox], !(messagesByMailbox[mailbox] ?? []).isEmpty else {
+            return true
+        }
+        return Date().timeIntervalSince(fetchedAt) > Self.staleAfter
+    }
+
+    /// Puts a freshly fetched list in place. A poll must not throw away
+    /// bodies that are already in memory — that made a message lag again
+    /// after every 90s. The same message shows up in several sections
+    /// (a starred inbox mail is in Primary and Starred), so bodies are
+    /// looked up across all of them by folder + UID.
+    private func store(list: [EmailMessage], for mailbox: Mailbox) {
+        var merged = list
+        let known = bodiesInMemory()
+        for index in merged.indices {
+            if let cached = known[merged[index].key] {
+                merged[index].bodyPlain = cached.bodyPlain
+                merged[index].bodyHTML = cached.bodyHTML
+                merged[index].references = cached.references
+            }
+        }
+        messagesByMailbox[mailbox] = merged
+    }
+
+    /// Every message in memory whose body is loaded, by folder + UID.
+    private func bodiesInMemory() -> [MessageKey: EmailMessage] {
+        var known: [MessageKey: EmailMessage] = [:]
+        for list in messagesByMailbox.values {
+            for message in list where message.bodyPlain != nil {
+                known[message.key] = message
+            }
+        }
+        return known
+    }
+
+    /// The in-memory copy of a message, from whichever section holds it.
+    private func messageInMemory(_ key: MessageKey) -> EmailMessage? {
+        for list in messagesByMailbox.values {
+            if let found = list.first(where: { $0.key == key }) { return found }
+        }
+        return nil
+    }
+
+    /// Applies an edit to every in-memory copy of a message.
+    private func updateEverywhere(_ key: MessageKey, _ edit: (inout EmailMessage) -> Void) {
+        for mailbox in messagesByMailbox.keys {
+            guard let index = messagesByMailbox[mailbox]?.firstIndex(where: { $0.key == key }) else { continue }
+            if var message = messagesByMailbox[mailbox]?[index] {
+                edit(&message)
+                messagesByMailbox[mailbox]?[index] = message
+            }
+        }
+        if var open = openMessage, open.key == key {
+            edit(&open)
+            openMessage = open
+        }
+    }
+
+    /// Whether a message was listed from the Sent folder — its row shows
+    /// the recipient rather than the sender.
+    func isSentMessage(_ message: EmailMessage) -> Bool {
+        guard let sent = specialFolders?.sent else { return false }
+        return message.mailbox == sent
     }
 
     /// "18811" reads as noise, not information — the badge caps at 99+.
@@ -336,7 +541,8 @@ final class EmailService {
         let limit = Self.messageLimit
         Task { [weak self] in
             do {
-                let found = try await session.run { client -> [EmailMessage] in
+                // Search covers the inbox, whatever section is showing.
+                let found = try await session.run(in: "INBOX") { client -> [EmailMessage] in
                     let uids = try await client.searchUIDs(query: query, limit: limit)
                     return try await client.fetchHeaders(uids: uids)
                 }
@@ -354,23 +560,46 @@ final class EmailService {
 
     // MARK: - Message actions
 
+    /// Whether "archive" means anything for a message: it must still be in
+    /// the inbox. Sent and Spam mail is not there to begin with; Gmail's
+    /// Important is a label on inbox mail, so it qualifies.
+    func canArchive(_ message: EmailMessage) -> Bool {
+        if message.mailbox == "INBOX" { return true }
+        if let important = specialFolders?.important, message.mailbox == important { return true }
+        return false
+    }
+
     /// Moves the message out of INBOX. Optimistic: the row disappears at
     /// once; a failed move logs, surfaces, and the next poll resyncs.
     func archive(_ message: EmailMessage) {
-        guard let session = activeUserSession() else { return }
-        if message.isUnread {
+        guard canArchive(message), let session = activeUserSession() else { return }
+        if message.isUnread, message.mailbox == "INBOX" {
             unreadCount = max(0, unreadCount - 1)
         }
-        messages.removeAll { $0.uid == message.uid }
-        searchResults?.removeAll { $0.uid == message.uid }
-        if openMessage?.uid == message.uid {
+        let key = message.key
+        for mailbox in messagesByMailbox.keys {
+            messagesByMailbox[mailbox]?.removeAll { $0.key == key }
+        }
+        searchResults?.removeAll { $0.key == key }
+        if openMessage?.key == key {
             closeMessage()
         }
-        let uid = message.uid
+        let messageID = message.messageID
         let folders = archiveFolders
         Task { [weak self] in
             do {
-                try await session.run { client in
+                try await session.run(in: "INBOX") { client in
+                    // Listed from another folder (Gmail's Important): the
+                    // inbox copy has a UID of its own — find it by Message-ID.
+                    let uid: UInt32
+                    if key.mailbox == "INBOX" {
+                        uid = key.uid
+                    } else {
+                        guard let messageID, let found = try await client.findUID(messageID: messageID) else {
+                            throw MailError.badResponse("message is not in INBOX")
+                        }
+                        uid = found
+                    }
                     var lastError: Error = MailError.badResponse("no archive folder")
                     for folder in folders {
                         do {
@@ -382,7 +611,7 @@ final class EmailService {
                     }
                     throw lastError
                 }
-                self?.log.info("archived uid=\(uid, privacy: .public)")
+                self?.log.info("archived uid=\(key.uid, privacy: .public) from=\(key.mailbox, privacy: .public)")
             } catch {
                 guard let self else { return }
                 self.log.error("archive failed: \(error.localizedDescription, privacy: .public)")
@@ -414,7 +643,7 @@ final class EmailService {
     }
 
     func open(_ message: EmailMessage) {
-        if openMessage?.uid != message.uid {
+        if openMessage?.key != message.key {
             resetComposer()
         }
         openMessage = message
@@ -434,7 +663,7 @@ final class EmailService {
     private func resetComposer() {
         // A reply draft belongs to the previous message; a new-mail draft
         // survives navigation.
-        if composeSourceUID != nil {
+        if composeSourceKey != nil {
             clearDraft()
         }
         sendError = nil
@@ -447,7 +676,7 @@ final class EmailService {
         composeSubject = ""
         draft = ""
         composeMode = nil
-        composeSourceUID = nil
+        composeSourceKey = nil
         composeInReplyTo = nil
         composeReferences = []
         composeQuote = nil
@@ -456,15 +685,15 @@ final class EmailService {
     private func loadBody(for message: EmailMessage) {
         guard let session = activeUserSession() else { return }
         isLoadingBody = true
-        let uid = message.uid
+        let key = message.key
         let part = message.textPart
         let startedAt = ContinuousClock.now
         Task { [weak self] in
             do {
-                let body = try await session.run { try await $0.fetchBody(uid: uid, part: part) }
+                let body = try await session.run(in: key.mailbox) { try await $0.fetchBody(uid: key.uid, part: part) }
                 let elapsed = ContinuousClock.now - startedAt
                 self?.log.info("body ready in \(elapsed.milliseconds, privacy: .public) ms")
-                self?.store(body, uid: uid)
+                self?.store(body, key: key)
             } catch {
                 // Leave bodyPlain nil so the next open (or prefetch) retries.
                 self?.log.error("body load failed: \(error.localizedDescription, privacy: .public)")
@@ -473,23 +702,18 @@ final class EmailService {
         }
     }
 
-    /// Puts a fetched body into the list and, when relevant, the open view.
-    private func store(_ body: MessageBody, uid: UInt32) {
+    /// Puts a fetched body into every list holding the message and, when
+    /// relevant, the open view.
+    private func store(_ body: MessageBody, key: MessageKey) {
         // An empty string still marks the body as fetched (nil means "not
         // loaded yet"); HTML-only mail is read through the web view, so no
         // second flattening pass — that one used AppKit's WebKit-backed
         // importer, which fetches remote resources with no network block.
         let text = body.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if var open = openMessage, open.uid == uid {
-            open.bodyPlain = text
-            open.bodyHTML = body.html
-            open.references = body.references
-            openMessage = open
-        }
-        if let index = messages.firstIndex(where: { $0.uid == uid }) {
-            messages[index].bodyPlain = text
-            messages[index].bodyHTML = body.html
-            messages[index].references = body.references
+        updateEverywhere(key) { message in
+            message.bodyPlain = text
+            message.bodyHTML = body.html
+            message.references = body.references
         }
     }
 
@@ -501,7 +725,7 @@ final class EmailService {
         guard prefetchTask == nil, let session = activePollSession() else { return }
         let pending = messages
             .filter { $0.bodyPlain == nil }
-            .map { (uid: $0.uid, part: $0.textPart) }
+            .map { (key: $0.key, part: $0.textPart) }
         guard !pending.isEmpty else { return }
         prefetchTask = Task { [weak self] in
             defer { self?.prefetchTask = nil }
@@ -509,11 +733,11 @@ final class EmailService {
             for item in pending {
                 guard !Task.isCancelled else { return }
                 // A message may have been opened (and loaded) meanwhile.
-                guard self?.messages.first(where: { $0.uid == item.uid })?.bodyPlain == nil else { continue }
-                guard let body = try? await session.run({
-                    try await $0.fetchBody(uid: item.uid, part: item.part)
+                guard self?.messageInMemory(item.key)?.bodyPlain == nil else { continue }
+                guard let body = try? await session.run(in: item.key.mailbox, {
+                    try await $0.fetchBody(uid: item.key.uid, part: item.part)
                 }) else { continue }
-                self?.store(body, uid: item.uid)
+                self?.store(body, key: item.key)
                 fetched += 1
             }
             if fetched > 0 {
@@ -529,9 +753,9 @@ final class EmailService {
     /// recipients, subject and threading but keeps the typed text.
     func startReply(_ mode: ReplyMode = .reply) {
         guard let message = openMessage else { return }
-        if composeSourceUID != message.uid {
+        if composeSourceKey != message.key {
             clearDraft()
-            composeSourceUID = message.uid
+            composeSourceKey = message.key
         }
         if composeMode != mode {
             seedCompose(mode, from: message)
@@ -581,7 +805,7 @@ final class EmailService {
     /// The readable text of a message for quoting: the plain part, else
     /// the HTML flattened.
     private func forwardText(of message: EmailMessage) -> String {
-        let current = messages.first { $0.uid == message.uid } ?? message
+        let current = messageInMemory(message.key) ?? message
         if let plain = current.bodyPlain, !plain.isEmpty { return plain }
         if let html = current.bodyHTML {
             return MIMEDecode.htmlToPlainText(html).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -606,7 +830,7 @@ final class EmailService {
     /// Blank message. An unsent new-mail draft survives closing the form;
     /// only leftovers of a reply are cleared.
     func startNewMail() {
-        if composeSourceUID != nil {
+        if composeSourceKey != nil {
             clearDraft()
         }
         sendError = nil
@@ -685,18 +909,16 @@ final class EmailService {
     /// Optimistic local flip, then the server call.
     func markRead(_ message: EmailMessage) {
         guard let session = activePollSession() else { return }
-        if let index = messages.firstIndex(where: { $0.uid == message.uid }), messages[index].isUnread {
-            messages[index].isUnread = false
+        let key = message.key
+        // The badge counts INBOX; a message read in another folder is not
+        // in it (or, on Gmail, the next poll settles it).
+        if key.mailbox == "INBOX", messageInMemory(key)?.isUnread ?? message.isUnread {
             unreadCount = max(0, unreadCount - 1)
         }
-        if var open = openMessage, open.uid == message.uid {
-            open.isUnread = false
-            openMessage = open
-        }
-        let uid = message.uid
+        updateEverywhere(key) { $0.isUnread = false }
         Task {
             // Failure is fine: the next poll reconciles the flag.
-            try? await session.run { try await $0.markSeen(uid: uid) }
+            try? await session.run(in: key.mailbox) { try await $0.markSeen(uid: key.uid) }
         }
     }
 }

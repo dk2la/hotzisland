@@ -1,9 +1,10 @@
 import Foundation
 import OSLog
 
-/// Minimal IMAP4rev1 client scoped to one INBOX session: login, unseen
-/// search, header fetch, body fetch, mark seen. Connection lifetime is
-/// `MailSession`'s job — this type owns the wire protocol only.
+/// Minimal IMAP4rev1 client for one authenticated session: login, mailbox
+/// listing and selection, unseen search, header fetch, body fetch, mark
+/// seen. Connection lifetime is `MailSession`'s job — this type owns the
+/// wire protocol only.
 actor IMAPClient {
     private let transport: any MailLineTransport
     private var tagCounter = 0
@@ -15,6 +16,9 @@ actor IMAPClient {
     /// puts it in the tagged OK) or the reply to an explicit CAPABILITY.
     /// nil until the server has said anything at all.
     private(set) var capabilities: Set<String>?
+    /// The mailbox the last successful SELECT opened; nil before the first
+    /// one (or after a SELECT the server refused, which deselects).
+    private(set) var selectedMailbox: String?
 
     init(host: String, port: UInt16) {
         self.init(transport: TLSTransport(host: host, port: port))
@@ -39,6 +43,8 @@ actor IMAPClient {
     }
 
     var supportsIdle: Bool { capabilities?.contains("IDLE") ?? false }
+    /// Gmail's IMAP extensions (X-GM-RAW search, XLIST, label semantics).
+    var isGmail: Bool { capabilities?.contains("X-GM-EXT-1") ?? false }
 
     /// Asks explicitly — for servers whose greeting and LOGIN reply carry no
     /// capability list.
@@ -56,7 +62,24 @@ actor IMAPClient {
 
     /// Selects INBOX; returns the EXISTS count.
     func selectInbox() async throws -> Int {
-        let units = try await command("SELECT INBOX")
+        try await select("INBOX")
+    }
+
+    /// Selects a mailbox by its IMAP name; returns the EXISTS count. INBOX
+    /// goes out bare (it is case-insensitive by spec); every other name is
+    /// quoted — "[Gmail]/Sent Mail" has a space in it.
+    func select(_ mailbox: String) async throws -> Int {
+        let isInbox = mailbox.uppercased() == "INBOX"
+        let units: [Data]
+        do {
+            units = try await command("SELECT \(isInbox ? "INBOX" : quote(mailbox))")
+        } catch {
+            // A refused SELECT leaves the connection in the authenticated
+            // (no mailbox) state, whatever was open before.
+            selectedMailbox = nil
+            throw error
+        }
+        selectedMailbox = isInbox ? "INBOX" : mailbox
         for unit in units {
             if let exists = IMAPParser.parseExists(unit) {
                 return exists
@@ -64,6 +87,86 @@ actor IMAPClient {
         }
         return 0
     }
+
+    // MARK: - Mailbox roles
+
+    /// Folder names for the roles the inbox sections need, as the server
+    /// reported them; nil when the server has no such folder.
+    struct SpecialFolders: Equatable, Sendable {
+        var junk: String?
+        var sent: String?
+        var flagged: String?
+        var important: String?
+        var all: String?
+        var trash: String?
+        var drafts: String?
+    }
+
+    /// Asks the server which folder plays which role. SPECIAL-USE (RFC
+    /// 6154) attributes are the standard; Gmail predates it with XLIST and
+    /// its own attribute names; a server that offers neither gets a plain
+    /// LIST and the roles are guessed from the usual folder names.
+    func listSpecialUse() async throws -> SpecialFolders {
+        let caps = capabilities ?? []
+        let text: String
+        if caps.contains("SPECIAL-USE") || caps.contains("LIST-EXTENDED") {
+            text = "LIST \"\" \"*\" RETURN (SPECIAL-USE)"
+        } else if isGmail {
+            text = "XLIST \"\" \"*\""
+        } else {
+            text = "LIST \"\" \"*\""
+        }
+        let entries = try await command(text).compactMap(IMAPParser.parseList)
+        var folders = SpecialFolders()
+        for entry in entries where !entry.has("\\Noselect") {
+            if entry.has("\\Junk") || entry.has("\\Spam") {
+                folders.junk = folders.junk ?? entry.name
+            }
+            if entry.has("\\Sent") {
+                folders.sent = folders.sent ?? entry.name
+            }
+            if entry.has("\\Flagged") || entry.has("\\Starred") {
+                folders.flagged = folders.flagged ?? entry.name
+            }
+            if entry.has("\\Important") {
+                folders.important = folders.important ?? entry.name
+            }
+            if entry.has("\\All") || entry.has("\\AllMail") {
+                folders.all = folders.all ?? entry.name
+            }
+            if entry.has("\\Trash") {
+                folders.trash = folders.trash ?? entry.name
+            }
+            if entry.has("\\Drafts") {
+                folders.drafts = folders.drafts ?? entry.name
+            }
+        }
+        // No attributes (or none for a role): fall back to the names the
+        // rest of the world uses.
+        for entry in entries where !entry.has("\\Noselect") {
+            let name = entry.name.lowercased()
+            if folders.junk == nil, Self.junkNames.contains(name) {
+                folders.junk = entry.name
+            }
+            if folders.sent == nil, Self.sentNames.contains(name) {
+                folders.sent = entry.name
+            }
+            if folders.important == nil, name == "[gmail]/important" {
+                folders.important = entry.name
+            }
+            if folders.flagged == nil, name == "[gmail]/starred" {
+                folders.flagged = entry.name
+            }
+            if folders.all == nil, name == "[gmail]/all mail" {
+                folders.all = entry.name
+            }
+        }
+        log.info("folders junk=\(folders.junk ?? "-", privacy: .public) sent=\(folders.sent ?? "-", privacy: .public) important=\(folders.important ?? "-", privacy: .public)")
+        return folders
+    }
+
+    private static let junkNames: Set<String> = ["junk", "spam", "junk e-mail", "junk email", "bulk mail", "[gmail]/spam"]
+    private static let sentNames: Set<String> = ["sent", "sent messages", "sent items", "sent mail", "[gmail]/sent mail"]
 
     /// Unread count. STATUS answers with a single number; UID SEARCH would
     /// stream back every unread UID — on a neglected inbox that is a
@@ -86,14 +189,14 @@ actor IMAPClient {
     }
 
     /// Fetches ENVELOPE + FLAGS + BODYSTRUCTURE for the newest `limit`
-    /// messages of a mailbox with `exists` messages.
+    /// messages of the selected mailbox, which holds `exists` messages.
     func fetchHeaders(exists: Int, limit: Int) async throws -> [EmailMessage] {
         guard exists > 0 else { return [] }
         let from = max(1, exists - limit + 1)
         let units = try await command(
             "FETCH \(from):* (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)"
         )
-        return Self.buildMessages(from: units, log: log)
+        return Self.buildMessages(from: units, mailbox: selectedMailbox ?? "INBOX", log: log)
     }
 
     /// Same header fetch, addressed by UID — search results come as UIDs.
@@ -103,21 +206,32 @@ actor IMAPClient {
         let units = try await command(
             "UID FETCH \(set) (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE)"
         )
-        return Self.buildMessages(from: units, log: log)
+        return Self.buildMessages(from: units, mailbox: selectedMailbox ?? "INBOX", log: log)
     }
 
-    private static func buildMessages(from units: [Data], log: Logger) -> [EmailMessage] {
+    /// Headers of the newest `limit` messages matching a UID SEARCH key
+    /// ("FLAGGED", Gmail's `X-GM-RAW "category:primary"`) in the selected
+    /// mailbox: the search picks the UIDs, then they are fetched as a set
+    /// instead of the last-N range.
+    func fetchHeaders(searching criteria: String, limit: Int) async throws -> [EmailMessage] {
+        let uids = try await searchUIDs(criteria: criteria, limit: limit)
+        return try await fetchHeaders(uids: uids)
+    }
+
+    private static func buildMessages(from units: [Data], mailbox: String, log: Logger) -> [EmailMessage] {
         var messages: [EmailMessage] = []
         for unit in units {
             guard let item = IMAPParser.parseFetch(unit), let uid = item.uid else { continue }
             let envelope = item.envelope
             messages.append(EmailMessage(
                 uid: uid,
+                mailbox: mailbox,
                 subject: envelope?.subject ?? "",
                 fromName: envelope?.fromName ?? "",
                 fromAddress: envelope?.fromAddress ?? "",
                 replyTo: envelope?.replyTo,
                 to: envelope?.to ?? [],
+                toName: envelope?.toName,
                 cc: envelope?.cc ?? [],
                 date: envelope?.date ?? item.internalDate ?? .distantPast,
                 isUnread: !item.flags.contains { $0.caseInsensitiveCompare("\\Seen") == .orderedSame },
@@ -135,9 +249,21 @@ actor IMAPClient {
         return messages
     }
 
-    /// Server-side full-text search over INBOX; newest `limit` UIDs. The
-    /// local list only ever holds 30 headers, so "find yesterday's mail"
-    /// has to ask the server.
+    /// Newest `limit` UIDs matching a raw UID SEARCH key in the selected
+    /// mailbox.
+    func searchUIDs(criteria: String, limit: Int) async throws -> [UInt32] {
+        let units = try await command("UID SEARCH \(criteria)")
+        for unit in units {
+            if let uids = IMAPParser.parseSearch(unit) {
+                return Array(uids.sorted(by: >).prefix(limit))
+            }
+        }
+        return []
+    }
+
+    /// Server-side full-text search over the selected mailbox; newest
+    /// `limit` UIDs. The local list only ever holds 30 headers, so "find
+    /// yesterday's mail" has to ask the server.
     func searchUIDs(query: String, limit: Int) async throws -> [UInt32] {
         let bytes = Data(query.utf8)
         let isPlainASCII = bytes.allSatisfy { $0 >= 32 && $0 < 127 }
@@ -165,6 +291,15 @@ actor IMAPClient {
     /// Gmail the destination is All Mail (labels, not folders).
     func move(uid: UInt32, to mailbox: String) async throws {
         _ = try await command("UID MOVE \(uid) \(quote(mailbox))")
+    }
+
+    /// The UID a message has in the selected mailbox, found by Message-ID.
+    /// UIDs do not carry across folders, so a message listed from another
+    /// folder (Gmail's Important) has to be re-found in INBOX before it can
+    /// be moved out of it.
+    func findUID(messageID: String) async throws -> UInt32? {
+        let uids = try await searchUIDs(criteria: "HEADER Message-ID \(quote(messageID))", limit: 1)
+        return uids.first
     }
 
     /// Fetches and decodes the readable text of one message: the part that
