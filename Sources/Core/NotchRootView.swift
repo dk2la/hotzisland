@@ -66,14 +66,15 @@ struct NotchRootView: View {
                 }
             }
             .clipShape(shape)
-            // Mirror of the widget strip's menu — without it the island has
-            // no way back to widget mode short of opening Settings.
+            .contentShape(shape)
+            // A click on the resting island opens the settings; the expanded
+            // panel hosts its own controls, so the tap is inert there.
+            .onTapGesture {
+                if !isExpanded { viewModel.onIslandTapped?() }
+            }
             .contextMenu {
                 Button(L10n.t(.menuSettings)) {
-                    NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
-                }
-                Button(L10n.t(.menuWidgetMode)) {
-                    settings.displayMode = .widget
+                    viewModel.onIslandTapped?()
                 }
                 Divider()
                 Button(L10n.t(.menuQuit)) {
@@ -82,20 +83,17 @@ struct NotchRootView: View {
             }
             .frame(width: islandSize.width, height: islandSize.height)
             .animation(Theme.stateSpring, value: viewModel.state)
-            .animation(Theme.stateSpring, value: viewModel.selectedTab)
+            // Files dropped on the notch still land on the shelf (which
+            // lives in the widget).
             .dropDestination(for: URL.self) { urls, _ in
                 services.shelfStore.add(urls)
                 return !urls.isEmpty
-            } isTargeted: { targeted in
-                if targeted {
-                    viewModel.onDragTargeted?()
-                }
             }
             .animation(Theme.eventSpring, value: viewModel.activeEvent)
     }
 
     private var expandedContent: some View {
-        ExpandedPanelView(
+        IslandSettingsView(
             viewModel: viewModel,
             services: services,
             settings: settings,

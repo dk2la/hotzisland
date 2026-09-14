@@ -79,7 +79,7 @@ enum L10nKey {
     case comingSoon, comingSoonSub
 
     // Widget chrome
-    case menuSettings, menuIslandMode, menuWidgetMode, menuQuit
+    case menuSettings, menuQuit
 
     // Timer
     case focusReady, focusRunning, timerStart, timerPause, timerReset, timerDoneNote
@@ -133,8 +133,8 @@ enum L10nKey {
 
     // Settings
     case setTitle, setGeneral, setAppearance, setModules, setPlaybooks, setHotkeys
-    case setBehavior, setLaunch, setLaunchSub, setDisplayMode, setDisplayModeSub
-    case setIsland, setWidget, setIdle, setIdleSub, setIdleInvisible, setIdleCompact
+    case setBehavior, setLaunch, setLaunchSub
+    case setIdle, setIdleSub, setIdleInvisible, setIdleCompact
     case setLanguage, setLanguageSub
     case setShellTheme, setCapsule, setCapsuleSub, setWidgetMaterial, setWidgetMaterialSub
     case setLight, setDark, setAuto
@@ -161,8 +161,6 @@ enum L10nKey {
         case .comingSoonSub: return ["Connects in a later build.", "Подключится в следующих версиях.", "Disponible dans une prochaine version.", "Se conecta en una versión futura.", "将在后续版本中接入。", "Chega numa versão futura.", "Kommt in einer späteren Version.", "Arriva in una versione futura.", "今後のバージョンで対応します。", "이후 버전에서 연결됩니다."]
 
         case .menuSettings: return ["Settings…", "Настройки…", "Réglages…", "Ajustes…", "设置…", "Ajustes…", "Einstellungen…", "Impostazioni…", "設定…", "설정…"]
-        case .menuIslandMode: return ["Island mode", "Режим острова", "Mode îlot", "Modo isla", "灵动岛模式", "Modo ilha", "Insel-Modus", "Modalità isola", "アイランドモード", "아일랜드 모드"]
-        case .menuWidgetMode: return ["Widget mode", "Режим виджета", "Mode widget", "Modo widget", "小组件模式", "Modo widget", "Widget-Modus", "Modalità widget", "ウィジェットモード", "위젯 모드"]
         case .menuQuit: return ["Quit HotzIsland", "Завершить HotzIsland", "Quitter HotzIsland", "Salir de HotzIsland", "退出 HotzIsland", "Sair do HotzIsland", "HotzIsland beenden", "Esci da HotzIsland", "HotzIslandを終了", "HotzIsland 종료"]
 
         case .focusReady: return ["focus · ready", "фокус · готов", "focus · prêt", "foco · listo", "专注 · 就绪", "foco · pronto", "Fokus · bereit", "focus · pronto", "フォーカス · 準備完了", "집중 · 준비"]
@@ -298,10 +296,6 @@ enum L10nKey {
         case .setBehavior: return ["Behavior", "Поведение", "Comportement", "Comportamiento", "行为", "Comportamento", "Verhalten", "Comportamento", "動作", "동작"]
         case .setLaunch: return ["Launch at login", "Запускать при входе", "Lancer à l'ouverture de session", "Abrir al iniciar sesión", "登录时启动", "Abrir ao iniciar sessão", "Beim Anmelden starten", "Avvia all'accesso", "ログイン時に起動", "로그인 시 실행"]
         case .setLaunchSub: return ["Menu-bar agent, no Dock icon", "Агент меню-бара, без иконки в доке", "Agent de barre de menus, sans icône Dock", "Agente de barra de menús, sin icono en el Dock", "菜单栏代理，无 Dock 图标", "Agente da barra de menus, sem ícone na Dock", "Menüleisten-Agent, ohne Dock-Symbol", "Agente della barra dei menu, senza icona nel Dock", "メニューバー常駐、Dockアイコンなし", "메뉴 막대 에이전트, Dock 아이콘 없음"]
-        case .setDisplayMode: return ["Display mode", "Режим отображения", "Mode d'affichage", "Modo de visualización", "显示模式", "Modo de exibição", "Anzeigemodus", "Modalità di visualizzazione", "表示モード", "표시 모드"]
-        case .setDisplayModeSub: return ["Modules at the notch or as an edge widget — live events stay on the notch", "Модули у выреза или виджетом у края — live-события всегда на вырезе", "Modules au notch ou en widget de bord — les événements live restent au notch", "Módulos en el notch o como widget lateral — los eventos live quedan en el notch", "模块显示在刘海处或屏幕边缘 — 灵动事件始终在刘海", "Módulos no notch ou como widget na borda — eventos live ficam no notch", "Module am Notch oder als Rand-Widget — Live-Events bleiben am Notch", "Moduli al notch o come widget sul bordo — gli eventi live restano al notch", "モジュールをノッチまたは端のウィジェットに — ライブイベントはノッチに表示", "노치 또는 가장자리 위젯으로 표시 — 라이브 이벤트는 노치에 유지"]
-        case .setIsland: return ["Island", "Остров", "Îlot", "Isla", "灵动岛", "Ilha", "Insel", "Isola", "アイランド", "아일랜드"]
-        case .setWidget: return ["Widget", "Виджет", "Widget", "Widget", "小组件", "Widget", "Widget", "Widget", "ウィジェット", "위젯"]
         case .setIdle: return ["Idle mode", "Режим покоя", "Mode veille", "Modo inactivo", "空闲状态", "Modo inativo", "Ruhemodus", "Modalità inattiva", "アイドル時", "대기 모드"]
         case .setIdleSub: return ["What is visible when nothing happens", "Что видно, когда ничего не происходит", "Ce qui est visible quand rien ne se passe", "Qué se ve cuando no pasa nada", "无事件时显示的内容", "O que aparece quando nada acontece", "Was sichtbar ist, wenn nichts passiert", "Cosa si vede quando non succede nulla", "何もないときの表示", "아무 일도 없을 때 표시"]
         case .setIdleInvisible: return ["Invisible", "Невидим", "Invisible", "Invisible", "隐藏", "Invisível", "Unsichtbar", "Invisibile", "非表示", "숨김"]
@@ -320,14 +314,14 @@ enum L10nKey {
         case .setDefaultTag: return ["default", "по умолчанию", "par défaut", "predeterminado", "默认", "padrão", "Standard", "predefinito", "デフォルト", "기본"]
         case .setSoonTag: return ["soon", "скоро", "bientôt", "pronto", "即将", "em breve", "bald", "presto", "近日", "곧"]
         case .setOpenSettings: return ["Open settings", "Открыть настройки", "Ouvrir les réglages", "Abrir ajustes", "打开设置", "Abrir ajustes", "Einstellungen öffnen", "Apri impostazioni", "設定を開く", "설정 열기"]
-        case .setExpandIsland: return ["Expand the island", "Раскрыть остров", "Déployer l'îlot", "Expandir la isla", "展开灵动岛", "Expandir a ilha", "Insel aufklappen", "Espandi l'isola", "アイランドを展開", "아일랜드 펼치기"]
-        case .setExpandIslandSub: return ["Hover the cursor over the notch", "Наведение курсора на вырез", "Survolez le notch", "Pasa el cursor por el notch", "将光标悬停在刘海上", "Passe o cursor sobre o notch", "Cursor über den Notch bewegen", "Passa il cursore sul notch", "ノッチにカーソルを合わせる", "노치에 커서를 올리기"]
+        case .setExpandIsland: return ["Open settings on the notch", "Открыть настройки на вырезе", "Ouvrir les réglages sur le notch", "Abrir ajustes en el notch", "在刘海处打开设置", "Abrir ajustes no notch", "Einstellungen am Notch öffnen", "Apri le impostazioni sul notch", "ノッチで設定を開く", "노치에서 설정 열기"]
+        case .setExpandIslandSub: return ["Click the notch; click outside or ✕ to close", "Клик по вырезу; закрыть — клик снаружи или ✕", "Cliquez sur le notch ; cliquez à côté ou ✕ pour fermer", "Haz clic en el notch; clic fuera o ✕ para cerrar", "点击刘海；点击外部或 ✕ 关闭", "Clique no notch; clique fora ou ✕ para fechar", "Notch anklicken; außerhalb klicken oder ✕ zum Schließen", "Fai clic sul notch; clic fuori o ✕ per chiudere", "ノッチをクリック。外側クリックか ✕ で閉じる", "노치를 클릭; 바깥 클릭 또는 ✕로 닫기"]
         case .setOutsideClick: return ["Close panel on outside click", "Закрывать панель по клику вне виджета", "Fermer le panneau en cliquant à l'extérieur", "Cerrar el panel al hacer clic fuera", "点击外部时关闭面板", "Fechar o painel ao clicar fora", "Panel bei Klick außerhalb schließen", "Chiudi il pannello cliccando fuori", "外側をクリックでパネルを閉じる", "밖을 클릭하면 패널 닫기"]
         case .setOutsideClickSub: return ["Off = the panel stays pinned. ⌃⌥P toggles this anywhere.", "Выкл = панель закреплена. ⌃⌥P переключает откуда угодно.", "Désactivé = panneau épinglé. ⌃⌥P bascule partout.", "Desactivado = panel fijado. ⌃⌥P lo alterna en cualquier lugar.", "关闭 = 面板固定。⌃⌥P 随处切换。", "Desligado = painel fixado. ⌃⌥P alterna em qualquer lugar.", "Aus = Panel bleibt angeheftet. ⌃⌥P schaltet überall um.", "Off = pannello fissato. ⌃⌥P lo commuta ovunque.", "オフ = パネルを固定。⌃⌥P でどこでも切替。", "끄면 패널 고정. ⌃⌥P로 어디서든 전환."]
         case .setHideWidget: return ["Hide / show the widget", "Скрыть / показать виджет", "Masquer / afficher le widget", "Ocultar / mostrar el widget", "隐藏 / 显示小组件", "Ocultar / mostrar o widget", "Widget aus- / einblenden", "Nascondi / mostra il widget", "ウィジェットを隠す / 表示", "위젯 숨기기 / 표시"]
         case .setHideWidgetSub: return ["Collapses the strip into a small square when it is in the way", "Сворачивает рейку в маленький квадрат, когда она мешает", "Réduit la barre en petit carré quand elle gêne", "Colapsa la barra en un cuadrito cuando estorba", "碍事时把工具条折叠成小方块", "Recolhe a barra num quadradinho quando atrapalha", "Faltet die Leiste zu einem kleinen Quadrat, wenn sie stört", "Riduce la barra a un quadratino quando è d'intralcio", "邪魔なときにストリップを小さな四角に畳みます", "방해될 때 스트립을 작은 사각형으로 접기"]
-        case .setModeToggle: return ["Widget / island", "Виджет / остров", "Widget / îlot", "Widget / isla", "小组件 / 灵动岛", "Widget / ilha", "Widget / Insel", "Widget / isola", "ウィジェット / アイランド", "위젯 / 아일랜드"]
-        case .setModeToggleSub: return ["Flips between the edge widget and the notch island", "Переключает между виджетом у края и островом у выреза", "Bascule entre le widget de bord et l'îlot du notch", "Alterna entre el widget lateral y la isla del notch", "在边缘小组件和刘海灵动岛之间切换", "Alterna entre o widget na borda e a ilha do notch", "Wechselt zwischen Rand-Widget und Notch-Insel", "Alterna tra il widget sul bordo e l'isola del notch", "端のウィジェットとノッチのアイランドを切り替えます", "가장자리 위젯과 노치 아일랜드 사이를 전환합니다"]
+        case .setModeToggle: return ["Settings island", "Остров настроек", "Îlot des réglages", "Isla de ajustes", "设置灵动岛", "Ilha de ajustes", "Einstellungs-Insel", "Isola delle impostazioni", "設定アイランド", "설정 아일랜드"]
+        case .setModeToggleSub: return ["Opens or closes the settings on the notch", "Открывает или закрывает настройки на вырезе", "Ouvre ou ferme les réglages sur le notch", "Abre o cierra los ajustes en el notch", "打开或关闭刘海处的设置", "Abre ou fecha os ajustes no notch", "Öffnet oder schließt die Einstellungen am Notch", "Apre o chiude le impostazioni sul notch", "ノッチの設定を開閉します", "노치의 설정을 열거나 닫습니다"]
         case .setPinPanel: return ["Pin the panel", "Закрепить панель", "Épingler le panneau", "Fijar el panel", "固定面板", "Fixar o painel", "Panel anheften", "Fissa il pannello", "パネルを固定", "패널 고정"]
         case .setPinPanelSub: return ["Toggles \"close on outside click\"", "Переключает «закрывать по клику вне виджета»", "Bascule « fermer au clic extérieur »", "Alterna «cerrar al hacer clic fuera»", "切换「点击外部关闭」", "Alterna «fechar ao clicar fora»", "Schaltet \"bei Klick außerhalb schließen\" um", "Commuta «chiudi al clic esterno»", "「外側クリックで閉じる」を切替", "\"밖 클릭 시 닫기\" 전환"]
         }
