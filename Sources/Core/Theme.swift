@@ -15,6 +15,9 @@ enum Theme {
     static let islandFill = Color.black
     /// Inner cells and cards: raised glass on top of the window material.
     static let cardFill = Color.white.opacity(0.06)
+    /// Opaque surface for forms that sit over content (the reply sheet):
+    /// nothing may show through under text being typed.
+    static let sheetFill = Color(red: 0.11, green: 0.11, blue: 0.13)
     /// Raised controls (buttons, toggles, chips).
     static let raisedFill = Color.white.opacity(0.12)
 

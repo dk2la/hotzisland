@@ -22,10 +22,19 @@ final class EmailService {
     /// the view, so collapsing the panel mid-sentence keeps the draft.
     private(set) var isComposeOpen = false
     var composeTo = ""
+    /// Comma-separated, like the To field.
+    var composeCc = ""
     var composeSubject = ""
     var draft = ""
+    /// How the form was seeded; nil for new mail.
+    private(set) var composeMode: ReplyMode?
+    /// The message the draft was seeded from, so re-opening it keeps the
+    /// draft and opening another one clears it.
+    @ObservationIgnored private var composeSourceUID: UInt32?
     @ObservationIgnored private var composeInReplyTo: String?
     @ObservationIgnored private var composeReferences: [String] = []
+    /// The forwarded block currently at the end of the draft, if any.
+    @ObservationIgnored private var composeQuote: String?
     private(set) var isSending = false
     private(set) var didSend = false
     private(set) var sendError: String?
@@ -425,15 +434,23 @@ final class EmailService {
     private func resetComposer() {
         // A reply draft belongs to the previous message; a new-mail draft
         // survives navigation.
-        if composeInReplyTo != nil {
-            composeTo = ""
-            composeSubject = ""
-            draft = ""
-            composeInReplyTo = nil
-            composeReferences = []
+        if composeSourceUID != nil {
+            clearDraft()
         }
         sendError = nil
         didSend = false
+    }
+
+    private func clearDraft() {
+        composeTo = ""
+        composeCc = ""
+        composeSubject = ""
+        draft = ""
+        composeMode = nil
+        composeSourceUID = nil
+        composeInReplyTo = nil
+        composeReferences = []
+        composeQuote = nil
     }
 
     private func loadBody(for message: EmailMessage) {
@@ -507,31 +524,90 @@ final class EmailService {
 
     // MARK: - Compose
 
-    /// Reply to the open message: To and Subject prefilled, threading
-    /// headers carried over. Re-opening the same reply keeps its draft.
-    func startReply() {
+    /// Reply / Reply all / Forward the open message. Re-opening the same
+    /// message in the same mode keeps its draft; switching mode re-seeds
+    /// recipients, subject and threading but keeps the typed text.
+    func startReply(_ mode: ReplyMode = .reply) {
         guard let message = openMessage else { return }
-        if composeInReplyTo != message.messageID || composeTo != message.fromAddress {
-            composeTo = message.fromAddress
-            composeSubject = MailComposer.replySubject(message.subject)
-            draft = ""
-            composeInReplyTo = message.messageID
-            composeReferences = message.references
+        if composeSourceUID != message.uid {
+            clearDraft()
+            composeSourceUID = message.uid
+        }
+        if composeMode != mode {
+            seedCompose(mode, from: message)
         }
         sendError = nil
         didSend = false
         isComposeOpen = true
     }
 
+    private func seedCompose(_ mode: ReplyMode, from message: EmailMessage) {
+        // Leaving Forward takes its quoted block back out of the draft; the
+        // user's own words above it stay.
+        if let quote = composeQuote, draft.hasSuffix(quote) {
+            draft = String(draft.dropLast(quote.count))
+            composeQuote = nil
+        }
+        switch mode {
+        case .reply:
+            composeTo = message.replyTo ?? message.fromAddress
+            composeCc = ""
+            composeSubject = MailComposer.replySubject(message.subject)
+            composeInReplyTo = message.messageID
+            composeReferences = message.references
+        case .replyAll:
+            composeTo = message.replyTo ?? message.fromAddress
+            composeCc = replyAllRecipients(for: message).joined(separator: ", ")
+            composeSubject = MailComposer.replySubject(message.subject)
+            composeInReplyTo = message.messageID
+            composeReferences = message.references
+        case .forward:
+            composeTo = ""
+            composeCc = ""
+            composeSubject = MailComposer.forwardSubject(message.subject)
+            composeInReplyTo = nil
+            composeReferences = []
+            let quote = MailComposer.forwardQuote(
+                of: message,
+                text: forwardText(of: message),
+                headerLabel: L10n.t(.mailForwardedHeader)
+            )
+            draft = draft.trimmingCharacters(in: .whitespacesAndNewlines) + quote
+            composeQuote = quote
+        }
+        composeMode = mode
+    }
+
+    /// The readable text of a message for quoting: the plain part, else
+    /// the HTML flattened.
+    private func forwardText(of message: EmailMessage) -> String {
+        let current = messages.first { $0.uid == message.uid } ?? message
+        if let plain = current.bodyPlain, !plain.isEmpty { return plain }
+        if let html = current.bodyHTML {
+            return MIMEDecode.htmlToPlainText(html).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return ""
+    }
+
+    /// Everyone on the message besides its sender and this account,
+    /// first occurrence wins.
+    func replyAllRecipients(for message: EmailMessage) -> [String] {
+        var excluded = Set([message.fromAddress, message.replyTo ?? "", config?.email ?? ""].map { $0.lowercased() })
+        var result: [String] = []
+        for address in message.to + message.cc {
+            let key = address.lowercased()
+            guard !key.isEmpty, !excluded.contains(key) else { continue }
+            excluded.insert(key)
+            result.append(address)
+        }
+        return result
+    }
+
     /// Blank message. An unsent new-mail draft survives closing the form;
     /// only leftovers of a reply are cleared.
     func startNewMail() {
-        if composeInReplyTo != nil {
-            composeTo = ""
-            composeSubject = ""
-            draft = ""
-            composeInReplyTo = nil
-            composeReferences = []
+        if composeSourceUID != nil {
+            clearDraft()
         }
         sendError = nil
         didSend = false
@@ -546,11 +622,7 @@ final class EmailService {
     /// Cancel: the draft is gone.
     func discardCompose() {
         isComposeOpen = false
-        composeTo = ""
-        composeSubject = ""
-        draft = ""
-        composeInReplyTo = nil
-        composeReferences = []
+        clearDraft()
         sendError = nil
     }
 
@@ -558,6 +630,13 @@ final class EmailService {
         !isSending
             && composeTo.trimmingCharacters(in: .whitespaces).contains("@")
             && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// "a@x.com, b@y.com" → ["a@x.com", "b@y.com"]
+    private static func addressList(_ text: String) -> [String] {
+        text.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.contains("@") }
     }
 
     func sendCompose() {
@@ -569,6 +648,7 @@ final class EmailService {
         let mail = OutgoingMail(
             from: config.email,
             to: composeTo.trimmingCharacters(in: .whitespaces),
+            cc: Self.addressList(composeCc),
             subject: composeSubject.trimmingCharacters(in: .whitespacesAndNewlines),
             body: draft.trimmingCharacters(in: .whitespacesAndNewlines),
             inReplyTo: composeInReplyTo,

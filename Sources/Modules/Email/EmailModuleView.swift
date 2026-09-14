@@ -18,13 +18,44 @@ struct EmailModuleView: View {
     var body: some View {
         if service.config == nil {
             setupPrompt
-        } else if service.isComposeOpen {
+        } else if service.isComposeOpen, service.composeMode == nil {
             EmailComposeView(service: service, speech: speech)
         } else if let message = service.openMessage {
-            EmailMessageView(service: service, speech: speech, avatars: avatars, message: message)
+            messageWithReplySheet(message)
         } else {
             inbox
         }
+    }
+
+    /// Below this panel height the reply form takes the whole panel: a
+    /// split would leave neither half usable. Widen the widget to get both.
+    private static let splitMinHeight: CGFloat = 520
+
+    /// Reply/forward: the panel splits — the message keeps the top part and
+    /// stays fully scrollable there, the form owns the bottom part. Nothing
+    /// overlaps: the message's bottom edge is the form's top edge.
+    private func messageWithReplySheet(_ message: EmailMessage) -> some View {
+        GeometryReader { proxy in
+            let split = proxy.size.height >= Self.splitMinHeight
+            VStack(spacing: 0) {
+                if !service.isComposeOpen || split {
+                    EmailMessageView(service: service, speech: speech, avatars: avatars, message: message)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
+                if service.isComposeOpen {
+                    EmailReplySheet(service: service, speech: speech, roundedTop: split)
+                        .frame(height: split ? max(220, proxy.size.height * 0.55) : nil)
+                        .frame(maxHeight: split ? nil : .infinity)
+                        .transition(
+                            Theme.reduceMotion
+                                ? .opacity
+                                : .move(edge: .bottom).combined(with: .opacity)
+                        )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .animation(Theme.stateSpring, value: service.isComposeOpen)
     }
 
     private var setupPrompt: some View {
@@ -197,9 +228,9 @@ private struct SearchQueryField: View {
     }
 }
 
-/// One opened message: sender/subject block, the body, a Reply button that
-/// opens the compose form. Back, archive and open-in-Mail live in the panel
-/// header.
+/// One opened message: sender/subject block, the body, and Reply / Reply
+/// all / Forward buttons that open the reply sheet. Back, archive and
+/// open-in-Mail live in the panel header.
 struct EmailMessageView: View {
     var service: EmailService
     var speech: SpeechCaptureService
@@ -267,9 +298,16 @@ struct EmailMessageView: View {
             }
             .padding(10)
             .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-            HStack(spacing: 8) {
+            if !service.isComposeOpen {
+              HStack(spacing: 8) {
                 GlassCapsuleButton(label: L10n.t(.mailReply), systemName: "arrowshape.turn.up.left", isPrimary: true) {
-                    service.startReply()
+                    service.startReply(.reply)
+                }
+                GlassCapsuleButton(label: L10n.t(.mailReplyAll), systemName: "arrowshape.turn.up.left.2") {
+                    service.startReply(.replyAll)
+                }
+                GlassCapsuleButton(label: L10n.t(.mailForward), systemName: "arrowshape.turn.up.right") {
+                    service.startReply(.forward)
                 }
                 if service.didSend {
                     Label(L10n.t(.mailSent), systemImage: "checkmark")
@@ -278,8 +316,9 @@ struct EmailMessageView: View {
                         .transition(.opacity)
                 }
                 Spacer(minLength: 0)
+              }
+              .animation(Theme.stateSpring, value: service.didSend)
             }
-            .animation(Theme.stateSpring, value: service.didSend)
         }
         .onChange(of: message.uid) { showImages = false }
     }
@@ -393,5 +432,174 @@ struct EmailComposeView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
+    }
+}
+
+/// Compact reply/forward form shown as a bottom sheet over the open
+/// message: mode title with a close button, To / Cc / Subject rows, the
+/// body editor, then dictation and Cancel / Send. Close keeps the draft,
+/// Cancel discards it.
+struct EmailReplySheet: View {
+    var service: EmailService
+    var speech: SpeechCaptureService
+    /// Rounded top when the sheet sits under the message; square when it
+    /// fills the panel.
+    var roundedTop = true
+
+    @FocusState private var toFocused: Bool
+    @FocusState private var bodyFocused: Bool
+    /// Cc stays hidden until asked for or already filled (Reply all).
+    @State private var showCc = false
+
+    private var sheetShape: UnevenRoundedRectangle {
+        let radius: CGFloat = roundedTop ? Theme.cardRadius : 0
+        return UnevenRoundedRectangle(
+            topLeadingRadius: radius,
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: radius,
+            style: .continuous
+        )
+    }
+
+    private var title: String {
+        switch service.composeMode {
+        case .replyAll: L10n.t(.mailReplyAll)
+        case .forward: L10n.t(.mailForward)
+        case .reply, nil: L10n.t(.mailReply)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(Theme.headlineFont)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer(minLength: 0)
+                HeaderIconButton("xmark", help: L10n.t(.mailCancel)) {
+                    service.closeCompose()
+                }
+            }
+            VStack(spacing: 0) {
+                HStack(spacing: 6) {
+                    fieldRow(label: L10n.t(.mailToField), text: Bindable(service).composeTo, focus: $toFocused)
+                    if !ccVisible {
+                        Button {
+                            showCc = true
+                        } label: {
+                            Text(L10n.t(.mailCc))
+                                .font(Theme.captionFont)
+                                .foregroundStyle(Theme.textTertiary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Theme.raisedFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PressableStyle())
+                        .padding(.trailing, 10)
+                    }
+                }
+                if ccVisible {
+                    Hairline()
+                    fieldRow(label: L10n.t(.mailCc), text: Bindable(service).composeCc)
+                }
+                Hairline()
+                fieldRow(label: L10n.t(.mailSubjectField), text: Bindable(service).composeSubject)
+            }
+            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+            TextEditor(text: Bindable(service).draft)
+                .scrollContentBackground(.hidden)
+                .font(Theme.bodyFont)
+                .foregroundStyle(Theme.textPrimary)
+                .focused($bodyFocused)
+                .padding(6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+                .overlay(alignment: .topLeading) {
+                    if service.draft.isEmpty {
+                        Text(L10n.t(.mailReplyPlaceholder))
+                            .font(Theme.bodyFont)
+                            .foregroundStyle(Theme.textQuaternary)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 14)
+                            .allowsHitTesting(false)
+                    }
+                }
+            if let error = service.sendError {
+                Text(error)
+                    .font(Theme.subFont)
+                    .lineLimit(2)
+                    .foregroundStyle(Theme.critical)
+            }
+            SpeechStatusRow(speech: speech)
+            HStack(spacing: 8) {
+                SpeechMicControl(speech: speech) { text in
+                    service.draft = service.draft.isEmpty ? text : service.draft + " " + text
+                }
+                Spacer(minLength: 0)
+                GlassCapsuleButton(label: L10n.t(.mailCancel)) {
+                    service.discardCompose()
+                }
+                GlassCapsuleButton(
+                    label: service.isSending ? L10n.t(.mailSending) : L10n.t(.mailSend),
+                    isPrimary: true,
+                    enabled: service.canSendCompose
+                ) {
+                    service.sendCompose()
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Opaque on purpose: text being typed must never compete with the
+        // message underneath — that one is scrolled in its own half.
+        .background(sheetShape.fill(Theme.sheetFill))
+        .overlay(alignment: .top) {
+            Hairline(color: Theme.hairline)
+        }
+        .clipShape(sheetShape)
+        .animation(Theme.stateSpring, value: speech.isRecording)
+        .animation(Theme.stateSpring, value: ccVisible)
+        .onAppear {
+            showCc = !service.composeCc.isEmpty
+            if service.composeTo.isEmpty {
+                toFocused = true
+            } else {
+                bodyFocused = true
+            }
+        }
+        .onChange(of: service.composeMode) {
+            if !service.composeCc.isEmpty { showCc = true }
+        }
+    }
+
+    private var ccVisible: Bool {
+        showCc || !service.composeCc.isEmpty
+    }
+
+    private func fieldRow(
+        label: String,
+        text: Binding<String>,
+        focus: FocusState<Bool>.Binding? = nil
+    ) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(Theme.captionFont)
+                .foregroundStyle(Theme.textQuaternary)
+                .frame(width: 44, alignment: .leading)
+            Group {
+                if let focus {
+                    TextField("", text: text).focused(focus)
+                } else {
+                    TextField("", text: text)
+                }
+            }
+            .textFieldStyle(.plain)
+            .font(Theme.bodyFont)
+            .foregroundStyle(Theme.textPrimary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
     }
 }

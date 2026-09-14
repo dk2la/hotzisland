@@ -138,6 +138,9 @@ enum IMAPParser {
         var subject: String
         var fromName: String
         var fromAddress: String
+        var replyTo: String?
+        var to: [String] = []
+        var cc: [String] = []
         var messageID: String?
         var inReplyTo: String?
     }
@@ -210,9 +213,26 @@ enum IMAPParser {
                 envelope.fromName = envelope.fromAddress
             }
         }
+        envelope.replyTo = addresses(fields[4]).first
+        envelope.to = addresses(fields[5])
+        envelope.cc = addresses(fields[6])
         envelope.inReplyTo = fields[8].text
         envelope.messageID = fields[9].text
         return envelope
+    }
+
+    /// Plain "mailbox@host" strings from an envelope address list. Group
+    /// markers (RFC 3501: a NIL host) carry no deliverable address and are
+    /// dropped; so is a NIL list.
+    private static func addresses(_ value: IMAPValue) -> [String] {
+        guard let list = value.items else { return [] }
+        return list.compactMap { entry -> String? in
+            guard let parts = entry.items, parts.count >= 4,
+                  let mailbox = parts[2].text, !mailbox.isEmpty,
+                  let host = parts[3].text, !host.isEmpty
+            else { return nil }
+            return "\(mailbox)@\(host)"
+        }
     }
 
     /// Picks the part to show. HTML wins over the plain alternative: the

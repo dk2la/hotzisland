@@ -56,6 +56,11 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
     var subject: String
     var fromName: String
     var fromAddress: String
+    /// Plain addresses from the envelope: where replies are asked to go,
+    /// and who else was on the message (for Reply all).
+    var replyTo: String?
+    var to: [String] = []
+    var cc: [String] = []
     var date: Date
     var isUnread: Bool
     var messageID: String?
@@ -87,10 +92,18 @@ struct MessageBody: Sendable {
     var html: String?
 }
 
+/// How a compose form was seeded from an open message; nil means new mail.
+enum ReplyMode: Equatable, Sendable {
+    case reply
+    case replyAll
+    case forward
+}
+
 /// A reply ready for the wire.
 struct OutgoingMail: Sendable {
     var from: String
     var to: String
+    var cc: [String] = []
     var subject: String
     var body: String
     var inReplyTo: String?

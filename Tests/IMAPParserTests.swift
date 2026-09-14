@@ -25,6 +25,25 @@ final class IMAPParserTests: XCTestCase {
         XCTAssertEqual(envelope.fromName, "Google")
         XCTAssertEqual(envelope.fromAddress, "no-reply@accounts.google.com")
         XCTAssertEqual(envelope.messageID, "<abc123@mail.gmail.com>")
+        XCTAssertEqual(envelope.to, ["d.kzlv2la@gmail.com"])
+        XCTAssertEqual(envelope.cc, [], "a NIL cc list is simply empty")
+        XCTAssertEqual(envelope.replyTo, "no-reply@accounts.google.com")
+    }
+
+    /// Reply all needs everyone on the message: Reply-To, every To and Cc.
+    func testEnvelopeRecipientLists() throws {
+        let unit = "* 11 FETCH (UID 12351 FLAGS () ENVELOPE (\"Tue, 26 Aug 2026 09:00:00 +0300\" \"Plan\" "
+            + "((\"Anna\" NIL \"anna\" \"acme.io\")) ((\"Anna\" NIL \"anna\" \"acme.io\")) "
+            + "((\"Team\" NIL \"team\" \"acme.io\")) "
+            + "((NIL NIL \"d.kzlv2la\" \"gmail.com\")(\"Boris\" NIL \"boris\" \"acme.io\")) "
+            + "((\"Chen\" NIL \"chen\" \"acme.io\")(NIL NIL \"dana\" \"example.org\")) "
+            + "NIL NIL \"<plan@acme.io>\") "
+            + "BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"UTF-8\") NIL NIL \"7BIT\" 100 3 NIL NIL NIL NIL))\r\n"
+        let envelope = try XCTUnwrap(IMAPParser.parseFetch(Data(unit.utf8))?.envelope)
+        XCTAssertEqual(envelope.fromAddress, "anna@acme.io")
+        XCTAssertEqual(envelope.replyTo, "team@acme.io")
+        XCTAssertEqual(envelope.to, ["d.kzlv2la@gmail.com", "boris@acme.io"])
+        XCTAssertEqual(envelope.cc, ["chen@acme.io", "dana@example.org"])
     }
 
     /// The widget renders HTML, so the HTML alternative wins: senders'

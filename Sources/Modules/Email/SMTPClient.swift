@@ -53,7 +53,14 @@ actor SMTPClient {
 
     func send(_ mail: OutgoingMail) async throws {
         _ = try await command("MAIL FROM:<\(mail.from)>", expecting: [250])
-        _ = try await command("RCPT TO:<\(mail.to)>", expecting: [250, 251])
+        // One RCPT per address: To may hold a comma-separated list, Cc is
+        // already split.
+        let recipients = (mail.to.split(separator: ",").map(String.init) + mail.cc)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        for recipient in recipients {
+            _ = try await command("RCPT TO:<\(recipient)>", expecting: [250, 251])
+        }
         _ = try await command("DATA", expecting: [354])
         // The composed message ends with CRLF, so "." lands on its own line.
         try await transport.send(Data(MailComposer.rfc5322(mail).utf8))

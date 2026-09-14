@@ -114,6 +114,7 @@ enum L10nKey {
     case mailImapHost, mailSmtpHost
     case mailCheck, mailChecking, mailCheckOk, mailSave, mailRemove
     case mailReply, mailReplyPlaceholder, mailSend, mailSending, mailSent, mailCancel, mailShowImages, mailHideImages
+    case mailReplyAll, mailForward, mailCc, mailForwardedHeader
     case mailSearchPlaceholder, mailNoResults, mailArchive, mailRefresh, mailSearch
     case mailToField, mailSubjectField, mailNewMessage, mailBodyPlaceholder
 
@@ -219,6 +220,10 @@ enum L10nKey {
         case .mailNoBody: return ["(no text)", "(нет текста)", "(pas de texte)", "(sin texto)", "（无正文）", "(sem texto)", "(kein Text)", "(nessun testo)", "（本文なし）", "(본문 없음)"]
         case .mailNoSubject: return ["(no subject)", "(без темы)", "(sans objet)", "(sin asunto)", "（无主题）", "(sem assunto)", "(kein Betreff)", "(nessun oggetto)", "（件名なし）", "(제목 없음)"]
         case .mailReply: return ["Reply", "Ответить", "Répondre", "Responder", "回复", "Responder", "Antworten", "Rispondi", "返信", "답장"]
+        case .mailReplyAll: return ["Reply all", "Ответить всем", "Répondre à tous", "Responder a todos", "全部回复", "Responder a todos", "Allen antworten", "Rispondi a tutti", "全員に返信", "전체 답장"]
+        case .mailForward: return ["Forward", "Переслать", "Transférer", "Reenviar", "转发", "Reencaminhar", "Weiterleiten", "Inoltra", "転送", "전달"]
+        case .mailCc: return ["Cc", "Копия", "Cc", "Cc", "抄送", "Cc", "Cc", "Cc", "Cc", "참조"]
+        case .mailForwardedHeader: return ["Forwarded message", "Пересланное сообщение", "Message transféré", "Mensaje reenviado", "转发的邮件", "Mensagem reencaminhada", "Weitergeleitete Nachricht", "Messaggio inoltrato", "転送メッセージ", "전달된 메시지"]
         case .mailReplyPlaceholder: return ["Your reply…", "Ваш ответ…", "Votre réponse…", "Tu respuesta…", "你的回复…", "A sua resposta…", "Ihre Antwort…", "La tua risposta…", "返信を入力…", "답장 입력…"]
         case .mailSend: return ["Send", "Отправить", "Envoyer", "Enviar", "发送", "Enviar", "Senden", "Invia", "送信", "보내기"]
         case .mailSending: return ["Sending…", "Отправка…", "Envoi…", "Enviando…", "发送中…", "A enviar…", "Senden…", "Invio…", "送信中…", "보내는 중…"]
