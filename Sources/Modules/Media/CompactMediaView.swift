@@ -2,6 +2,10 @@ import SwiftUI
 
 /// Closed-island playback indicator: amber dot while playing (dim when
 /// paused), mono remaining time on the right.
+///
+/// The remaining time is derived from the track's timing sample on a
+/// one-second `TimelineView` — the tick only runs while this view is on
+/// screen and never touches the model.
 struct CompactMediaView: View {
     let track: MediaTrack
     let artwork: NSImage?
@@ -12,9 +16,11 @@ struct CompactMediaView: View {
                 .fill(track.isPlaying ? Theme.accent : Theme.segmentOff)
                 .frame(width: 6, height: 6)
             Spacer(minLength: 0)
-            Text("−" + TimeFormat.mmss(track.duration - track.position))
-                .font(Theme.smallValueFont)
-                .foregroundStyle(Theme.textSecondary)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text("−" + TimeFormat.mmss(track.duration - track.position(at: context.date)))
+                    .font(Theme.smallValueFont)
+                    .foregroundStyle(Theme.textSecondary)
+            }
         }
         .padding(.horizontal, 14)
     }

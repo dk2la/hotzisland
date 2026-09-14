@@ -2,6 +2,7 @@ import CoreAudio
 import AudioToolbox
 import Foundation
 import Observation
+import OSLog
 
 /// Watches the default audio output device and its volume. Keeps observable
 /// state for module views, emits events on device/volume changes, and can
@@ -15,6 +16,9 @@ final class AudioSystemMonitor {
     @ObservationIgnored var onEvent: ((LiveEvent) -> Void)?
 
     @ObservationIgnored private var deviceID = AudioObjectID(kAudioObjectUnknown)
+    /// Default level (persisted by the unified log) on purpose: audio
+    /// glitches are diagnosed after the fact from `log show`.
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "audio")
     /// The first device-change callback fires for the device present at
     /// launch — that one should not produce a visible event.
     @ObservationIgnored private var suppressInitialDeviceEvent = true
@@ -69,6 +73,7 @@ final class AudioSystemMonitor {
         AudioObjectAddPropertyListenerBlock(deviceID, &volumeAddress, .main, volumeListener)
         currentDeviceName = deviceName(deviceID)
         refreshVolume()
+        log.notice("default output -> \(self.currentDeviceName ?? "?", privacy: .public) id=\(newID, privacy: .public) volume=\(self.volume, privacy: .public)")
 
         if suppressInitialDeviceEvent {
             suppressInitialDeviceEvent = false
@@ -98,6 +103,7 @@ final class AudioSystemMonitor {
         var value = Float32(min(max(level, 0), 1))
         let size = UInt32(MemoryLayout<Float32>.size)
         let status = AudioObjectSetPropertyData(deviceID, &volumeAddress, 0, nil, size, &value)
+        log.notice("set volume \(value, privacy: .public) status=\(status, privacy: .public)")
         if status == noErr {
             volume = Double(value)
         }

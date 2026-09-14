@@ -10,6 +10,11 @@ actor IMAPClient {
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
     /// Cap for the structure-free body fetch (256 KB).
     private static let bodyByteLimit = 262_144
+    /// What the server advertised: the greeting's `[CAPABILITY …]` code, an
+    /// untagged `* CAPABILITY` (Gmail pushes one right after LOGIN, Dovecot
+    /// puts it in the tagged OK) or the reply to an explicit CAPABILITY.
+    /// nil until the server has said anything at all.
+    private(set) var capabilities: Set<String>?
 
     init(host: String, port: UInt16) {
         self.init(transport: TLSTransport(host: host, port: port))
@@ -30,6 +35,15 @@ actor IMAPClient {
         guard text.uppercased().contains("OK") else {
             throw MailError.badResponse(text.trimmingCharacters(in: .whitespacesAndNewlines))
         }
+        noteCapabilities(in: greeting)
+    }
+
+    var supportsIdle: Bool { capabilities?.contains("IDLE") ?? false }
+
+    /// Asks explicitly — for servers whose greeting and LOGIN reply carry no
+    /// capability list.
+    func fetchCapabilities() async throws {
+        _ = try await command("CAPABILITY")
     }
 
     func login(user: String, password: String) async throws {
@@ -223,8 +237,155 @@ actor IMAPClient {
     }
 
     func logout() async {
-        _ = try? await command("LOGOUT")
+        // A pending idle read owns the socket and would swallow LOGOUT's
+        // reply; a session that is still idling is simply dropped.
+        if idleTag == nil {
+            _ = try? await command("LOGOUT")
+        }
         await transport.close()
+    }
+
+    /// Closes the socket without LOGOUT. Used to unblock an idle read that
+    /// DONE could not end (dead server) and to discard a dead connection.
+    func dropConnection() async {
+        await transport.close()
+    }
+
+    // MARK: - IDLE (RFC 2177)
+
+    /// A mailbox change pushed by the server while idling.
+    enum IdleEvent: Sendable, Equatable, CustomStringConvertible {
+        /// `* n EXISTS` — message count is now n (new mail, usually).
+        case exists(Int)
+        /// `* n EXPUNGE` — message n is gone.
+        case expunge(Int)
+        /// `* n FETCH (FLAGS …)` — message n's flags changed (read elsewhere).
+        case flags(Int)
+
+        var description: String {
+            switch self {
+            case .exists(let n): "exists \(n)"
+            case .expunge(let n): "expunge \(n)"
+            case .flags(let n): "flags \(n)"
+            }
+        }
+    }
+
+    /// Tag of the IDLE command in flight; nil when not idling.
+    private var idleTag: String?
+    private var idleDoneSent = false
+    /// Untagged updates the server pushed ahead of its `+` continuation.
+    private var pendingIdleEvents: [IdleEvent] = []
+    /// One slice of the open-ended idle wait. A timeout is not an error
+    /// here — the loop just checks for cancellation and reads again — so
+    /// this is only how often a cancelled idle notices.
+    private static let idleReadTimeout: Duration = .seconds(60)
+
+    var isIdling: Bool { idleTag != nil }
+
+    /// IDLE start to finish: sends the command, then reports mailbox changes
+    /// through `onEvent` until `stopIdle()` ends it (returns) or the server
+    /// goes away (throws). The actor is reentrant at the read, which is
+    /// exactly how `stopIdle` gets in while this is blocked.
+    func idle(onEvent: @escaping @Sendable (IdleEvent) -> Void) async throws {
+        try await beginIdle()
+        try await awaitIdle(onEvent: onEvent)
+    }
+
+    /// Sends IDLE and waits for the server's `+` continuation. Split from
+    /// `awaitIdle` so a caller can serialize the start against other commands
+    /// and then leave the open-ended wait to a side task.
+    func beginIdle() async throws {
+        guard idleTag == nil else { throw MailError.badResponse("IDLE already running") }
+        tagCounter += 1
+        let tag = "A\(tagCounter)"
+        idleTag = tag
+        idleDoneSent = false
+        pendingIdleEvents = []
+        do {
+            try await transport.send(Data("\(tag) IDLE\r\n".utf8))
+            while true {
+                let unit = try await readUnit()
+                let line = String(decoding: unit.prefix(200), as: UTF8.self)
+                if line.hasPrefix("+") {
+                    return
+                }
+                if line.hasPrefix("\(tag) ") {
+                    // OK without a continuation is as wrong as NO/BAD.
+                    throw MailError.badResponse(Self.taggedMessage(line, tag: tag))
+                }
+                if Self.isBye(line) {
+                    throw MailError.connectionClosed
+                }
+                if let event = Self.idleEvent(in: line) {
+                    pendingIdleEvents.append(event)
+                }
+            }
+        } catch {
+            idleTag = nil
+            throw error
+        }
+    }
+
+    /// The wait half of IDLE: reads until the tagged completion that DONE
+    /// provokes. `* BYE` is the server hanging up.
+    func awaitIdle(onEvent: @escaping @Sendable (IdleEvent) -> Void) async throws {
+        guard let tag = idleTag else { return }
+        defer { idleTag = nil }
+        for event in pendingIdleEvents {
+            onEvent(event)
+        }
+        pendingIdleEvents = []
+        while true {
+            let unit: Data
+            do {
+                unit = try await readUnit(timeout: Self.idleReadTimeout)
+            } catch MailError.timeout {
+                try Task.checkCancellation()
+                continue
+            }
+            let line = String(decoding: unit.prefix(200), as: UTF8.self)
+            if line.hasPrefix("\(tag) ") {
+                if line.uppercased().hasPrefix("\(tag) OK") {
+                    return
+                }
+                throw MailError.badResponse(Self.taggedMessage(line, tag: tag))
+            }
+            if Self.isBye(line) {
+                throw MailError.connectionClosed
+            }
+            if let event = Self.idleEvent(in: line) {
+                onEvent(event)
+            }
+        }
+    }
+
+    /// Writes DONE; the running `awaitIdle` then returns on the tagged OK.
+    /// Idempotent — a second call while the first is pending is a no-op.
+    func stopIdle() async throws {
+        guard idleTag != nil, !idleDoneSent else { return }
+        idleDoneSent = true
+        try await transport.send(Data("DONE\r\n".utf8))
+    }
+
+    private static func isBye(_ line: String) -> Bool {
+        line.uppercased().hasPrefix("* BYE")
+    }
+
+    private static func taggedMessage(_ line: String, tag: String) -> String {
+        line.dropFirst(tag.count + 1).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// "* 5 EXISTS", "* 3 EXPUNGE", "* 2 FETCH (FLAGS (\\Seen))" → event.
+    private static func idleEvent(in line: String) -> IdleEvent? {
+        let parts = line.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
+        guard parts.count >= 3, parts[0] == "*", let number = Int(parts[1]) else { return nil }
+        switch parts[2].trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "EXISTS": return .exists(number)
+        case "EXPUNGE": return .expunge(number)
+        case "FETCH": return line.uppercased().contains("FLAGS") ? .flags(number) : nil
+        default: return nil
+        }
     }
 
     // MARK: - Wire protocol
@@ -260,6 +421,7 @@ actor IMAPClient {
         while true {
             let unit = try await readUnit(timeout: timeout)
             let line = String(decoding: unit.prefix(200), as: UTF8.self)
+            noteCapabilities(in: unit)
             if line.hasPrefix("\(tag) ") {
                 let upper = line.uppercased()
                 if upper.hasPrefix("\(tag) OK") {
@@ -288,6 +450,26 @@ actor IMAPClient {
             let payload = try await transport.read(exactly: size)
             unit.append(payload)
         }
+    }
+
+    /// Picks a capability list out of `* CAPABILITY …` or a `[CAPABILITY …]`
+    /// response code, wherever it appears. The 200-byte peek only decides
+    /// whether to look; the list itself can run longer than that.
+    private func noteCapabilities(in unit: Data) {
+        let head = String(decoding: unit.prefix(200), as: UTF8.self).uppercased()
+        guard head.hasPrefix("* CAPABILITY ") || head.contains("[CAPABILITY ") else { return }
+        let end = unit.firstIndex(of: 13) ?? unit.endIndex
+        let line = String(decoding: unit[unit.startIndex..<end], as: UTF8.self).uppercased()
+        let list: Substring
+        if line.hasPrefix("* CAPABILITY ") {
+            list = line.dropFirst("* CAPABILITY ".count)
+        } else if let open = line.range(of: "[CAPABILITY "),
+                  let close = line[open.upperBound...].firstIndex(of: "]") {
+            list = line[open.upperBound..<close]
+        } else {
+            return
+        }
+        capabilities = Set(list.split(separator: " ").map(String.init))
     }
 
     /// "… {123}\r\n" → 123

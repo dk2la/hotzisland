@@ -13,6 +13,7 @@ extension EmailMessage {
 struct EmailModuleView: View {
     var service: EmailService
     var speech: SpeechCaptureService
+    var avatars: SenderAvatarStore
 
     var body: some View {
         if service.config == nil {
@@ -20,7 +21,7 @@ struct EmailModuleView: View {
         } else if service.isComposeOpen {
             EmailComposeView(service: service, speech: speech)
         } else if let message = service.openMessage {
-            EmailMessageView(service: service, speech: speech, message: message)
+            EmailMessageView(service: service, speech: speech, avatars: avatars, message: message)
         } else {
             inbox
         }
@@ -131,9 +132,16 @@ struct EmailModuleView: View {
             service.open(message)
         } label: {
             HStack(alignment: .center, spacing: 10) {
-                Circle()
-                    .fill(message.isUnread ? Theme.critical : .clear)
-                    .frame(width: 5, height: 5)
+                SenderAvatarView(name: message.fromName, address: message.fromAddress, store: avatars)
+                    .overlay(alignment: .topTrailing) {
+                        if message.isUnread {
+                            Circle()
+                                .fill(Theme.critical)
+                                .frame(width: 8, height: 8)
+                                .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1.5))
+                                .offset(x: 2, y: -2)
+                        }
+                    }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(message.fromName)
                         .font(Theme.bodyFont)
@@ -195,6 +203,7 @@ private struct SearchQueryField: View {
 struct EmailMessageView: View {
     var service: EmailService
     var speech: SpeechCaptureService
+    var avatars: SenderAvatarStore
     let message: EmailMessage
 
     /// Remote content stays off until the user asks for it, per message —
@@ -204,20 +213,23 @@ struct EmailMessageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(message.fromName)
-                        .font(Theme.headlineFont)
-                        .lineLimit(1)
-                        .foregroundStyle(Theme.textPrimary)
+                HStack(alignment: .center, spacing: 10) {
+                    SenderAvatarView(name: message.fromName, address: message.fromAddress, size: 36, store: avatars)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(message.fromName)
+                            .font(Theme.headlineFont)
+                            .lineLimit(1)
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(message.fromAddress)
+                            .font(Theme.captionFont)
+                            .lineLimit(1)
+                            .foregroundStyle(Theme.textQuaternary)
+                    }
                     Spacer(minLength: 0)
                     Text(EmailModuleView.time(message.date))
                         .font(Theme.readoutSFont)
                         .foregroundStyle(Theme.textQuaternary)
                 }
-                Text(message.fromAddress)
-                    .font(Theme.captionFont)
-                    .lineLimit(1)
-                    .foregroundStyle(Theme.textQuaternary)
                 Text(message.displaySubject)
                     .font(Theme.titleFont)
                     .lineLimit(2)

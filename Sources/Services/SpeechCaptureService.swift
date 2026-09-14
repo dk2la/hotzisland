@@ -35,7 +35,11 @@ final class SpeechCaptureService {
     private(set) var startedAt: Date?
 
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "speech")
-    @ObservationIgnored private let engine = AVAudioEngine()
+    /// Created per dictation and dropped on stop. A stopped AVAudioEngine
+    /// keeps its input unit — and therefore the microphone — open; on
+    /// Bluetooth headsets that pins the low-quality hands-free profile and
+    /// degrades every other app's audio until the engine is deallocated.
+    @ObservationIgnored private var engine: AVAudioEngine?
     @ObservationIgnored private var recognizer: SFSpeechRecognizer?
     @ObservationIgnored private var task: SFSpeechRecognitionTask?
     @ObservationIgnored private let requestBox = SpeechRequestBox()
@@ -98,7 +102,7 @@ final class SpeechCaptureService {
         phase = .recording
         scheduleRestart()
         startStallWatcher()
-        log.info("recording locale=\(locale.identifier, privacy: .public) onDevice=\(recognizer.supportsOnDeviceRecognition, privacy: .public)")
+        log.notice("recording locale=\(locale.identifier, privacy: .public) onDevice=\(recognizer.supportsOnDeviceRecognition, privacy: .public)")
     }
 
     /// Stops the engine and returns the final transcript.
@@ -114,15 +118,14 @@ final class SpeechCaptureService {
         task?.cancel()
         task = nil
         requestBox.request = nil
-        engine.stop()
-        engine.inputNode.removeTap(onBus: 0)
+        releaseEngine()
         let final = composedTranscript()
         prefix = ""
         segment = ""
         transcript = ""
         startedAt = nil
         phase = .idle
-        log.info("stopped chars=\(final.count, privacy: .public)")
+        log.notice("stopped chars=\(final.count, privacy: .public)")
         return final
     }
 
@@ -134,13 +137,14 @@ final class SpeechCaptureService {
     }
 
     private func startEngineTap() throws {
+        releaseEngine()
+        let engine = AVAudioEngine()
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw MailError.badResponse("no audio input device")
         }
         let box = requestBox
-        input.removeTap(onBus: 0)
         // @Sendable: the tap runs on the audio thread — it must not inherit
         // MainActor isolation (Swift 6 would trap on the executor check).
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { @Sendable buffer, _ in
@@ -148,6 +152,19 @@ final class SpeechCaptureService {
         }
         engine.prepare()
         try engine.start()
+        self.engine = engine
+        log.notice("audio engine started rate=\(format.sampleRate, privacy: .public) ch=\(format.channelCount, privacy: .public)")
+    }
+
+    /// Stops and discards the engine so the input unit closes and the
+    /// microphone is handed back to the system.
+    private func releaseEngine() {
+        guard let engine else { return }
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        engine.reset()
+        self.engine = nil
+        log.notice("audio engine released")
     }
 
     private func beginSegment() {

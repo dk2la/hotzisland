@@ -56,8 +56,12 @@ final class MailSessionTests: XCTestCase {
 
     /// Greeting, LOGIN and SELECT — what `open()` needs on a fresh socket.
     /// Tags start at A1 because every transport gets its own client.
-    private func scriptOpen(_ transport: FakeMailTransport, exists: Int = 1) async {
-        await transport.enqueueGreeting()
+    private func scriptOpen(
+        _ transport: FakeMailTransport,
+        exists: Int = 1,
+        capabilities: String? = nil
+    ) async {
+        await transport.enqueueGreeting(capabilities: capabilities)
         await transport.enqueueResponse(tag: "A1", status: "OK LOGIN completed")
         await transport.enqueueResponse(tag: "A2", untagged: ["* \(exists) EXISTS"], status: "OK SELECT completed")
     }
@@ -190,5 +194,135 @@ final class MailSessionTests: XCTestCase {
         XCTAssertEqual(factory.count, 1, "a NO/BAD is a protocol answer, and a repeated MOVE could act twice")
         let written = await transport.written
         XCTAssertEqual(written.last, "A3 UID MOVE 9 \"Archive\"")
+    }
+
+    // MARK: - IDLE
+
+    /// A command arriving mid-IDLE ends the idle first (DONE, tagged OK),
+    /// runs, and the re-entered idle queues behind it.
+    func testRunWhileIdlingStopsIdleFirstAndIdleResumesAfter() async throws {
+        let transport = FakeMailTransport()
+        await scriptOpen(transport, capabilities: "IMAP4rev1 IDLE")
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueHold()
+        let factory = TransportFactory([transport])
+        let session = makeSession(factory)
+        let recorder = Recorder()
+        let open = "A1 LOGIN \"u\" \"p\""
+
+        let firstIdle = Task {
+            try await session.idle { event in
+                Task { await recorder.add("event \(event)") }
+            }
+        }
+        await waitUntil { await transport.written.last == "A3 IDLE" }
+
+        let ping = Task {
+            try await session.run { client in
+                await recorder.add("ping")
+                try await client.ping()
+            }
+        }
+        await waitUntil { await transport.written.last == "DONE" }
+        let midway = await transport.written
+        XCTAssertEqual(midway, [open, "A2 SELECT INBOX", "A3 IDLE", "DONE"], "NOOP must wait for the idle to end")
+        let bodyStarted = await recorder.events
+        XCTAssertEqual(bodyStarted, [], "the body runs only after the tagged OK")
+
+        await transport.enqueueLine("A3 OK IDLE terminated")
+        await transport.enqueueResponse(tag: "A4", status: "OK NOOP completed")
+        try await ping.value
+        try await firstIdle.value
+
+        // Re-entering: a fresh IDLE on the same connection.
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueHold()
+        let secondIdle = Task { try await session.idle { _ in } }
+        await waitUntil { await transport.written.last == "A5 IDLE" }
+        let written = await transport.written
+        XCTAssertEqual(written, [open, "A2 SELECT INBOX", "A3 IDLE", "DONE", "A4 NOOP", "A5 IDLE"])
+        XCTAssertEqual(factory.count, 1, "one connection throughout")
+
+        // close() ends the idle the same way, then logs out.
+        let closing = Task { await session.close() }
+        await waitUntil { await transport.written.last == "DONE" }
+        await transport.enqueueLine("A5 OK IDLE terminated")
+        await transport.enqueueResponse(tag: "A6", untagged: ["* BYE"], status: "OK LOGOUT completed")
+        await closing.value
+        try await secondIdle.value
+        let final = await transport.written
+        XCTAssertEqual(final.suffix(3), ["A5 IDLE", "DONE", "A6 LOGOUT"])
+    }
+
+    /// Events reach the caller while idling; a `* BYE` ends the idle with
+    /// `connectionClosed` and the next command reconnects.
+    func testIdleDeliversEventsAndByeSurfacesAsConnectionClosed() async throws {
+        let stale = FakeMailTransport()
+        await scriptOpen(stale)
+        // Capabilities were not in the greeting: the session asks.
+        await stale.enqueueResponse(tag: "A3", untagged: ["* CAPABILITY IMAP4rev1 IDLE"], status: "OK done")
+        await stale.enqueueLine("+ idling")
+        await stale.enqueueLine("* 7 EXISTS")
+        await stale.enqueueLine("* BYE Shutting down")
+        let fresh = FakeMailTransport()
+        await scriptOpen(fresh, exists: 7)
+        await fresh.enqueueResponse(tag: "A3", status: "OK NOOP completed")
+        let factory = TransportFactory([stale, fresh])
+        let session = makeSession(factory)
+        let recorder = Recorder()
+
+        do {
+            try await session.idle { event in
+                Task { await recorder.add("event \(event)") }
+            }
+            XCTFail("expected connectionClosed")
+        } catch MailError.connectionClosed {
+            // expected
+        }
+        await waitUntil { await recorder.events == ["event exists 7"] }
+        let events = await recorder.events
+        XCTAssertEqual(events, ["event exists 7"])
+        // The dead socket is logged out (best effort) and dropped.
+        let staleWritten = await stale.written
+        XCTAssertEqual(staleWritten.suffix(3), ["A3 CAPABILITY", "A4 IDLE", "A5 LOGOUT"])
+
+        try await session.run { try await $0.ping() }
+        XCTAssertEqual(factory.count, 2, "the dead connection is replaced")
+    }
+
+    func testIdleOnServerWithoutIdleThrowsUnsupported() async throws {
+        let transport = FakeMailTransport()
+        await scriptOpen(transport, capabilities: "IMAP4rev1 AUTH=PLAIN")
+        let factory = TransportFactory([transport])
+        let session = makeSession(factory)
+
+        do {
+            try await session.idle { _ in }
+            XCTFail("expected idleUnsupported")
+        } catch MailSessionError.idleUnsupported {
+            // expected
+        }
+        let written = await transport.written
+        XCTAssertEqual(written.count, 2, "no IDLE (and no CAPABILITY round trip: the greeting had it)")
+    }
+
+    /// Cancelling the calling task ends the idle cleanly — DONE, tagged OK —
+    /// and returns rather than throwing.
+    func testCancellingTheCallerStopsIdle() async throws {
+        let transport = FakeMailTransport()
+        await scriptOpen(transport, capabilities: "IMAP4rev1 IDLE")
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueHold()
+        let factory = TransportFactory([transport])
+        let session = makeSession(factory)
+
+        let idle = Task { try await session.idle { _ in } }
+        await waitUntil { await transport.written.last == "A3 IDLE" }
+        idle.cancel()
+        await waitUntil { await transport.written.last == "DONE" }
+        await transport.enqueueLine("A3 OK IDLE terminated")
+
+        try await idle.value
+        XCTAssertEqual(factory.count, 1)
     }
 }

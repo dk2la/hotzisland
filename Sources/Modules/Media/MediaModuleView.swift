@@ -26,21 +26,7 @@ struct MediaModuleView: View {
                             .foregroundStyle(Theme.textTertiary)
                             .padding(.top, 2)
                     }
-                    ScrubberBar(
-                        fraction: track.duration > 0 ? track.position / track.duration : 0
-                    ) { target in
-                        media.seek(toFraction: target)
-                    }
-                    .disabled(!media.canControlActive)
-                    .padding(.top, 8)
-                    HStack {
-                        Text(TimeFormat.mmss(track.position))
-                        Spacer()
-                        Text("−" + TimeFormat.mmss(track.duration - track.position))
-                    }
-                    .font(Theme.readoutSFont)
-                    .foregroundStyle(Theme.textTertiary)
-                    .padding(.top, 5)
+                    progress(for: track)
                     transport(for: track)
                         .padding(.top, 10)
                 }
@@ -55,6 +41,33 @@ struct MediaModuleView: View {
                     .frame(maxHeight: 110)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Scrubber and time readouts. Progress is derived from the track's
+    /// timing sample on a one-second `TimelineView`, so only this subtree
+    /// re-renders per tick (and only while the module is on screen); the
+    /// title, artwork and transport above and below stay untouched.
+    private func progress(for track: MediaTrack) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let position = track.position(at: context.date)
+            VStack(alignment: .leading, spacing: 0) {
+                ScrubberBar(
+                    fraction: track.duration > 0 ? position / track.duration : 0
+                ) { target in
+                    media.seek(toFraction: target)
+                }
+                .disabled(!media.canControlActive)
+                .padding(.top, 8)
+                HStack {
+                    Text(TimeFormat.mmss(position))
+                    Spacer()
+                    Text("−" + TimeFormat.mmss(track.duration - position))
+                }
+                .font(Theme.readoutSFont)
+                .foregroundStyle(Theme.textTertiary)
+                .padding(.top, 5)
+            }
         }
     }
 

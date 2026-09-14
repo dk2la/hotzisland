@@ -3,8 +3,9 @@ import Foundation
 import Observation
 import OSLog
 
-/// "Email" module service: single IMAP account, 90s poll, stateless
-/// sessions (connect → login → select → search → fetch → logout). Errors
+/// "Email" module service: single IMAP account on two long-lived sessions.
+/// New mail arrives by IMAP IDLE when the server offers it; the 90s poll
+/// is the fallback (and the only refresh source while not idling). Errors
 /// keep the last good message list on screen.
 @MainActor
 @Observable
@@ -48,7 +49,22 @@ final class EmailService {
     /// behind a poll that is streaming 30 message headers.
     @ObservationIgnored private var pollSession: MailSession?
     @ObservationIgnored private var userSession: MailSession?
+    /// The IDLE loop on the poll session; nil while polling.
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
+    /// Bumped whenever the loop is (re)started so a finished loop only
+    /// clears its own handle, never a successor's.
+    @ObservationIgnored private var idleGeneration = 0
+    /// nil until the server has answered CAPABILITY; false pins the poll.
+    @ObservationIgnored private var idleSupported: Bool?
+    /// An idle event landed while a refresh was in flight — run one more.
+    @ObservationIgnored private var refreshAgain = false
     private static let messageLimit = 30
+    private static let pollInterval: Duration = .seconds(90)
+    private static let idleRetryDelay: Duration = .seconds(5)
+    /// Commands come in bursts (a refresh, then its body prefetches); a
+    /// short pause before re-entering IDLE keeps that burst on one IDLE/DONE
+    /// cycle instead of one per command.
+    private static let idleReenterDelay: Duration = .seconds(1)
 
     init() {
         if let data = defaults.data(forKey: EmailAccountConfig.defaultsKey),
@@ -69,6 +85,7 @@ final class EmailService {
             return
         }
         dropSessions()
+        idleSupported = nil
         config = newConfig
         if let data = try? JSONEncoder().encode(newConfig) {
             defaults.set(data, forKey: EmailAccountConfig.defaultsKey)
@@ -120,9 +137,68 @@ final class EmailService {
         guard config != nil else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                self?.refresh()
-                try? await Task.sleep(for: .seconds(90))
+                // While IDLE is running the server pushes changes; the
+                // timer only fills in when it is not.
+                if self?.idleTask == nil {
+                    self?.refresh()
+                }
+                try? await Task.sleep(for: Self.pollInterval)
             }
+        }
+    }
+
+    // MARK: - IDLE
+
+    /// Starts the IDLE loop on the poll session unless it is already running
+    /// or the server is known not to offer IDLE. Each `MailSession.idle`
+    /// returns when a command (refresh, markRead, prefetch) took the
+    /// connection; the loop simply re-enters, queued behind that command.
+    private func startIdling() {
+        guard idleTask == nil, idleSupported != false, let session = activePollSession() else { return }
+        idleGeneration += 1
+        let generation = idleGeneration
+        // Built here, not inside the loop task: a weak `self` captured
+        // through another closure is a var and cannot cross into the
+        // @Sendable event callback.
+        let onEvent: @Sendable (IMAPClient.IdleEvent) -> Void = { [weak self] event in
+            Task { @MainActor in
+                self?.handleIdleEvent(event)
+            }
+        }
+        idleTask = Task { [weak self] in
+            defer {
+                if let self, self.idleGeneration == generation {
+                    self.idleTask = nil
+                }
+            }
+            while !Task.isCancelled {
+                do {
+                    try await session.idle(onEvent: onEvent)
+                    guard !Task.isCancelled else { return }
+                    self?.idleSupported = true
+                    try? await Task.sleep(for: Self.idleReenterDelay)
+                } catch MailSessionError.idleUnsupported {
+                    self?.idleSupported = false
+                    self?.log.info("idle unsupported, polling every \(Self.pollInterval.milliseconds / 1000, privacy: .public)s")
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self?.log.error("idle failed: \(error.localizedDescription, privacy: .public)")
+                    try? await Task.sleep(for: Self.idleRetryDelay)
+                    guard !Task.isCancelled else { return }
+                    // refresh's run reconnects; the loop re-enters after it.
+                    self?.refresh()
+                }
+            }
+        }
+    }
+
+    private func handleIdleEvent(_ event: IMAPClient.IdleEvent) {
+        log.info("idle event \(event.description, privacy: .public)")
+        if refreshTask != nil {
+            refreshAgain = true
+        } else {
+            refresh()
         }
     }
 
@@ -157,6 +233,9 @@ final class EmailService {
     private func dropSessions() {
         prefetchTask?.cancel()
         prefetchTask = nil
+        idleTask?.cancel()
+        idleTask = nil
+        idleGeneration += 1
         let open = [pollSession, userSession].compactMap { $0 }
         pollSession = nil
         userSession = nil
@@ -178,7 +257,13 @@ final class EmailService {
         connection = messages.isEmpty ? .connecting : connection
         let limit = Self.messageLimit
         refreshTask = Task { [weak self] in
-            defer { self?.refreshTask = nil }
+            defer {
+                self?.refreshTask = nil
+                if self?.refreshAgain == true {
+                    self?.refreshAgain = false
+                    self?.refresh()
+                }
+            }
             do {
                 let result = try await session.run { client -> (Int, Int, [EmailMessage]) in
                     // SELECT again: EXISTS moves as mail arrives on a
@@ -205,6 +290,7 @@ final class EmailService {
                 self.connection = .online
                 self.log.info("refreshed exists=\(result.0, privacy: .public) unread=\(result.1, privacy: .public)")
                 self.prefetchBodies()
+                self.startIdling()
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 self.connection = .failed(error.localizedDescription)

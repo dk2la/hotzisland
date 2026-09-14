@@ -23,6 +23,10 @@ final class NotchWindowController: NSObject {
     /// for as long as the event is on screen.
     private var eventOwnsWindow = false
     private var clickMonitors: [Any] = []
+    /// Opened deliberately (hotkey, menu, deep link) rather than by hover:
+    /// the panel then stays until the hotkey again, ✕, or a click outside —
+    /// moving the mouse away must not close what the user asked for.
+    private var settingsPinned = false
     private let services: ModuleServices
     private let settings: AppSettings
     private let playbookStore: PlaybookStore
@@ -58,7 +62,7 @@ final class NotchWindowController: NSObject {
         attachToScreen()
         setUpLiveEvents()
         viewModel.onIslandTapped = { [weak self] in
-            self?.openSettings(page: nil)
+            self?.openSettings(page: nil, pinned: true)
         }
         viewModel.onClose = { [weak self] in
             self?.closeSettings()
@@ -68,23 +72,27 @@ final class NotchWindowController: NSObject {
     // MARK: - Settings island
 
     /// Expands the island onto the settings, optionally on a given page.
-    func openSettings(page: SettingsView.Page?) {
+    /// `pinned` keeps it open regardless of the cursor (see `settingsPinned`).
+    func openSettings(page: SettingsView.Page?, pinned: Bool = true) {
         if let page {
             viewModel.pageSelection.page = page
         }
+        settingsPinned = pinned
         requestState(.expanded)
     }
 
     func closeSettings() {
+        settingsPinned = false
         guard targetState == .expanded else { return }
         requestState(idleState)
     }
 
+    /// ⌃⌥M: open pinned, or close if already open.
     func toggleSettings() {
         if targetState == .expanded {
             closeSettings()
         } else {
-            openSettings(page: nil)
+            openSettings(page: nil, pinned: true)
         }
     }
 
@@ -223,6 +231,28 @@ final class NotchWindowController: NSObject {
         )
     }
 
+    /// Hover enters through the hosting view's tracking area. Resting on
+    /// the notch (or a live-event bulge) opens the settings unpinned;
+    /// leaving the expanded panel closes them unless they are pinned.
+    private func hoverEntered() {
+        guard targetState != .expanded else { return }
+        requestState(.expanded)
+    }
+
+    private func hoverExited() {
+        guard targetState == .expanded, !settingsPinned else { return }
+        // Dragging the resize grip may momentarily put the cursor outside
+        // the shrinking panel — never collapse mid-resize.
+        guard !viewModel.isResizingPanel else { return }
+        // The tracking area reports exits against the current window; make
+        // sure the cursor really left the expanded frame before closing.
+        if let screen = NotchGeometry.targetScreen,
+           frame(for: .expanded, on: screen).contains(NSEvent.mouseLocation) {
+            return
+        }
+        requestState(idleState)
+    }
+
     /// Single entry point for state changes: prepare the window frame first,
     /// then run the animation.
     private func requestState(_ newState: NotchState) {
@@ -255,6 +285,7 @@ final class NotchWindowController: NSObject {
                 self?.viewModel.setState(.expanded)
             }
         case .closed, .compact:
+            settingsPinned = false
             removeOutsideClickMonitors()
             panel.allowsKeyFocus = false
             if panel.isKeyWindow {
@@ -304,6 +335,8 @@ final class NotchWindowController: NSObject {
         let hostingView = NotchHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
+        hostingView.onMouseEntered = { [weak self] in self?.hoverEntered() }
+        hostingView.onMouseExited = { [weak self] in self?.hoverExited() }
         panel.contentView = hostingView
 
         panel.setFrame(frame(for: viewModel.state, on: screen), display: true)

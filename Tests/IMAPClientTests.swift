@@ -3,11 +3,26 @@ import XCTest
 /// Wire-level behaviour of `IMAPClient` against a scripted transport: the
 /// commands it writes, tag matching, literal inlining and dropped sockets.
 final class IMAPClientTests: XCTestCase {
-    private func connectedClient(_ transport: FakeMailTransport) async throws -> IMAPClient {
-        await transport.enqueueGreeting()
+    private func connectedClient(
+        _ transport: FakeMailTransport,
+        capabilities: String? = nil
+    ) async throws -> IMAPClient {
+        await transport.enqueueGreeting(capabilities: capabilities)
         let client = IMAPClient(transport: transport)
         try await client.connect()
         return client
+    }
+
+    private actor EventRecorder {
+        private(set) var events: [IMAPClient.IdleEvent] = []
+        func add(_ event: IMAPClient.IdleEvent) { events.append(event) }
+    }
+
+    private func waitUntil(_ condition: @escaping @Sendable () async -> Bool) async {
+        for _ in 0..<400 {
+            if await condition() { return }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     func testLoginAndSelectSendExpectedCommandsAndParseExists() async throws {
@@ -138,6 +153,172 @@ final class IMAPClientTests: XCTestCase {
 
         let written = await transport.written
         XCTAssertEqual(written, ["A1 LOGOUT"])
+        let closes = await transport.closeCount
+        XCTAssertEqual(closes, 1)
+    }
+
+    // MARK: - CAPABILITY
+
+    func testCapabilityComesFromTheGreetingCode() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport, capabilities: "IMAP4rev1 IDLE NAMESPACE")
+
+        let supportsIdle = await client.supportsIdle
+        XCTAssertTrue(supportsIdle)
+        let capabilities = await client.capabilities
+        XCTAssertEqual(capabilities, ["IMAP4REV1", "IDLE", "NAMESPACE"])
+    }
+
+    func testCapabilityCommandFillsInWhenTheGreetingHasNone() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        let unknown = await client.capabilities
+        XCTAssertNil(unknown, "nothing advertised yet")
+        await transport.enqueueResponse(
+            tag: "A1",
+            untagged: ["* CAPABILITY IMAP4rev1 UNSELECT IDLE X-GM-EXT-1"],
+            status: "OK Thats all she wrote!"
+        )
+
+        try await client.fetchCapabilities()
+
+        let supportsIdle = await client.supportsIdle
+        XCTAssertTrue(supportsIdle)
+        let written = await transport.written
+        XCTAssertEqual(written, ["A1 CAPABILITY"])
+    }
+
+    /// Dovecot answers LOGIN with the post-auth list in the tagged OK.
+    func testCapabilityCodeOnTaggedLoginReplyIsPickedUp() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport, capabilities: "IMAP4rev1 AUTH=PLAIN")
+        let before = await client.supportsIdle
+        XCTAssertFalse(before)
+        await transport.enqueueResponse(tag: "A1", status: "OK [CAPABILITY IMAP4rev1 IDLE MOVE] Logged in")
+
+        try await client.login(user: "u", password: "p")
+
+        let after = await client.supportsIdle
+        XCTAssertTrue(after)
+    }
+
+    func testServerWithoutIdleIsReportedAsSuch() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        await transport.enqueueResponse(tag: "A1", untagged: ["* CAPABILITY IMAP4rev1 AUTH=PLAIN"])
+
+        try await client.fetchCapabilities()
+
+        let supportsIdle = await client.supportsIdle
+        XCTAssertFalse(supportsIdle)
+    }
+
+    // MARK: - IDLE
+
+    /// IDLE, `+`, updates reported as they arrive, DONE, tagged OK.
+    func testIdleReportsExistsAndEndsWithDone() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueLine("* 5 EXISTS")
+        await transport.enqueueLine("* 1 RECENT")
+        await transport.enqueueLine("* 3 EXPUNGE")
+        await transport.enqueueLine("* 2 FETCH (FLAGS (\\Seen))")
+        await transport.enqueueHold()
+        let events = EventRecorder()
+
+        let idle = Task {
+            try await client.idle { event in
+                Task { await events.add(event) }
+            }
+        }
+        await waitUntil { await events.events.count == 3 }
+        let seen = await events.events
+        XCTAssertEqual(seen, [.exists(5), .expunge(3), .flags(2)], "RECENT is not a change worth a refresh")
+        let stillIdling = await client.isIdling
+        XCTAssertTrue(stillIdling)
+
+        // DONE goes out first; only then does the server end the command.
+        try await client.stopIdle()
+        let written = await transport.written
+        XCTAssertEqual(written, ["A1 IDLE", "DONE"])
+        await transport.enqueueLine("A1 OK IDLE terminated")
+        try await idle.value
+
+        let idling = await client.isIdling
+        XCTAssertFalse(idling)
+        // Second DONE has nothing to end.
+        try await client.stopIdle()
+        let after = await transport.written
+        XCTAssertEqual(after, ["A1 IDLE", "DONE"])
+    }
+
+    func testUpdatesAheadOfTheContinuationAreNotLost() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        await transport.enqueueLine("* 9 EXISTS")
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueLine("A1 OK IDLE terminated")
+        let events = EventRecorder()
+
+        try await client.idle { event in
+            Task { await events.add(event) }
+        }
+
+        await waitUntil { await events.events == [.exists(9)] }
+        let seen = await events.events
+        XCTAssertEqual(seen, [.exists(9)])
+    }
+
+    func testByeDuringIdleSurfacesAsConnectionClosed() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueLine("* BYE Autologout; idle for too long")
+
+        do {
+            try await client.idle { _ in }
+            XCTFail("expected connectionClosed")
+        } catch MailError.connectionClosed {
+            // expected
+        }
+        let idling = await client.isIdling
+        XCTAssertFalse(idling)
+    }
+
+    func testIdleRefusedByServerIsBadResponse() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        await transport.enqueueResponse(tag: "A1", status: "BAD Unknown command")
+
+        do {
+            try await client.idle { _ in }
+            XCTFail("expected badResponse")
+        } catch let MailError.badResponse(message) {
+            XCTAssertEqual(message, "BAD Unknown command")
+        }
+    }
+
+    /// The IDLE read blocks; `logout` must not queue a LOGOUT behind it and
+    /// wait for a reply the idle loop would eat — it just drops the socket.
+    func testLogoutWhileIdlingDropsTheSocketWithoutLogoutCommand() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        await transport.enqueueLine("+ idling")
+        await transport.enqueueHold()
+        let idle = Task { try await client.idle { _ in } }
+        await waitUntil { await transport.written == ["A1 IDLE"] }
+
+        await client.logout()
+
+        do {
+            try await idle.value
+            XCTFail("expected connectionClosed")
+        } catch MailError.connectionClosed {
+            // expected
+        }
+        let written = await transport.written
+        XCTAssertEqual(written, ["A1 IDLE"])
         let closes = await transport.closeCount
         XCTAssertEqual(closes, 1)
     }
