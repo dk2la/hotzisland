@@ -81,9 +81,6 @@ struct WidgetRootView: View {
                 Button(L10n.t(.menuSettings)) {
                     NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
                 }
-                Button(L10n.t(.menuIslandMode)) {
-                    settings.displayMode = .island
-                }
                 Divider()
                 Button(L10n.t(.menuQuit)) {
                     NSApplication.shared.terminate(nil)

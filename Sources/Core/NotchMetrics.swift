@@ -10,12 +10,10 @@ enum NotchMetrics {
     static let expandedTopRadius: CGFloat = 10
     static let expandedBottomRadius: CGFloat = 10
 
-    /// One user-resizable panel size shared by every tab — sizes that differ
-    /// per tab made the island collapse when switching from a tall tab to a
-    /// short one (the cursor ended up outside the shrunken capsule).
-    /// The minimum fits the calendar, the largest layout.
-    static let expandedMinSize = CGSize(width: 560, height: 300)
-    static let expandedMaxSize = CGSize(width: 960, height: 620)
+    /// The expanded island hosts the settings UI (sidebar + page), so the
+    /// minimum is what that layout needs; the user can grow it from there.
+    static let expandedMinSize = CGSize(width: 720, height: 520)
+    static let expandedMaxSize = CGSize(width: 1100, height: 760)
 
     /// Capsule size on Macs without a physical notch.
     static let fallbackClosedSize = CGSize(width: 196, height: 32)

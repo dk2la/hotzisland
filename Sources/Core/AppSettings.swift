@@ -22,18 +22,9 @@ enum IdleMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// Where the module panel lives: attached to the notch or as a free
-/// edge-docked widget. Live events stay on the notch in both modes.
-enum DisplayMode: String, CaseIterable, Identifiable {
-    case island
-    case widget
-
-    var id: String { rawValue }
-}
-
 extension Notification.Name {
-    /// Posted by island/widget UI that wants the settings window opened;
-    /// the AppDelegate observes it.
+    /// Posted by widget UI that wants the settings island opened; the
+    /// AppDelegate observes it.
     static let hotzOpenSettings = Notification.Name("hotzOpenSettings")
 }
 
@@ -57,15 +48,6 @@ final class AppSettings {
         }
     }
 
-    var displayMode: DisplayMode {
-        didSet {
-            defaults.set(displayMode.rawValue, forKey: Self.displayModeKey)
-            log.info("displayMode -> \(self.displayMode.rawValue, privacy: .public)")
-            notifyChange()
-            onDisplayModeChange?(displayMode)
-        }
-    }
-
     /// Widget glass appearance (the island is always dark glass).
     var glassAppearance: GlassAppearance {
         didSet {
@@ -85,7 +67,7 @@ final class AppSettings {
         }
     }
 
-    /// Edge the widget strip is docked to (widget mode only).
+    /// Edge the widget strip is docked to.
     private(set) var widgetEdge: WidgetEdge {
         didSet {
             defaults.set(widgetEdge.rawValue, forKey: Self.widgetEdgeKey)
@@ -174,9 +156,6 @@ final class AppSettings {
     /// idle state, the widget re-derives its layout. Handlers are append-only.
     @ObservationIgnored private var changeHandlers: [() -> Void] = []
 
-    /// The AppDelegate creates/tears down the widget window on mode switches.
-    @ObservationIgnored var onDisplayModeChange: ((DisplayMode) -> Void)?
-
     func addChangeHandler(_ handler: @escaping () -> Void) {
         changeHandlers.append(handler)
     }
@@ -204,7 +183,6 @@ final class AppSettings {
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
     @ObservationIgnored private static let tabOrderKey = "settings.tabOrder"
-    @ObservationIgnored private static let displayModeKey = "settings.displayMode"
     @ObservationIgnored private static let glassAppearanceKey = "settings.glassAppearance"
     @ObservationIgnored private static let languageKey = "settings.language"
     @ObservationIgnored private static let widgetEdgeKey = "settings.widgetEdge"
@@ -234,8 +212,6 @@ final class AppSettings {
             .flatMap(IslandTheme.init(rawValue:)) ?? .stealth
         idleMode = defaults.string(forKey: Self.idleKey)
             .flatMap(IdleMode.init(rawValue:)) ?? .compact
-        displayMode = defaults.string(forKey: Self.displayModeKey)
-            .flatMap(DisplayMode.init(rawValue:)) ?? .island
         glassAppearance = defaults.string(forKey: Self.glassAppearanceKey)
             .flatMap(GlassAppearance.init(rawValue:)) ?? .dark
         language = defaults.string(forKey: Self.languageKey)
@@ -276,14 +252,8 @@ final class AppSettings {
         log.info("""
         loaded theme=\(self.theme.rawValue, privacy: .public) \
         idle=\(self.idleMode.rawValue, privacy: .public) \
-        mode=\(self.displayMode.rawValue, privacy: .public) \
         tabs=\(self.enabledTabs.count, privacy: .public)
         """)
-    }
-
-    /// The ⌃⌥M hotkey and the menu items flip between the two surfaces.
-    func toggleDisplayMode() {
-        displayMode = displayMode == .widget ? .island : .widget
     }
 
     func setWidgetPlacement(edge: WidgetEdge, offset: Double) {
