@@ -97,6 +97,10 @@ enum L10nKey {
     // Calendar
     case calAllDay, calJoin, calNow, calNoEvents, calToday, calTomorrow
     case calStartsInMinutes, calStartsInHours
+    case calNewEvent, calEditEvent, calTitleField, calCalendarField, calStarts, calEnds
+    case calMyStatus, calStatusAccepted, calStatusDeclined, calStatusTentative, calStatusPending
+    case calLocationField, calURLField, calNotesField, calAttendees, calOrganizer
+    case calOpenInCalendar, calInviteesHint, calDelete, calConfirmDelete, calSave, calEdit
     case timerCustomPlaceholder
 
     // Notes
@@ -198,6 +202,28 @@ enum L10nKey {
         case .calNoEvents: return ["no events", "нет событий", "aucun événement", "sin eventos", "没有日程", "sem eventos", "keine Termine", "nessun evento", "予定なし", "일정 없음"]
         case .calToday: return ["Today", "Сегодня", "Aujourd'hui", "Hoy", "今天", "Hoje", "Heute", "Oggi", "今日", "오늘"]
         case .calTomorrow: return ["Tomorrow", "Завтра", "Demain", "Mañana", "明天", "Amanhã", "Morgen", "Domani", "明日", "내일"]
+        case .calNewEvent: return ["New event", "Новое событие", "Nouvel événement", "Nuevo evento", "新建日程", "Novo evento", "Neuer Termin", "Nuovo evento", "新規イベント", "새 일정"]
+        case .calMyStatus: return ["My status", "Мой статус", "Mon statut", "Mi estado", "我的状态", "Meu status", "Mein Status", "Il mio stato", "自分のステータス", "내 상태"]
+        case .calStatusAccepted: return ["Accepted", "Принято", "Accepté", "Aceptado", "已接受", "Aceito", "Zugesagt", "Accettato", "承諾", "수락됨"]
+        case .calStatusDeclined: return ["Declined", "Отклонено", "Refusé", "Rechazado", "已拒绝", "Recusado", "Abgelehnt", "Rifiutato", "辞退", "거절됨"]
+        case .calStatusTentative: return ["Maybe", "Возможно", "Peut-être", "Quizás", "待定", "Talvez", "Vielleicht", "Forse", "仮承諾", "미정"]
+        case .calStatusPending: return ["No reply", "Нет ответа", "Sans réponse", "Sin respuesta", "未回复", "Sem resposta", "Keine Antwort", "Nessuna risposta", "未返信", "응답 없음"]
+        case .calEditEvent: return ["Edit event", "Изменить событие", "Modifier l'événement", "Editar evento", "编辑日程", "Editar evento", "Termin bearbeiten", "Modifica evento", "イベントを編集", "일정 편집"]
+        case .calTitleField: return ["Title", "Название", "Titre", "Título", "标题", "Título", "Titel", "Titolo", "タイトル", "제목"]
+        case .calCalendarField: return ["Calendar", "Календарь", "Calendrier", "Calendario", "日历", "Calendário", "Kalender", "Calendario", "カレンダー", "캘린더"]
+        case .calStarts: return ["Starts", "Начало", "Début", "Inicio", "开始", "Início", "Beginn", "Inizio", "開始", "시작"]
+        case .calEnds: return ["Ends", "Конец", "Fin", "Fin", "结束", "Fim", "Ende", "Fine", "終了", "종료"]
+        case .calLocationField: return ["Location", "Место", "Lieu", "Ubicación", "地点", "Local", "Ort", "Luogo", "場所", "위치"]
+        case .calURLField: return ["URL", "Ссылка", "URL", "URL", "网址", "URL", "URL", "URL", "URL", "URL"]
+        case .calNotesField: return ["Notes", "Заметки", "Notes", "Notas", "备注", "Notas", "Notizen", "Note", "メモ", "메모"]
+        case .calAttendees: return ["Attendees", "Участники", "Participants", "Asistentes", "参与者", "Participantes", "Teilnehmer", "Partecipanti", "参加者", "참석자"]
+        case .calOrganizer: return ["Organizer", "Организатор", "Organisateur", "Organizador", "组织者", "Organizador", "Organisator", "Organizzatore", "主催者", "주최자"]
+        case .calOpenInCalendar: return ["Open in Calendar", "Открыть в Календаре", "Ouvrir dans Calendrier", "Abrir en Calendario", "在日历中打开", "Abrir no Calendário", "In Kalender öffnen", "Apri in Calendario", "カレンダーで開く", "캘린더에서 열기"]
+        case .calInviteesHint: return ["Invitees are added in Calendar", "Участники добавляются в Календаре", "Les invités s'ajoutent dans Calendrier", "Los invitados se añaden en Calendario", "邀请对象在日历中添加", "Os convidados são adicionados no Calendário", "Eingeladene werden im Kalender hinzugefügt", "Gli invitati si aggiungono in Calendario", "参加者はカレンダーで追加します", "초대 대상은 캘린더에서 추가합니다"]
+        case .calDelete: return ["Delete", "Удалить", "Supprimer", "Eliminar", "删除", "Apagar", "Löschen", "Elimina", "削除", "삭제"]
+        case .calConfirmDelete: return ["Confirm delete", "Подтвердить удаление", "Confirmer la suppression", "Confirmar eliminación", "确认删除", "Confirmar exclusão", "Löschen bestätigen", "Conferma eliminazione", "削除を確認", "삭제 확인"]
+        case .calSave: return ["Save", "Сохранить", "Enregistrer", "Guardar", "保存", "Guardar", "Sichern", "Salva", "保存", "저장"]
+        case .calEdit: return ["Edit", "Изменить", "Modifier", "Editar", "编辑", "Editar", "Bearbeiten", "Modifica", "編集", "편집"]
         case .timerCustomPlaceholder: return ["min", "мин", "min", "min", "分", "min", "Min", "min", "分", "분"]
 
         case .notesEmptyTitle: return ["no notes", "нет заметок", "aucune note", "sin notas", "没有备忘录", "sem notas", "keine Notizen", "nessuna nota", "メモなし", "메모 없음"]

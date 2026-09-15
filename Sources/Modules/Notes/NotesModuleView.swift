@@ -100,13 +100,13 @@ struct NotesModuleView: View {
             .padding(.leading, 12)
             .padding(.trailing, 4)
             .padding(.vertical, 4)
-            .frame(minHeight: 36)
+            .frame(minHeight: Theme.inputHeight)
             .background(Theme.raisedFill.opacity(0.7), in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
             .animation(Theme.stateSpring, value: captureText.isEmpty)
             SpeechMicControl(speech: speech) { text in
                 captureText = captureText.isEmpty ? text : captureText + " " + text
             }
-            CircleGlassButton(systemName: "folder", size: 30) {
+            CircleGlassButton(systemName: "folder", size: Theme.inputHeight) {
                 pickFolder()
             }
         }
@@ -240,11 +240,11 @@ struct SpeechMicControl: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .frame(height: Theme.inputHeight)
             .background(Theme.cardFill, in: Capsule())
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
         } else {
-            CircleGlassButton(systemName: "mic", size: 30) {
+            CircleGlassButton(systemName: "mic", size: Theme.inputHeight) {
                 Task {
                     await speech.start(locale: L10n.shared.language.speechLocale)
                 }

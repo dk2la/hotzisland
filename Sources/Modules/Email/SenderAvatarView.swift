@@ -47,7 +47,7 @@ struct SenderAvatarView: View {
     ]
 
     /// Stable hash — `hashValue` is randomised per launch.
-    private static func color(for key: String) -> Color {
+    static func color(for key: String) -> Color {
         var hash: UInt32 = 5381
         for byte in key.lowercased().utf8 {
             hash = (hash &* 33) &+ UInt32(byte)

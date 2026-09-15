@@ -13,9 +13,14 @@ final class IMAPClientTests: XCTestCase {
         return client
     }
 
-    private actor EventRecorder {
-        private(set) var events: [IMAPClient.IdleEvent] = []
-        func add(_ event: IMAPClient.IdleEvent) { events.append(event) }
+    /// Lock-based, not an actor: the idle callback must record events in
+    /// arrival order, and hopping through unstructured Tasks would let
+    /// them race each other.
+    private final class EventRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage: [IMAPClient.IdleEvent] = []
+        var events: [IMAPClient.IdleEvent] { lock.withLock { storage } }
+        func add(_ event: IMAPClient.IdleEvent) { lock.withLock { storage.append(event) } }
     }
 
     private func waitUntil(_ condition: @escaping @Sendable () async -> Bool) async {
@@ -403,10 +408,10 @@ final class IMAPClientTests: XCTestCase {
 
         let idle = Task {
             try await client.idle { event in
-                Task { await events.add(event) }
+                events.add(event)
             }
         }
-        await waitUntil { await events.events.count == 3 }
+        await waitUntil { events.events.count == 3 }
         let seen = await events.events
         XCTAssertEqual(seen, [.exists(5), .expunge(3), .flags(2)], "RECENT is not a change worth a refresh")
         let stillIdling = await client.isIdling
@@ -436,7 +441,7 @@ final class IMAPClientTests: XCTestCase {
         let events = EventRecorder()
 
         try await client.idle { event in
-            Task { await events.add(event) }
+            events.add(event)
         }
 
         await waitUntil { await events.events == [.exists(9)] }

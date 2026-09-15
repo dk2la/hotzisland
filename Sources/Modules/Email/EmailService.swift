@@ -43,6 +43,24 @@ final class EmailService {
     @ObservationIgnored private var refreshedAt: [Mailbox: Date] = [:]
     /// The selected section's list.
     var messages: [EmailMessage] { messagesByMailbox[selectedMailbox] ?? [] }
+
+    /// Every cached header across the sections, newest first, each message
+    /// once — what the assistant searches without touching the server.
+    var cachedMessages: [EmailMessage] {
+        var seen = Set<MessageKey>()
+        return messagesByMailbox.values
+            .flatMap { $0 }
+            .filter { seen.insert($0.key).inserted }
+            .sorted { $0.date > $1.date }
+    }
+
+    /// Opens the search row with a query and runs it — the assistant's
+    /// way of handing a search to the user.
+    func search(_ query: String) {
+        if !isSearchOpen { isSearchOpen = true }
+        searchQuery = query
+        runSearch()
+    }
     /// Folder roles as the server reported them; nil until the first
     /// refresh asked.
     @ObservationIgnored private var specialFolders: IMAPClient.SpecialFolders?
@@ -116,6 +134,9 @@ final class EmailService {
             config = stored
         }
         selectedMailbox = defaults.string(forKey: Mailbox.defaultsKey).flatMap(Mailbox.init) ?? .primary
+        if config != nil {
+            loadCachedLists()
+        }
         startPolling()
         log.info("configured=\(self.config != nil, privacy: .public)")
     }
@@ -159,6 +180,7 @@ final class EmailService {
     /// included — another server names its folders differently.
     private func resetLists() {
         messagesByMailbox = [:]
+        try? FileManager.default.removeItem(at: Self.cacheURL)
         refreshedAt = [:]
         specialFolders = nil
         isGmail = false
@@ -384,7 +406,9 @@ final class EmailService {
             // Gmail: the Primary tab only. Should the server balk at the
             // extension, the whole inbox is the honest fallback.
             do {
-                return try await client.fetchHeaders(searching: "X-GM-RAW \"category:primary\"", limit: limit)
+                // Bounded to recent mail: an unbounded category search
+                // walks the whole mailbox on Gmail's side and takes seconds.
+                return try await client.fetchHeaders(searching: "X-GM-RAW \"category:primary newer_than:90d\"", limit: limit)
             } catch MailError.badResponse {
                 return try await client.fetchHeaders(exists: inboxExists, limit: limit)
             }
@@ -470,6 +494,45 @@ final class EmailService {
             }
         }
         messagesByMailbox[mailbox] = merged
+        saveCachedLists()
+    }
+
+    // MARK: - Header cache
+
+    /// The last fetched headers of every section, so a launch shows mail
+    /// at once and "Checking" only ever replaces a list, never an empty
+    /// panel. Headers only — bodies are re-fetched — so the file stays at
+    /// a few tens of kilobytes; one read at launch, one write per refresh.
+    private static let cacheURL: URL = {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("com.dk2la.hotzisland", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("mail-headers.json")
+    }()
+
+    private func loadCachedLists() {
+        guard let data = try? Data(contentsOf: Self.cacheURL),
+              let lists = try? JSONDecoder().decode([Mailbox: [EmailMessage]].self, from: data)
+        else { return }
+        messagesByMailbox = lists
+        log.info("header cache loaded sections=\(lists.count, privacy: .public)")
+    }
+
+    private func saveCachedLists() {
+        var headersOnly = messagesByMailbox
+        for mailbox in headersOnly.keys {
+            headersOnly[mailbox] = headersOnly[mailbox]?.map { message in
+                var copy = message
+                copy.bodyPlain = nil
+                copy.bodyHTML = nil
+                return copy
+            }
+        }
+        let url = Self.cacheURL
+        Task.detached(priority: .utility) {
+            guard let data = try? JSONEncoder().encode(headersOnly) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     /// Every message in memory whose body is loaded, by folder + UID.

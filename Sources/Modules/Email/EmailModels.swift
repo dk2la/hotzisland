@@ -53,7 +53,7 @@ enum EmailProvider: String, CaseIterable, Identifiable {
 /// Gmail-like inbox sections. Each one is a message list of its own; the
 /// IMAP folder (or search) behind it depends on the server — see
 /// `EmailService` for the mapping.
-enum Mailbox: String, CaseIterable, Sendable {
+enum Mailbox: String, CaseIterable, Sendable, Codable {
     /// INBOX; on Gmail, the Primary category of it.
     case primary
     /// Flagged (starred) messages in INBOX.
@@ -78,13 +78,13 @@ enum Mailbox: String, CaseIterable, Sendable {
 /// UIDs are only unique inside one IMAP folder: the same number names a
 /// different message in INBOX and in Sent. Everything that caches or looks
 /// up a message keys by folder + UID.
-struct MessageKey: Hashable, Sendable {
+struct MessageKey: Hashable, Sendable, Codable {
     var mailbox: String
     var uid: UInt32
 }
 
 /// One inbox message. `bodyPlain` is filled lazily on open.
-struct EmailMessage: Identifiable, Equatable, Sendable {
+struct EmailMessage: Identifiable, Equatable, Sendable, Codable {
     let uid: UInt32
     /// The IMAP folder the UID belongs to.
     var mailbox: String = "INBOX"
@@ -119,7 +119,7 @@ struct EmailMessage: Identifiable, Equatable, Sendable {
         return to.first ?? ""
     }
 
-    struct TextPartInfo: Equatable, Sendable {
+    struct TextPartInfo: Equatable, Sendable, Codable {
         var section: String
         var encoding: String
         var charset: String

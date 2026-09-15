@@ -9,6 +9,10 @@ import SwiftUI
 struct EventListView: View {
     var service: CalendarService
     let day: Date
+    /// Embedded in a parent scroll view (the split layout): render the
+    /// cards only, no scroll view of its own — nested scrolling would
+    /// trap the wheel.
+    var embedded = false
 
     private var events: [CalendarEvent] { service.events(forDay: day) }
 
@@ -27,15 +31,22 @@ struct EventListView: View {
         } else {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 let nextEvent = nextEvent(at: context.date)
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        ForEach(events) { event in
-                            EventRow(event: event, isNext: event.id == nextEvent?.id, now: context.date)
-                            if event.id != events.last?.id {
-                                Hairline()
-                            }
-                        }
+                if embedded {
+                    cards(nextEvent: nextEvent, now: context.date)
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        cards(nextEvent: nextEvent, now: context.date)
                     }
+                }
+            }
+        }
+    }
+
+    private func cards(nextEvent: CalendarEvent?, now: Date) -> some View {
+        VStack(spacing: 6) {
+            ForEach(events) { event in
+                EventRow(event: event, isNext: event.id == nextEvent?.id, now: now) {
+                    service.open(event)
                 }
             }
         }
@@ -73,17 +84,20 @@ struct AgendaListView: View {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 let nextEvent = nextEvent(at: context.date)
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(shown, id: \.day) { day, events in
-                            // Accent, same register as the panel title — the day
-                            // dividers must not read as just another event row.
-                            InstrumentLabel(label(for: day), color: Theme.accent)
-                                .padding(.top, day == shown.first?.day ? 0 : 12)
-                                .padding(.bottom, 4)
+                            // A day is a section, not a row: accent caption
+                            // with a rule running to the edge, and a clear
+                            // gap above it.
+                            HStack(spacing: 8) {
+                                InstrumentLabel(label(for: day), color: Theme.accent)
+                                Hairline()
+                            }
+                            .padding(.top, day == shown.first?.day ? 0 : 14)
+                            .padding(.bottom, 2)
                             ForEach(events) { event in
-                                EventRow(event: event, isNext: event.id == nextEvent?.id, now: context.date)
-                                if event.id != events.last?.id {
-                                    Hairline()
+                                EventRow(event: event, isNext: event.id == nextEvent?.id, now: context.date) {
+                                    service.open(event)
                                 }
                             }
                         }
@@ -106,13 +120,16 @@ struct AgendaListView: View {
     }()
 }
 
-/// One event register row, shared by the day list and the agenda. Clicking
-/// an event with a meeting link joins it. `now` comes from the enclosing
-/// `TimelineView` so the countdown re-renders without a `Date()` read.
+/// One event card, shared by the day list and the agenda — framed like a
+/// mail row (card fill, rounded, raised when it is the next meeting).
+/// Clicking the card opens the detail; the Join tag on the next meeting
+/// joins it directly. `now` comes from the enclosing `TimelineView` so the
+/// countdown re-renders without a `Date()` read.
 struct EventRow: View {
     let event: CalendarEvent
     let isNext: Bool
     let now: Date
+    let onOpen: () -> Void
 
     /// The row worth highlighting: upcoming-or-ongoing and close (≤2h).
     static func next(in events: [CalendarEvent], at now: Date) -> CalendarEvent? {
@@ -123,28 +140,53 @@ struct EventRow: View {
     }
 
     var body: some View {
-        Button {
-            if let url = event.joinURL {
-                NSWorkspace.shared.open(url)
-            }
-        } label: {
-            DataRow(
-                leading: event.isAllDay ? "—" : Self.timeFormatter.string(from: event.start),
-                title: event.title,
-                titleColor: isNext ? Theme.textPrimary : Theme.textSecondary
-            ) {
-                HStack(spacing: 8) {
-                    Text(annotation)
-                        .font(Theme.readoutSFont)
-                        .foregroundStyle(isNext ? Theme.accent : Theme.textQuaternary)
-                    if isNext, event.joinURL != nil {
+        Button(action: onOpen) {
+            HStack(alignment: .center, spacing: 10) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(event.color)
+                    .frame(width: 3, height: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.title)
+                        .font(Theme.bodyFont)
+                        .fontWeight(isNext ? .semibold : .medium)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(isNext ? Theme.textPrimary : Theme.textSecondary)
+                    Text(subtitle)
+                        .font(Theme.subFont)
+                        .lineLimit(1)
+                        .foregroundStyle(isNext ? Theme.accent : Theme.textTertiary)
+                }
+                Spacer(minLength: 0)
+                if isNext, let url = event.joinURL {
+                    Button {
+                        NSWorkspace.shared.open(url)
+                    } label: {
                         joinLabel
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(PressableStyle())
                 }
             }
-            .contentShape(Rectangle())
+            // Same frame as a mail row: two lines, 12/8 padding, card fill.
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                isNext ? Theme.raisedFill.opacity(0.7) : Theme.cardFill,
+                in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
         }
         .buttonStyle(PressableStyle())
+    }
+
+    /// "15:00 – 15:30 · 30m", or the countdown for the highlighted row
+    /// ("15:00 · in 12 min"), or the all-day label.
+    private var subtitle: String {
+        if event.isAllDay { return L10n.t(.calAllDay) }
+        let start = Self.timeFormatter.string(from: event.start)
+        if isNext { return "\(start) · \(annotation)" }
+        return "\(start) – \(Self.timeFormatter.string(from: event.end)) · \(annotation)"
     }
 
     /// Countdown for the highlighted row ("in 12 min", "in 1h 05m", "now");
@@ -161,8 +203,8 @@ struct EventRow: View {
         return minutes >= 60 ? String(format: "%dh%02d", minutes / 60, minutes % 60) : "\(minutes)m"
     }
 
-    /// Small accent-bordered "Join" tag — the whole row is the button, the
-    /// tag just says what the click does.
+    /// Small accent-bordered "Join" tag — its own button inside the row, so
+    /// the meeting is one click away without going through the card.
     private var joinLabel: some View {
         InstrumentLabel(L10n.t(.calJoin), color: Theme.accent)
             .padding(.horizontal, 6)
