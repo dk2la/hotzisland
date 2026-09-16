@@ -1,11 +1,13 @@
+import CoreServices
 import Foundation
 import Observation
 import OSLog
 
 /// "Notes" module: a user-chosen folder of Markdown files, Obsidian-style.
 /// The store owns the folder scan, the open editor's buffer and a debounced
-/// autosave. External edits are picked up by a periodic stat-only rescan —
-/// a directory kqueue would miss in-place content edits anyway.
+/// autosave. External edits are picked up by an FSEvents stream on the
+/// folder (recursive, file-level) that triggers a stat-only rescan — a
+/// directory kqueue would miss in-place content edits anyway.
 @MainActor
 @Observable
 final class NotesStore {
@@ -22,7 +24,7 @@ final class NotesStore {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "notes")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private var saveTask: Task<Void, Never>?
-    @ObservationIgnored private var pollTask: Task<Void, Never>?
+    @ObservationIgnored private var watcher: NotesFolderWatcher?
     @ObservationIgnored private var openNoteLoadedMtime: Date?
     /// Buffer as last read from / written to disk. `editorChanged()` compares
     /// against it so programmatic loads never count as user edits.
@@ -47,12 +49,7 @@ final class NotesStore {
                 .appendingPathComponent("HotzIsland Notes", isDirectory: true)
         }
         rescan()
-        pollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                self?.rescan()
-            }
-        }
+        startWatcher()
         log.info("folder=\(self.folderURL.path, privacy: .public)")
     }
 
@@ -65,6 +62,7 @@ final class NotesStore {
         defaults.set(url.path, forKey: Self.folderKey)
         log.info("folder -> \(url.path, privacy: .public)")
         rescan()
+        startWatcher()
     }
 
     /// Creates the folder lazily — only when the first write needs it.
@@ -73,12 +71,37 @@ final class NotesStore {
             at: folderURL,
             withIntermediateDirectories: true
         )
+        // FSEvents never reports a path that was missing when the stream
+        // was created: the watcher waits for the folder to exist.
+        if watcher == nil {
+            startWatcher()
+        }
+    }
+
+    /// Replaces the FSEvents stream with one on the current folder. The old
+    /// stream stops on release. No folder yet: `ensureFolder` retries.
+    private func startWatcher() {
+        watcher?.stop()
+        watcher = nil
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: folderURL.path, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else { return }
+        watcher = NotesFolderWatcher(folder: folderURL) { [weak self] in
+            self?.rescan()
+        }
+        if watcher == nil {
+            log.error("fsevents stream failed for \(self.folderURL.path, privacy: .public)")
+        }
     }
 
     // MARK: - Scan
 
     /// Kicks off a recursive walk off the main actor; the result lands in
     /// `applyScan`. Overlapping requests collapse into one follow-up walk.
+    /// Called on every FSEvents burst, including the ones our own writes
+    /// raise — `reloadOpenNoteIfChangedExternally` tells those apart by
+    /// mtime, which `flush` refreshes right after writing.
     func rescan() {
         guard !scanInFlight else {
             rescanRequested = true
@@ -251,6 +274,8 @@ final class NotesStore {
             try ensureFolder()
             try editorText.write(to: note.url, atomically: true, encoding: .utf8)
             savedText = editorText
+            // Re-read the mtime now so the FSEvents-driven rescan that follows
+            // sees disk == loaded and does not treat our write as external.
             openNoteLoadedMtime = Self.mtime(note.url)
             isDirty = false
             lastError = nil
@@ -350,5 +375,106 @@ final class NotesStore {
             lastError = error.localizedDescription
             log.error("trash failed: \(error, privacy: .public)")
         }
+    }
+}
+
+// MARK: - FSEvents
+
+/// FSEvents stream on one folder (recursive, file-level). fseventsd already
+/// coalesces on its side (`latency`); a second 300 ms debounce on the queue
+/// turns an atomic save (temp file + rename) into a single rescan.
+private final class NotesFolderWatcher {
+    /// Handed to the C callback through the stream context. The stream
+    /// retains it via the context callbacks, so it outlives any in-flight
+    /// callback even after the watcher itself is gone.
+    private final class Relay: @unchecked Sendable {
+        let queue = DispatchQueue(label: "com.dk2la.hotzisland.notes.fsevents", qos: .utility)
+        let onChange: @MainActor @Sendable () -> Void
+        /// Only touched on `queue` (the stream's dispatch queue).
+        var pending: DispatchWorkItem?
+
+        init(onChange: @escaping @MainActor @Sendable () -> Void) {
+            self.onChange = onChange
+        }
+
+        /// Runs on `queue`: re-arms the debounce, then hops to the main actor.
+        func fire() {
+            pending?.cancel()
+            let onChange = self.onChange
+            let item = DispatchWorkItem {
+                Task { @MainActor in onChange() }
+            }
+            pending = item
+            queue.asyncAfter(deadline: .now() + .milliseconds(300), execute: item)
+        }
+
+        func cancelPending() {
+            queue.async { [self] in
+                pending?.cancel()
+                pending = nil
+            }
+        }
+    }
+
+    private let relay: Relay
+    private var stream: FSEventStreamRef?
+
+    /// Nil when the stream cannot be created or started.
+    init?(folder: URL, onChange: @escaping @MainActor @Sendable () -> Void) {
+        relay = Relay(onChange: onChange)
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(relay).toOpaque(),
+            retain: { info in
+                guard let info else { return nil }
+                return UnsafeRawPointer(Unmanaged<Relay>.fromOpaque(info).retain().toOpaque())
+            },
+            release: { info in
+                guard let info else { return }
+                Unmanaged<Relay>.fromOpaque(info).release()
+            },
+            copyDescription: nil
+        )
+        // Context-free: everything it needs travels through `info`.
+        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
+            guard let info else { return }
+            Unmanaged<Relay>.fromOpaque(info).takeUnretainedValue().fire()
+        }
+        let flags = FSEventStreamCreateFlags(
+            kFSEventStreamCreateFlagFileEvents
+                | kFSEventStreamCreateFlagUseCFTypes
+                | kFSEventStreamCreateFlagNoDefer
+        )
+        guard let stream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            callback,
+            &context,
+            [folder.path] as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.5,
+            flags
+        ) else { return nil }
+        FSEventStreamSetDispatchQueue(stream, relay.queue)
+        guard FSEventStreamStart(stream) else {
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            return nil
+        }
+        self.stream = stream
+    }
+
+    deinit {
+        stop()
+    }
+
+    /// Idempotent. After this no callback fires and no debounced rescan is
+    /// still pending.
+    func stop() {
+        guard let stream else { return }
+        self.stream = nil
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
+        relay.cancelPending()
     }
 }

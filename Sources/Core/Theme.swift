@@ -15,6 +15,9 @@ enum Theme {
     static let islandFill = Color.black
     /// Inner cells and cards: raised glass on top of the window material.
     static let cardFill = Color.white.opacity(0.06)
+    /// Opaque surface for forms that sit over content (the reply sheet):
+    /// nothing may show through under text being typed.
+    static let sheetFill = Color(red: 0.11, green: 0.11, blue: 0.13)
     /// Raised controls (buttons, toggles, chips).
     static let raisedFill = Color.white.opacity(0.12)
 
@@ -39,6 +42,8 @@ enum Theme {
     /// The one chromatic accent — acid green, the app's signature. Solid
     /// accent controls carry `inkOnAccent` glyphs.
     static let accent = Color(red: 0.247, green: 1.0, blue: 0.0) // #3FFF00
+    /// Selection ring for a picked date (distinct from today's accent fill).
+    static let selection = Color(red: 1.0, green: 0.62, blue: 0.20) // #FF9E33
     /// state/critical — badges and critical meters only, never decoration.
     static let critical = Color(red: 1.0, green: 0.27, blue: 0.29)
 
@@ -75,6 +80,9 @@ enum Theme {
     static let controlRadius: CGFloat = 9
     /// Uniform inner inset of the expanded panel.
     static let panelInset: CGFloat = 14
+    /// Height of a single-line input row and of the round buttons that
+    /// sit beside it (mic, folder, mute) — they must read as one row.
+    static let inputHeight: CGFloat = 36
 
     // MARK: - Typography
     // Rule: anything that changes over time — time, percentages, rates,

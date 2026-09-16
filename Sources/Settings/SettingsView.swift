@@ -69,16 +69,6 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(palette.desk)
-        .sheet(item: $editingPlaybook) { playbook in
-            PlaybookEditorView(store: playbooks, existing: playbook) {
-                editingPlaybook = nil
-            }
-        }
-        .sheet(isPresented: $creatingPlaybook) {
-            PlaybookEditorView(store: playbooks, existing: nil) {
-                creatingPlaybook = false
-            }
-        }
     }
 
     // MARK: - Sidebar
@@ -326,7 +316,26 @@ struct SettingsView: View {
         }
     }
 
+    /// The editor replaces the page in place: a sheet would hang out of the
+    /// island and fight its hover tracking.
+    @ViewBuilder
     private var playbooksPage: some View {
+        if creatingPlaybook {
+            PlaybookEditorView(store: playbooks, existing: nil) {
+                creatingPlaybook = false
+            }
+            .id("new")
+        } else if let playbook = editingPlaybook {
+            PlaybookEditorView(store: playbooks, existing: playbook) {
+                editingPlaybook = nil
+            }
+            .id(playbook.id)
+        } else {
+            playbooksList
+        }
+    }
+
+    private var playbooksList: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(L10n.t(.setPlaybooks))
             ScrollView(.vertical, showsIndicators: false) {

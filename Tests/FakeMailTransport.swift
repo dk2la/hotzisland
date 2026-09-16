@@ -11,6 +11,10 @@ actor FakeMailTransport: MailLineTransport {
         case bytes(Data)
         /// Error thrown by the next read.
         case fail(MailError)
+        /// Parks the reader until more script is enqueued (or `close`),
+        /// the way a socket sits silent during IDLE. Skipped when replies
+        /// were already enqueued behind it.
+        case hold
     }
 
     enum ScriptError: Error {
@@ -24,28 +28,46 @@ actor FakeMailTransport: MailLineTransport {
     private(set) var closeCount = 0
     /// Every `read(exactly:)` request, in order.
     private(set) var literalReads: [Int] = []
+    /// A reader parked on `.hold`.
+    private var parked: CheckedContinuation<Void, Never>?
+    private var isClosed = false
 
     // MARK: - Scripting
 
     func enqueue(_ reply: Reply) {
         script.append(reply)
+        wake()
     }
 
     func enqueueLine(_ line: String) {
-        script.append(.line(line))
+        enqueue(.line(line))
     }
 
     func enqueueLiteral(_ data: Data) {
-        script.append(.bytes(data))
+        enqueue(.bytes(data))
     }
 
     func enqueueFailure(_ error: MailError) {
-        script.append(.fail(error))
+        enqueue(.fail(error))
     }
 
-    /// The "* OK" banner the client expects right after `connect`.
-    func enqueueGreeting() {
-        script.append(.line("* OK IMAP4rev1 ready"))
+    func enqueueHold() {
+        enqueue(.hold)
+    }
+
+    /// The "* OK" banner the client expects right after `connect`, with an
+    /// optional `[CAPABILITY …]` response code.
+    func enqueueGreeting(capabilities: String? = nil) {
+        if let capabilities {
+            enqueue(.line("* OK [CAPABILITY \(capabilities)] IMAP4rev1 ready"))
+        } else {
+            enqueue(.line("* OK IMAP4rev1 ready"))
+        }
+    }
+
+    private func wake() {
+        parked?.resume()
+        parked = nil
     }
 
     /// A full reply to the command that will carry `tag`: untagged lines
@@ -74,6 +96,13 @@ actor FakeMailTransport: MailLineTransport {
     }
 
     func readLine(timeout: Duration) async throws -> Data {
+        while case .hold? = script.first {
+            script.removeFirst()
+            if script.isEmpty {
+                await withCheckedContinuation { parked = $0 }
+                if isClosed { throw MailError.connectionClosed }
+            }
+        }
         guard !script.isEmpty else { throw MailError.connectionClosed }
         switch script.removeFirst() {
         case .line(let line):
@@ -82,6 +111,8 @@ actor FakeMailTransport: MailLineTransport {
             throw ScriptError.unexpectedRead("readLine hit a literal payload")
         case .fail(let error):
             throw error
+        case .hold:
+            throw ScriptError.unexpectedRead("hold survived the wait loop")
         }
     }
 
@@ -98,10 +129,15 @@ actor FakeMailTransport: MailLineTransport {
             throw ScriptError.unexpectedRead("read(exactly:) hit line \(line)")
         case .fail(let error):
             throw error
+        case .hold:
+            throw ScriptError.unexpectedRead("read(exactly:) hit a hold")
         }
     }
 
+    /// Like a cancelled socket: a parked reader fails with `connectionClosed`.
     func close() async {
         closeCount += 1
+        isClosed = true
+        wake()
     }
 }

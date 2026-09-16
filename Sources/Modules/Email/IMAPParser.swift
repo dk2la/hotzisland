@@ -138,6 +138,11 @@ enum IMAPParser {
         var subject: String
         var fromName: String
         var fromAddress: String
+        var replyTo: String?
+        var to: [String] = []
+        /// Name of the first To address, if the sender supplied one.
+        var toName: String?
+        var cc: [String] = []
         var messageID: String?
         var inReplyTo: String?
     }
@@ -210,9 +215,42 @@ enum IMAPParser {
                 envelope.fromName = envelope.fromAddress
             }
         }
+        envelope.replyTo = addresses(fields[4]).first
+        envelope.to = addresses(fields[5])
+        envelope.toName = firstName(in: fields[5])
+        envelope.cc = addresses(fields[6])
         envelope.inReplyTo = fields[8].text
         envelope.messageID = fields[9].text
         return envelope
+    }
+
+    /// Plain "mailbox@host" strings from an envelope address list. Group
+    /// markers (RFC 3501: a NIL host) carry no deliverable address and are
+    /// dropped; so is a NIL list.
+    private static func addresses(_ value: IMAPValue) -> [String] {
+        guard let list = value.items else { return [] }
+        return list.compactMap { entry -> String? in
+            guard let parts = entry.items, parts.count >= 4,
+                  let mailbox = parts[2].text, !mailbox.isEmpty,
+                  let host = parts[3].text, !host.isEmpty
+            else { return nil }
+            return "\(mailbox)@\(host)"
+        }
+    }
+
+    /// The display name of the first deliverable address in a list; nil
+    /// when the sender gave only the bare address.
+    private static func firstName(in value: IMAPValue) -> String? {
+        guard let list = value.items else { return nil }
+        for entry in list {
+            guard let parts = entry.items, parts.count >= 4,
+                  let mailbox = parts[2].text, !mailbox.isEmpty,
+                  let host = parts[3].text, !host.isEmpty
+            else { continue }
+            let name = decodedText(parts[0]).trimmingCharacters(in: .whitespaces)
+            return name.isEmpty ? nil : name
+        }
+        return nil
     }
 
     /// Picks the part to show. HTML wins over the plain alternative: the
@@ -302,6 +340,43 @@ enum IMAPParser {
             return Int(items[index + 1])
         }
         return nil
+    }
+
+    /// One `* LIST (\attrs) "delim" name` (or Gmail's `* XLIST`) entry.
+    struct ListEntry: Equatable, Sendable {
+        /// Attributes as sent, backslash included: `\HasNoChildren`, `\Junk`.
+        var attributes: [String]
+        var delimiter: String?
+        var name: String
+
+        func has(_ attribute: String) -> Bool {
+            attributes.contains { $0.caseInsensitiveCompare(attribute) == .orderedSame }
+        }
+    }
+
+    /// Parses one LIST/XLIST unit. The name may be an atom (`INBOX`), a
+    /// quoted string (`"Sent Messages"`) or a literal. Returns nil for
+    /// anything else.
+    static func parseList(_ unit: Data) -> ListEntry? {
+        let head = String(decoding: unit.prefix(12), as: UTF8.self).uppercased()
+        let prefix: String
+        if head.hasPrefix("* LIST ") {
+            prefix = "* LIST "
+        } else if head.hasPrefix("* XLIST ") {
+            prefix = "* XLIST "
+        } else {
+            return nil
+        }
+        var index = unit.index(unit.startIndex, offsetBy: prefix.utf8.count)
+        guard let attributes = parseValue(unit, &index)?.items,
+              let delimiter = parseValue(unit, &index),
+              let name = parseValue(unit, &index)?.text
+        else { return nil }
+        return ListEntry(
+            attributes: attributes.compactMap(\.text),
+            delimiter: delimiter.text,
+            name: name
+        )
     }
 
     /// "* 231 EXISTS" → 231

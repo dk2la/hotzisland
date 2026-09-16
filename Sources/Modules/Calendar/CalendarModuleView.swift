@@ -2,8 +2,10 @@ import AppKit
 import SwiftUI
 
 /// "Calendar" tab. Agenda-first: list mode is the coming week with the next
-/// meeting on top; the month grid stays one toggle away. Mode switching, the
-/// visibility picker and back navigation live in the shared panel header.
+/// meeting on top; the month grid stays one toggle away. Clicking an event
+/// opens its detail card in place; "+" and Edit open the event form. Mode
+/// switching, the visibility picker and back navigation live in the shared
+/// panel header.
 struct CalendarModuleView: View {
     var service: CalendarService
 
@@ -16,39 +18,18 @@ struct CalendarModuleView: View {
     private var content: some View {
         switch service.access {
         case .granted:
-            if service.showingPicker {
+            if service.isCreating || service.editingEvent != nil {
+                // Distinct identity per form so a fresh draft is built when
+                // switching between creating and editing.
+                EventEditorView(service: service, editing: service.editingEvent)
+                    .id(service.editingEvent?.id ?? "new")
+            } else if let event = service.selectedEvent {
+                EventDetailView(service: service, event: event)
+                    .transition(.opacity)
+            } else if service.showingPicker {
                 CalendarPickerView(service: service)
             } else {
-                switch service.displayMode {
-                case .gridAndList:
-                    VStack(spacing: 8) {
-                        monthNav
-                        // Side by side needs ~470pt (210pt grid + a usable
-                        // list); narrower panels fold the grid away instead
-                        // of crushing both halves.
-                        GeometryReader { proxy in
-                            if proxy.size.width < 470 {
-                                EventListView(service: service, day: service.selectedDay)
-                            } else {
-                                HStack(alignment: .top, spacing: 14) {
-                                    EventListView(service: service, day: service.selectedDay)
-                                        .frame(maxWidth: .infinity)
-                                    MonthGridView(service: service)
-                                        .frame(width: 210)
-                                }
-                            }
-                        }
-                    }
-                case .listOnly:
-                    AgendaListView(service: service)
-                case .gridOnly:
-                    VStack(spacing: 8) {
-                        monthNav
-                        MonthGridView(service: service)
-                            .frame(maxWidth: 260)
-                        Spacer(minLength: 0)
-                    }
-                }
+                browser
             }
         case .denied:
             message(
@@ -60,6 +41,54 @@ struct CalendarModuleView: View {
             message(icon: "calendar", text: "Requesting access…", action: nil)
         }
     }
+
+    /// The agenda: grid, list or both, per display mode.
+    @ViewBuilder
+    private var browser: some View {
+                switch service.displayMode {
+                case .gridAndList:
+                    GeometryReader { proxy in
+                        // The grid keeps its natural row height while a third
+                        // of the panel allows it, then shrinks its rows. The
+                        // whole column scrolls as one, so on a small panel
+                        // the grid simply scrolls away above the events.
+                        let gridBudget = proxy.size.height / 3
+                        let rowHeight = min(26, max(18, (gridBudget - 16 - 16 - 4 - 20) / 6))
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(spacing: 8) {
+                                monthNav
+                                MonthGridView(service: service, rowHeight: rowHeight)
+                                    .padding(.horizontal, 8)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 6)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+                                HStack(spacing: 8) {
+                                    InstrumentLabel(dayLabel(service.selectedDay), color: Theme.accent)
+                                    Hairline()
+                                }
+                                .padding(.top, 4)
+                                EventListView(service: service, day: service.selectedDay, embedded: true)
+                                    .frame(maxWidth: .infinity, alignment: .top)
+                            }
+                        }
+                    }
+                case .listOnly:
+                    AgendaListView(service: service)
+                }
+    }
+
+    private func dayLabel(_ day: Date) -> String {
+        if service.calendar.isDateInToday(day) { return L10n.t(.calToday) }
+        if service.calendar.isDateInTomorrow(day) { return L10n.t(.calTomorrow) }
+        return Self.dayFormatter.string(from: day)
+    }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
+        return formatter
+    }()
 
     /// Month furniture — arrows and the tappable "back to today" title. It
     /// belongs to the grid, so it only appears with one.

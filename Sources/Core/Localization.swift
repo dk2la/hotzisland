@@ -97,6 +97,10 @@ enum L10nKey {
     // Calendar
     case calAllDay, calJoin, calNow, calNoEvents, calToday, calTomorrow
     case calStartsInMinutes, calStartsInHours
+    case calNewEvent, calEditEvent, calTitleField, calCalendarField, calStarts, calEnds
+    case calMyStatus, calStatusAccepted, calStatusDeclined, calStatusTentative, calStatusPending
+    case calLocationField, calURLField, calNotesField, calAttendees, calOrganizer
+    case calOpenInCalendar, calInviteesHint, calDelete, calConfirmDelete, calSave, calEdit
     case timerCustomPlaceholder
 
     // Notes
@@ -114,8 +118,10 @@ enum L10nKey {
     case mailImapHost, mailSmtpHost
     case mailCheck, mailChecking, mailCheckOk, mailSave, mailRemove
     case mailReply, mailReplyPlaceholder, mailSend, mailSending, mailSent, mailCancel, mailShowImages, mailHideImages
+    case mailReplyAll, mailForward, mailCc, mailForwardedHeader
     case mailSearchPlaceholder, mailNoResults, mailArchive, mailRefresh, mailSearch
     case mailToField, mailSubjectField, mailNewMessage, mailBodyPlaceholder
+    case mailboxPrimary, mailboxStarred, mailboxImportant, mailboxSent, mailboxSpam
 
     // Assistant
     case asstSetupTitle, asstSetupSub, asstHint, asstPlaceholder, asstThinking
@@ -127,6 +133,11 @@ enum L10nKey {
     // Playbooks
     case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playEdit, playAdd
     case playApps, playCloseRest, playFocus, playLaunch
+    case playStepOpenApps, playStepCloseOthers, playStepShortcut, playStepFocus, playStepTimer, playStepURLs
+    case playAddStep, playLayout, playGrantAccess, playLayoutHint
+    case playLayoutNone, playLayoutLeftRight, playLayoutThirds, playLayoutGrid2x2, playLayoutMainSide, playLayoutFullscreen
+    case playName, playIcon, playSteps, playNoSteps, playSearchApps, playAddBundleID, playSelectedCount
+    case playChooseShortcut, playShortcutName, playMinutes, playMinutesShort, playURLsHint, playLinks
 
     // Metrics
     case sysMemory, sysNetwork, sysBattery, sysCharging, sysVolume
@@ -196,6 +207,28 @@ enum L10nKey {
         case .calNoEvents: return ["no events", "нет событий", "aucun événement", "sin eventos", "没有日程", "sem eventos", "keine Termine", "nessun evento", "予定なし", "일정 없음"]
         case .calToday: return ["Today", "Сегодня", "Aujourd'hui", "Hoy", "今天", "Hoje", "Heute", "Oggi", "今日", "오늘"]
         case .calTomorrow: return ["Tomorrow", "Завтра", "Demain", "Mañana", "明天", "Amanhã", "Morgen", "Domani", "明日", "내일"]
+        case .calNewEvent: return ["New event", "Новое событие", "Nouvel événement", "Nuevo evento", "新建日程", "Novo evento", "Neuer Termin", "Nuovo evento", "新規イベント", "새 일정"]
+        case .calMyStatus: return ["My status", "Мой статус", "Mon statut", "Mi estado", "我的状态", "Meu status", "Mein Status", "Il mio stato", "自分のステータス", "내 상태"]
+        case .calStatusAccepted: return ["Accepted", "Принято", "Accepté", "Aceptado", "已接受", "Aceito", "Zugesagt", "Accettato", "承諾", "수락됨"]
+        case .calStatusDeclined: return ["Declined", "Отклонено", "Refusé", "Rechazado", "已拒绝", "Recusado", "Abgelehnt", "Rifiutato", "辞退", "거절됨"]
+        case .calStatusTentative: return ["Maybe", "Возможно", "Peut-être", "Quizás", "待定", "Talvez", "Vielleicht", "Forse", "仮承諾", "미정"]
+        case .calStatusPending: return ["No reply", "Нет ответа", "Sans réponse", "Sin respuesta", "未回复", "Sem resposta", "Keine Antwort", "Nessuna risposta", "未返信", "응답 없음"]
+        case .calEditEvent: return ["Edit event", "Изменить событие", "Modifier l'événement", "Editar evento", "编辑日程", "Editar evento", "Termin bearbeiten", "Modifica evento", "イベントを編集", "일정 편집"]
+        case .calTitleField: return ["Title", "Название", "Titre", "Título", "标题", "Título", "Titel", "Titolo", "タイトル", "제목"]
+        case .calCalendarField: return ["Calendar", "Календарь", "Calendrier", "Calendario", "日历", "Calendário", "Kalender", "Calendario", "カレンダー", "캘린더"]
+        case .calStarts: return ["Starts", "Начало", "Début", "Inicio", "开始", "Início", "Beginn", "Inizio", "開始", "시작"]
+        case .calEnds: return ["Ends", "Конец", "Fin", "Fin", "结束", "Fim", "Ende", "Fine", "終了", "종료"]
+        case .calLocationField: return ["Location", "Место", "Lieu", "Ubicación", "地点", "Local", "Ort", "Luogo", "場所", "위치"]
+        case .calURLField: return ["URL", "Ссылка", "URL", "URL", "网址", "URL", "URL", "URL", "URL", "URL"]
+        case .calNotesField: return ["Notes", "Заметки", "Notes", "Notas", "备注", "Notas", "Notizen", "Note", "メモ", "메모"]
+        case .calAttendees: return ["Attendees", "Участники", "Participants", "Asistentes", "参与者", "Participantes", "Teilnehmer", "Partecipanti", "参加者", "참석자"]
+        case .calOrganizer: return ["Organizer", "Организатор", "Organisateur", "Organizador", "组织者", "Organizador", "Organisator", "Organizzatore", "主催者", "주최자"]
+        case .calOpenInCalendar: return ["Open in Calendar", "Открыть в Календаре", "Ouvrir dans Calendrier", "Abrir en Calendario", "在日历中打开", "Abrir no Calendário", "In Kalender öffnen", "Apri in Calendario", "カレンダーで開く", "캘린더에서 열기"]
+        case .calInviteesHint: return ["Invitees are added in Calendar", "Участники добавляются в Календаре", "Les invités s'ajoutent dans Calendrier", "Los invitados se añaden en Calendario", "邀请对象在日历中添加", "Os convidados são adicionados no Calendário", "Eingeladene werden im Kalender hinzugefügt", "Gli invitati si aggiungono in Calendario", "参加者はカレンダーで追加します", "초대 대상은 캘린더에서 추가합니다"]
+        case .calDelete: return ["Delete", "Удалить", "Supprimer", "Eliminar", "删除", "Apagar", "Löschen", "Elimina", "削除", "삭제"]
+        case .calConfirmDelete: return ["Confirm delete", "Подтвердить удаление", "Confirmer la suppression", "Confirmar eliminación", "确认删除", "Confirmar exclusão", "Löschen bestätigen", "Conferma eliminazione", "削除を確認", "삭제 확인"]
+        case .calSave: return ["Save", "Сохранить", "Enregistrer", "Guardar", "保存", "Guardar", "Sichern", "Salva", "保存", "저장"]
+        case .calEdit: return ["Edit", "Изменить", "Modifier", "Editar", "编辑", "Editar", "Bearbeiten", "Modifica", "編集", "편집"]
         case .timerCustomPlaceholder: return ["min", "мин", "min", "min", "分", "min", "Min", "min", "分", "분"]
 
         case .notesEmptyTitle: return ["no notes", "нет заметок", "aucune note", "sin notas", "没有备忘录", "sem notas", "keine Notizen", "nessuna nota", "メモなし", "메모 없음"]
@@ -219,6 +252,10 @@ enum L10nKey {
         case .mailNoBody: return ["(no text)", "(нет текста)", "(pas de texte)", "(sin texto)", "（无正文）", "(sem texto)", "(kein Text)", "(nessun testo)", "（本文なし）", "(본문 없음)"]
         case .mailNoSubject: return ["(no subject)", "(без темы)", "(sans objet)", "(sin asunto)", "（无主题）", "(sem assunto)", "(kein Betreff)", "(nessun oggetto)", "（件名なし）", "(제목 없음)"]
         case .mailReply: return ["Reply", "Ответить", "Répondre", "Responder", "回复", "Responder", "Antworten", "Rispondi", "返信", "답장"]
+        case .mailReplyAll: return ["Reply all", "Ответить всем", "Répondre à tous", "Responder a todos", "全部回复", "Responder a todos", "Allen antworten", "Rispondi a tutti", "全員に返信", "전체 답장"]
+        case .mailForward: return ["Forward", "Переслать", "Transférer", "Reenviar", "转发", "Reencaminhar", "Weiterleiten", "Inoltra", "転送", "전달"]
+        case .mailCc: return ["Cc", "Копия", "Cc", "Cc", "抄送", "Cc", "Cc", "Cc", "Cc", "참조"]
+        case .mailForwardedHeader: return ["Forwarded message", "Пересланное сообщение", "Message transféré", "Mensaje reenviado", "转发的邮件", "Mensagem reencaminhada", "Weitergeleitete Nachricht", "Messaggio inoltrato", "転送メッセージ", "전달된 메시지"]
         case .mailReplyPlaceholder: return ["Your reply…", "Ваш ответ…", "Votre réponse…", "Tu respuesta…", "你的回复…", "A sua resposta…", "Ihre Antwort…", "La tua risposta…", "返信を入力…", "답장 입력…"]
         case .mailSend: return ["Send", "Отправить", "Envoyer", "Enviar", "发送", "Enviar", "Senden", "Invia", "送信", "보내기"]
         case .mailSending: return ["Sending…", "Отправка…", "Envoi…", "Enviando…", "发送中…", "A enviar…", "Senden…", "Invio…", "送信中…", "보내는 중…"]
@@ -235,6 +272,11 @@ enum L10nKey {
         case .mailSubjectField: return ["Subject", "Тема", "Objet", "Asunto", "主题", "Assunto", "Betreff", "Oggetto", "件名", "제목"]
         case .mailNewMessage: return ["New message", "Новое письмо", "Nouveau message", "Mensaje nuevo", "新邮件", "Nova mensagem", "Neue Nachricht", "Nuovo messaggio", "新規メッセージ", "새 메시지"]
         case .mailBodyPlaceholder: return ["Message…", "Сообщение…", "Message…", "Mensaje…", "正文…", "Mensagem…", "Nachricht…", "Messaggio…", "本文…", "메시지…"]
+        case .mailboxPrimary: return ["Primary", "Основные", "Principale", "Principal", "主要", "Principal", "Allgemein", "Principale", "メイン", "기본"]
+        case .mailboxStarred: return ["Starred", "Помеченные", "Suivis", "Destacados", "已加星标", "Com estrela", "Markiert", "Speciali", "スター付き", "별표"]
+        case .mailboxImportant: return ["Important", "Важные", "Importants", "Importantes", "重要", "Importantes", "Wichtig", "Importanti", "重要", "중요"]
+        case .mailboxSent: return ["Sent", "Отправленные", "Envoyés", "Enviados", "已发送", "Enviados", "Gesendet", "Inviati", "送信済み", "보낸편지함"]
+        case .mailboxSpam: return ["Spam", "Спам", "Spam", "Spam", "垃圾邮件", "Spam", "Spam", "Spam", "迷惑メール", "스팸"]
         case .asstSetupTitle: return ["no provider", "нет провайдера", "aucun fournisseur", "sin proveedor", "未设置服务商", "sem fornecedor", "kein Anbieter", "nessun provider", "プロバイダなし", "제공자 없음"]
         case .asstSetupSub: return ["Connect any OpenAI-compatible endpoint — OpenAI, OpenRouter or a local Ollama", "Подключите любой OpenAI-совместимый эндпоинт — OpenAI, OpenRouter или локальную Ollama", "Connectez tout point d'accès compatible OpenAI — OpenAI, OpenRouter ou Ollama local", "Conecta cualquier endpoint compatible con OpenAI — OpenAI, OpenRouter u Ollama local", "连接任意兼容 OpenAI 的接口 — OpenAI、OpenRouter 或本地 Ollama", "Ligue qualquer endpoint compatível com OpenAI — OpenAI, OpenRouter ou Ollama local", "Beliebigen OpenAI-kompatiblen Endpunkt verbinden — OpenAI, OpenRouter oder lokales Ollama", "Collega qualsiasi endpoint compatibile OpenAI — OpenAI, OpenRouter o Ollama locale", "OpenAI互換のエンドポイントを接続 — OpenAI、OpenRouter、ローカルのOllama", "OpenAI 호환 엔드포인트 연결 — OpenAI, OpenRouter 또는 로컬 Ollama"]
         case .asstHint: return ["Set a timer, check today's events, capture a note — just ask", "Поставить таймер, узнать события на сегодня, записать заметку — просто спросите", "Minuteur, agenda du jour, note rapide — demandez simplement", "Pon un temporizador, revisa la agenda, guarda una nota — solo pide", "设定计时器、查看今日日程、记笔记 — 直接开口", "Temporizador, agenda de hoje, nota rápida — é só pedir", "Timer stellen, heutige Termine, Notiz erfassen — einfach fragen", "Timer, eventi di oggi, una nota al volo — basta chiedere", "タイマー設定、今日の予定、メモ — 何でも聞いて", "타이머 설정, 오늘 일정, 메모 — 그냥 물어보세요"]
@@ -279,6 +321,35 @@ enum L10nKey {
         case .playOpened: return ["opened %d", "открыто %d", "ouvert %d", "abiertas %d", "已打开 %d", "abertas %d", "geöffnet %d", "aperte %d", "起動 %d", "열림 %d"]
         case .playErrors: return ["errors %d", "ошибок %d", "erreurs %d", "errores %d", "错误 %d", "erros %d", "Fehler %d", "errori %d", "エラー %d", "오류 %d"]
         case .playEdit: return ["Edit", "Изменить", "Modifier", "Editar", "编辑", "Editar", "Bearbeiten", "Modifica", "編集", "편집"]
+        case .playStepOpenApps: return ["Open apps", "Открыть приложения", "Ouvrir des apps", "Abrir apps", "打开应用", "Abrir apps", "Apps öffnen", "Apri app", "Appを開く", "앱 열기"]
+        case .playStepCloseOthers: return ["Close other apps", "Закрыть остальные приложения", "Fermer les autres apps", "Cerrar las demás apps", "关闭其他应用", "Fechar as outras apps", "Andere Apps schließen", "Chiudi le altre app", "他のAppを閉じる", "다른 앱 닫기"]
+        case .playStepShortcut: return ["Run shortcut", "Запустить быструю команду", "Lancer un raccourci", "Ejecutar atajo", "运行快捷指令", "Executar atalho", "Kurzbefehl ausführen", "Esegui comando rapido", "ショートカットを実行", "단축어 실행"]
+        case .playStepFocus: return ["Set Focus (via shortcut)", "Включить фокус (через команду)", "Définir Concentration (via raccourci)", "Activar Modo de concentración (vía atajo)", "设置专注模式（通过快捷指令）", "Definir Foco (via atalho)", "Fokus setzen (per Kurzbefehl)", "Imposta Full Immersion (via comando)", "集中モードを設定（ショートカット経由）", "집중 모드 설정 (단축어로)"]
+        case .playStepTimer: return ["Start timer", "Запустить таймер", "Lancer le minuteur", "Iniciar temporizador", "启动计时器", "Iniciar temporizador", "Timer starten", "Avvia timer", "タイマーを開始", "타이머 시작"]
+        case .playStepURLs: return ["Open links", "Открыть ссылки", "Ouvrir des liens", "Abrir enlaces", "打开链接", "Abrir links", "Links öffnen", "Apri link", "リンクを開く", "링크 열기"]
+        case .playAddStep: return ["Add step", "Добавить шаг", "Ajouter une étape", "Añadir paso", "添加步骤", "Adicionar passo", "Schritt hinzufügen", "Aggiungi passaggio", "ステップを追加", "단계 추가"]
+        case .playLayout: return ["Window layout", "Расположение окон", "Disposition des fenêtres", "Disposición de ventanas", "窗口布局", "Disposição das janelas", "Fensteranordnung", "Disposizione finestre", "ウインドウの配置", "창 배치"]
+        case .playGrantAccess: return ["Grant access", "Дать доступ", "Autoriser l'accès", "Conceder acceso", "授予权限", "Conceder acesso", "Zugriff erlauben", "Concedi accesso", "アクセスを許可", "접근 허용"]
+        case .playLayoutHint: return ["Arranging windows needs Accessibility access", "Для расстановки окон нужен доступ к Универсальному доступу", "Disposer les fenêtres requiert l'accès Accessibilité", "Ordenar ventanas requiere acceso de Accesibilidad", "排列窗口需要辅助功能权限", "Organizar janelas requer acesso de Acessibilidade", "Fensteranordnung braucht Bedienungshilfen-Zugriff", "Disporre le finestre richiede l'accesso Accessibilità", "ウインドウの配置にはアクセシビリティの許可が必要です", "창 배치에는 손쉬운 사용 접근 권한이 필요합니다"]
+        case .playLayoutNone: return ["Leave as is", "Оставить как есть", "Laisser tel quel", "Dejar como está", "保持原样", "Deixar como está", "So lassen", "Lascia com'è", "そのまま", "그대로 두기"]
+        case .playLayoutLeftRight: return ["Side by side", "Рядом", "Côte à côte", "Lado a lado", "并排", "Lado a lado", "Nebeneinander", "Affiancate", "左右に並べる", "나란히"]
+        case .playLayoutThirds: return ["Three columns", "Три колонки", "Trois colonnes", "Tres columnas", "三列", "Três colunas", "Drei Spalten", "Tre colonne", "3列", "세 열"]
+        case .playLayoutGrid2x2: return ["2 × 2 grid", "Сетка 2 × 2", "Grille 2 × 2", "Cuadrícula 2 × 2", "2 × 2 网格", "Grelha 2 × 2", "2 × 2-Raster", "Griglia 2 × 2", "2 × 2 グリッド", "2 × 2 격자"]
+        case .playLayoutMainSide: return ["Main + sidebar", "Главное + боковое", "Principale + latérale", "Principal + lateral", "主窗口 + 侧栏", "Principal + lateral", "Haupt + Seitenleiste", "Principale + laterale", "メイン + サイド", "메인 + 사이드"]
+        case .playLayoutFullscreen: return ["Fill the screen", "Во весь экран", "Remplir l'écran", "Llenar la pantalla", "填满屏幕", "Preencher o ecrã", "Bildschirm füllen", "Riempi lo schermo", "画面いっぱい", "화면 채우기"]
+        case .playName: return ["Name", "Название", "Nom", "Nombre", "名称", "Nome", "Name", "Nome", "名前", "이름"]
+        case .playIcon: return ["Icon", "Иконка", "Icône", "Icono", "图标", "Ícone", "Symbol", "Icona", "アイコン", "아이콘"]
+        case .playSteps: return ["Steps", "Шаги", "Étapes", "Pasos", "步骤", "Passos", "Schritte", "Passaggi", "ステップ", "단계"]
+        case .playNoSteps: return ["No steps yet — add the first one below", "Шагов пока нет — добавьте первый ниже", "Aucune étape — ajoutez la première ci-dessous", "Sin pasos aún — añade el primero abajo", "还没有步骤 — 在下方添加第一个", "Ainda sem passos — adicione o primeiro abaixo", "Noch keine Schritte — unten den ersten hinzufügen", "Nessun passaggio — aggiungi il primo qui sotto", "まだステップがありません — 下から追加", "아직 단계가 없습니다 — 아래에서 추가하세요"]
+        case .playSearchApps: return ["Search all applications…", "Поиск по всем приложениям…", "Rechercher dans toutes les apps…", "Buscar en todas las apps…", "搜索所有应用…", "Procurar em todas as apps…", "Alle Apps durchsuchen…", "Cerca tra tutte le app…", "すべてのAppを検索…", "모든 앱 검색…"]
+        case .playAddBundleID: return ["Add by bundle ID (e.g. com.figma.Desktop)", "Добавить по bundle ID (например, com.figma.Desktop)", "Ajouter par bundle ID (ex. com.figma.Desktop)", "Añadir por bundle ID (p. ej. com.figma.Desktop)", "按 bundle ID 添加（如 com.figma.Desktop）", "Adicionar por bundle ID (ex. com.figma.Desktop)", "Per Bundle-ID hinzufügen (z. B. com.figma.Desktop)", "Aggiungi per bundle ID (es. com.figma.Desktop)", "バンドルIDで追加（例: com.figma.Desktop）", "번들 ID로 추가 (예: com.figma.Desktop)"]
+        case .playSelectedCount: return ["%d selected", "выбрано %d", "%d sélectionnée(s)", "%d seleccionadas", "已选 %d", "%d selecionadas", "%d ausgewählt", "%d selezionate", "%d個を選択", "%d개 선택됨"]
+        case .playChooseShortcut: return ["Choose a shortcut…", "Выберите команду…", "Choisir un raccourci…", "Elegir un atajo…", "选择快捷指令…", "Escolher um atalho…", "Kurzbefehl wählen…", "Scegli un comando…", "ショートカットを選択…", "단축어 선택…"]
+        case .playShortcutName: return ["Or type a shortcut name", "Или введите название команды", "Ou saisir un nom de raccourci", "O escribe el nombre del atajo", "或输入快捷指令名称", "Ou escreva o nome do atalho", "Oder Kurzbefehl-Namen eingeben", "O digita il nome del comando", "またはショートカット名を入力", "또는 단축어 이름 입력"]
+        case .playMinutes: return ["Minutes", "Минуты", "Minutes", "Minutos", "分钟", "Minutos", "Minuten", "Minuti", "分", "분"]
+        case .playMinutesShort: return ["%d min", "%d мин", "%d min", "%d min", "%d 分钟", "%d min", "%d Min.", "%d min", "%d分", "%d분"]
+        case .playURLsHint: return ["One link per line", "По одной ссылке на строку", "Un lien par ligne", "Un enlace por línea", "每行一个链接", "Um link por linha", "Ein Link pro Zeile", "Un link per riga", "1行に1リンク", "한 줄에 링크 하나"]
+        case .playLinks: return ["%d links", "%d ссыл.", "%d liens", "%d enlaces", "%d 个链接", "%d links", "%d Links", "%d link", "%d件のリンク", "링크 %d개"]
         case .playAdd: return ["Add playbook…", "Добавить плейбук…", "Ajouter un playbook…", "Añadir playbook…", "添加行动手册…", "Adicionar playbook…", "Playbook hinzufügen…", "Aggiungi playbook…", "プレイブックを追加…", "플레이북 추가…"]
 
         case .sysMemory: return ["Memory", "Память", "Mémoire", "Memoria", "内存", "Memória", "Speicher", "Memoria", "メモリ", "메모리"]

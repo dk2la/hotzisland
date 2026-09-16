@@ -56,8 +56,29 @@ final class WidgetWindowController: NSObject {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(showModuleRequested(_:)),
+            name: .hotzShowModule,
+            object: nil
+        )
 
         attach()
+    }
+
+    /// Another module asked for this one to come forward (the assistant
+    /// handing a prefilled form to the calendar).
+    @objc private func showModuleRequested(_ notification: Notification) {
+        guard let raw = notification.userInfo?["tab"] as? String,
+              let tab = NotchTab(rawValue: raw), settings.isEnabled(tab) else { return }
+        if viewModel.isMinimized {
+            setMinimized(false)
+        }
+        if viewModel.selectedTab == nil {
+            openPanel(tab)
+        } else if viewModel.selectedTab != tab {
+            viewModel.setSelectedTab(tab)
+        }
     }
 
     func tearDown() {

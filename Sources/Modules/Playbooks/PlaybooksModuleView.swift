@@ -31,79 +31,51 @@ enum AppVisuals {
     }
 }
 
-/// "Playbooks" module: full-width workspace rows — a stack of the real app
-/// icons, the name over the apps it opens, and a Launch button. A quiet
-/// register underneath reports the last run.
+/// "Playbooks" module: one card per playbook in the mail-row language —
+/// the user-chosen symbol, the name over a one-line recipe of its steps,
+/// and a run button. A "+ new" card at the end opens the editor in
+/// Settings. A quiet register underneath reports failures of the last run.
 struct PlaybooksModuleView: View {
     var store: PlaybookStore
     var runner: PlaybookRunner
 
+    /// Playbook that just finished — its row shows a checkmark for 3 s.
+    @State private var justRanID: UUID?
+
     var body: some View {
         VStack(spacing: 10) {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     ForEach(store.playbooks) { playbook in
                         row(for: playbook)
                     }
+                    newCard
                 }
             }
-            if let last = runner.lastRun {
+            if let last = runner.lastRun, !last.result.failures.isEmpty {
                 runRegister(last)
+            }
+        }
+        .onChange(of: runner.lastRun) { _, record in
+            guard let record else { return }
+            justRanID = record.playbook.id
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                if justRanID == record.playbook.id, runner.lastRun == record {
+                    justRanID = nil
+                }
             }
         }
     }
 
     // MARK: - Rows
 
-    /// Same row language as the other lists (clipboard, notes): the whole
-    /// row is the button, a small square affordance trails. A text capsule
-    /// would wrap at narrow widths — an icon cannot.
-    private func row(for playbook: Playbook) -> some View {
-        let isLastRun = runner.lastRun?.playbook.id == playbook.id
-        return Button {
-            runner.run(playbook)
-        } label: {
-            HStack(alignment: .center, spacing: 12) {
-                identity(for: playbook)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(playbook.name)
-                        .font(Theme.bodyFont)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundStyle(Theme.textPrimary)
-                    Text(subtitle(for: playbook))
-                        .font(Theme.captionFont)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundStyle(Theme.textQuaternary)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: isLastRun ? "checkmark" : "play.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(isLastRun ? Theme.inkOnAccent : Theme.textSecondary)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(isLastRun ? Theme.accent : Theme.raisedFill)
-                    )
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-        }
-        .buttonStyle(PressableStyle())
-        .disabled(runner.isRunning)
-        .opacity(runner.isRunning ? 0.5 : 1)
-    }
+    private static let cardShape = RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
 
-    /// Overlapping icons of the apps the playbook opens; the user-chosen
-    /// symbol fills in for shortcut-only playbooks.
-    @ViewBuilder
-    private func identity(for playbook: Playbook) -> some View {
-        let icons = playbook.openBundleIDs.prefix(3).compactMap(AppVisuals.icon(for:))
-        if icons.isEmpty {
+    private func row(for playbook: Playbook) -> some View {
+        let isRunningThis = runner.runningPlaybookID == playbook.id
+        let justRan = justRanID == playbook.id
+        return HStack(alignment: .center, spacing: 10) {
             Image(systemName: playbook.icon)
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(Theme.textPrimary)
@@ -112,47 +84,96 @@ struct PlaybooksModuleView: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Theme.raisedFill)
                 )
-        } else {
-            HStack(spacing: -9) {
-                ForEach(Array(icons.enumerated()), id: \.offset) { _, icon in
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 28, height: 28)
-                        // A hairline moat so overlapped icons read as a stack.
-                        .background(Circle().fill(Theme.cardFill).padding(-1))
-                }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(playbook.name)
+                    .font(Theme.bodyFont)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(Theme.textPrimary)
+                Text(summary(for: playbook))
+                    .font(Theme.subFont)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(Theme.textTertiary)
             }
-            .frame(minWidth: 30, alignment: .leading)
+            Spacer(minLength: 0)
+            if justRan {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .transition(.opacity)
+            }
+            CircleGlassButton(systemName: "play.fill", size: 28, solid: isRunningThis) {
+                runner.run(playbook)
+            }
+            .disabled(runner.isRunning)
+            .opacity(runner.isRunning && !isRunningThis ? 0.5 : 1)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Theme.cardFill, in: Self.cardShape)
+        .animation(.easeOut(duration: 0.15), value: justRan)
     }
 
-    /// "Zed · Terminal · Firefox" — the apps themselves, by name; falls back
-    /// to the behavioural meta for playbooks that open nothing.
-    private func subtitle(for playbook: Playbook) -> String {
-        let names = playbook.openBundleIDs.compactMap(AppVisuals.name(for:))
-        if !names.isEmpty {
-            let shown = names.prefix(3).joined(separator: " · ")
-            let more = names.count > 3 ? " +\(names.count - 3)" : ""
-            return shown + more
-        }
+    /// "3 apps · Three columns · focus · 25 min" — one token per step.
+    private func summary(for playbook: Playbook) -> String {
         var parts: [String] = []
-        if playbook.closeOthers { parts.append(L10n.t(.playCloseRest)) }
-        if playbook.shortcutName != nil { parts.append(L10n.t(.playFocus)) }
-        if let minutes = playbook.timerMinutes { parts.append("\(minutes)m") }
+        for step in playbook.steps {
+            switch step {
+            case .openApps(_, let bundleIDs, let layout):
+                parts.append(L10n.f(.playApps, bundleIDs.count))
+                if layout != .none { parts.append(layout.title) }
+            case .closeOtherApps:
+                parts.append(L10n.t(.playCloseRest))
+            case .runShortcut(_, let name):
+                parts.append(name.isEmpty ? L10n.t(.playStepShortcut) : name)
+            case .setFocus:
+                parts.append(L10n.t(.playFocus))
+            case .startTimer(_, let minutes):
+                parts.append(L10n.f(.playMinutesShort, minutes))
+            case .openURLs(_, let urls):
+                parts.append(L10n.f(.playLinks, urls.count))
+            }
+        }
         return parts.isEmpty ? L10n.t(.playEmpty) : parts.joined(separator: " · ")
+    }
+
+    /// Dashed placeholder card: the only way to create a playbook from the
+    /// widget — deep-links to Settings → Playbooks.
+    private var newCard: some View {
+        Button {
+            NotificationCenter.default.post(
+                name: .hotzOpenSettings,
+                object: nil,
+                userInfo: ["page": SettingsView.Page.playbooks.rawValue]
+            )
+        } label: {
+            Text(L10n.t(.playNew))
+                .font(Theme.subFont)
+                .fontWeight(.medium)
+                .foregroundStyle(Theme.textTertiary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 46)
+                .background(
+                    Self.cardShape
+                        .stroke(Theme.dashedBorder, style: StrokeStyle(lineWidth: 1, dash: [5, 6]))
+                )
+                .contentShape(Self.cardShape)
+        }
+        .buttonStyle(PressableStyle())
     }
 
     // MARK: - Run register
 
-    /// "«Работа» — закрыто 6, открыто 4". Quiet by design: it is a receipt,
-    /// not an alert — unless something failed.
+    /// "«Работа» — закрыто 6, ошибок 1". Shown only when something failed:
+    /// success already has its checkmark in the row.
     private func runRegister(_ last: PlaybookRunner.RunRecord) -> some View {
-        let failed = !last.result.failures.isEmpty
-        return HStack(spacing: 10) {
+        HStack(spacing: 10) {
             Circle()
-                .fill(failed ? Theme.critical : Theme.accent)
+                .fill(Theme.critical)
                 .frame(width: 5, height: 5)
-            Text(summary(last))
+            Text(registerText(last))
                 .font(Theme.subFont)
                 .lineLimit(1)
                 .foregroundStyle(Theme.textSecondary)
@@ -163,7 +184,7 @@ struct PlaybooksModuleView: View {
         .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
     }
 
-    private func summary(_ last: PlaybookRunner.RunRecord) -> String {
+    private func registerText(_ last: PlaybookRunner.RunRecord) -> String {
         var parts: [String] = []
         if last.result.closed > 0 { parts.append(L10n.f(.playClosed, last.result.closed)) }
         if last.result.opened > 0 { parts.append(L10n.f(.playOpened, last.result.opened)) }

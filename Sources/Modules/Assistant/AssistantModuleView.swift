@@ -169,7 +169,7 @@ struct AssistantModuleView: View {
             .padding(.leading, 12)
             .padding(.trailing, 4)
             .padding(.vertical, 4)
-            .frame(minHeight: 36)
+            .frame(minHeight: Theme.inputHeight)
             .background(Theme.raisedFill.opacity(0.7), in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
             .animation(Theme.stateSpring, value: assistant.draft.isEmpty)
             SpeechMicControl(speech: speech) { text in
@@ -179,7 +179,7 @@ struct AssistantModuleView: View {
             // Voice-mode toggle and transcript clearing live in the panel
             // header; only the in-the-moment mute belongs down here.
             if voice.isSpeaking {
-                CircleGlassButton(systemName: "speaker.slash", size: 30) {
+                CircleGlassButton(systemName: "speaker.slash", size: Theme.inputHeight) {
                     voice.stop()
                 }
                 .transition(.opacity)

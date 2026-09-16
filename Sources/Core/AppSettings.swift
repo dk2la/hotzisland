@@ -26,6 +26,10 @@ extension Notification.Name {
     /// Posted by widget UI that wants the settings island opened; the
     /// AppDelegate observes it.
     static let hotzOpenSettings = Notification.Name("hotzOpenSettings")
+    /// Posted with `userInfo["tab"]` (a NotchTab raw value) to open that
+    /// module in the widget — e.g. the assistant handing a form to the
+    /// calendar.
+    static let hotzShowModule = Notification.Name("hotzShowModule")
 }
 
 /// User preferences, persisted to UserDefaults.

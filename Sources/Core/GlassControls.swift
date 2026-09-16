@@ -70,6 +70,8 @@ struct GlassCapsuleButton: View {
     var systemName: String?
     var isPrimary = false
     var enabled = true
+    /// Label colour override for ghost buttons — critical red for Delete.
+    var tint: Color?
     let action: () -> Void
 
     private var shape: RoundedRectangle {
@@ -87,7 +89,7 @@ struct GlassCapsuleButton: View {
                     .font(Theme.subFont)
                     .fontWeight(isPrimary ? .semibold : .medium)
             }
-            .foregroundStyle(isPrimary ? Theme.inkOnAccent : Theme.textPrimary)
+            .foregroundStyle(isPrimary ? Theme.inkOnAccent : (tint ?? Theme.textPrimary))
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .background(shape.fill(isPrimary ? Theme.accent : Theme.raisedFill))

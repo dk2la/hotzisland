@@ -23,6 +23,13 @@ final class NotchWindowController: NSObject {
     /// for as long as the event is on screen.
     private var eventOwnsWindow = false
     private var clickMonitors: [Any] = []
+    /// Opened deliberately (hotkey, menu, deep link) rather than by hover:
+    /// the panel then stays until the hotkey again, ✕, or a click outside —
+    /// moving the mouse away must not close what the user asked for.
+    private var settingsPinned = false
+    /// Hover exits are debounced: menus, pickers and quick cursor flicks
+    /// at the panel edge fire exits that do not mean "leave".
+    private var hoverExitTask: Task<Void, Never>?
     private let services: ModuleServices
     private let settings: AppSettings
     private let playbookStore: PlaybookStore
@@ -58,7 +65,7 @@ final class NotchWindowController: NSObject {
         attachToScreen()
         setUpLiveEvents()
         viewModel.onIslandTapped = { [weak self] in
-            self?.openSettings(page: nil)
+            self?.openSettings(page: nil, pinned: true)
         }
         viewModel.onClose = { [weak self] in
             self?.closeSettings()
@@ -68,23 +75,27 @@ final class NotchWindowController: NSObject {
     // MARK: - Settings island
 
     /// Expands the island onto the settings, optionally on a given page.
-    func openSettings(page: SettingsView.Page?) {
+    /// `pinned` keeps it open regardless of the cursor (see `settingsPinned`).
+    func openSettings(page: SettingsView.Page?, pinned: Bool = true) {
         if let page {
             viewModel.pageSelection.page = page
         }
+        settingsPinned = pinned
         requestState(.expanded)
     }
 
     func closeSettings() {
+        settingsPinned = false
         guard targetState == .expanded else { return }
         requestState(idleState)
     }
 
+    /// ⌃⌥M: open pinned, or close if already open.
     func toggleSettings() {
         if targetState == .expanded {
             closeSettings()
         } else {
-            openSettings(page: nil)
+            openSettings(page: nil, pinned: true)
         }
     }
 
@@ -106,9 +117,11 @@ final class NotchWindowController: NSObject {
             matching: mask,
             handler: { [weak self] event in
                 // Local events carry window coordinates; only a click in
-                // another of our windows (the widget) counts as outside.
-                if event.window !== self?.panel {
-                    self?.handleOutsideClick(at: NSEvent.mouseLocation)
+                // another of our windows (the widget) counts as outside —
+                // a sheet, popover or menu belonging to the panel does not.
+                if let self, let window = event.window, window !== self.panel,
+                   window.parent !== self.panel, window.sheetParent !== self.panel {
+                    self.handleOutsideClick(at: NSEvent.mouseLocation)
                 }
                 return event
             }
@@ -126,6 +139,7 @@ final class NotchWindowController: NSObject {
 
     private func handleOutsideClick(at location: NSPoint) {
         guard targetState == .expanded, !viewModel.isResizingPanel,
+              panel.attachedSheet == nil, !hasOwnPopupWindow,
               let screen = NotchGeometry.targetScreen else { return }
         if !frame(for: .expanded, on: screen).contains(location) {
             closeSettings()
@@ -223,6 +237,47 @@ final class NotchWindowController: NSObject {
         )
     }
 
+    /// Hover enters through the hosting view's tracking area. Resting on
+    /// the notch (or a live-event bulge) opens the settings unpinned;
+    /// leaving the expanded panel closes them unless they are pinned.
+    private func hoverEntered() {
+        hoverExitTask?.cancel()
+        hoverExitTask = nil
+        guard targetState != .expanded else { return }
+        requestState(.expanded)
+    }
+
+    private func hoverExited() {
+        guard targetState == .expanded, !settingsPinned else { return }
+        hoverExitTask?.cancel()
+        hoverExitTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled, let self else { return }
+            self.collapseIfCursorLeft()
+        }
+    }
+
+    /// Collapses only when the cursor really is away from the panel and
+    /// nothing of ours (a menu, a popover, a sheet) is up in front of it.
+    private func collapseIfCursorLeft() {
+        guard targetState == .expanded, !settingsPinned, !viewModel.isResizingPanel else { return }
+        guard panel.attachedSheet == nil, !hasOwnPopupWindow else { return }
+        guard let screen = NotchGeometry.targetScreen else { return }
+        if frame(for: .expanded, on: screen).contains(NSEvent.mouseLocation) { return }
+        requestState(idleState)
+    }
+
+    /// A SwiftUI Menu or picker opens its own window on top of the panel;
+    /// while one is visible the cursor is "inside" as far as the user is
+    /// concerned.
+    private var hasOwnPopupWindow: Bool {
+        NSApp.windows.contains { window in
+            window !== panel && window.isVisible
+                && (window.parent === panel || window.sheetParent === panel
+                    || window.className.contains("Popup") || window.className.contains("Menu"))
+        }
+    }
+
     /// Single entry point for state changes: prepare the window frame first,
     /// then run the animation.
     private func requestState(_ newState: NotchState) {
@@ -255,6 +310,9 @@ final class NotchWindowController: NSObject {
                 self?.viewModel.setState(.expanded)
             }
         case .closed, .compact:
+            settingsPinned = false
+            hoverExitTask?.cancel()
+            hoverExitTask = nil
             removeOutsideClickMonitors()
             panel.allowsKeyFocus = false
             if panel.isKeyWindow {
@@ -304,6 +362,8 @@ final class NotchWindowController: NSObject {
         let hostingView = NotchHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
+        hostingView.onMouseEntered = { [weak self] in self?.hoverEntered() }
+        hostingView.onMouseExited = { [weak self] in self?.hoverExited() }
         panel.contentView = hostingView
 
         panel.setFrame(frame(for: viewModel.state, on: screen), display: true)

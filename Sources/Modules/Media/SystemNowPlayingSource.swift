@@ -14,6 +14,14 @@ final class SystemNowPlayingSource: MediaSource {
     private typealias GetPIDFn = @convention(c) (DispatchQueue, @escaping (Int32) -> Void) -> Void
     private typealias SendCommandFn = @convention(c) (Int32, CFDictionary?) -> Bool
     private typealias SetElapsedFn = @convention(c) (Double) -> Void
+    private typealias RegisterFn = @convention(c) (DispatchQueue) -> Void
+
+    /// Posted on `NotificationCenter.default` once
+    /// `MRMediaRemoteRegisterForNowPlayingNotifications` has been called —
+    /// the constants' values equal their names.
+    static let infoDidChange = Notification.Name("kMRMediaRemoteNowPlayingInfoDidChangeNotification")
+    static let applicationDidChange = Notification.Name("kMRMediaRemoteNowPlayingApplicationDidChangeNotification")
+    static let isPlayingDidChange = Notification.Name("kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification")
 
     private enum Command: Int32 {
         case togglePlayPause = 2
@@ -25,7 +33,14 @@ final class SystemNowPlayingSource: MediaSource {
     private let getPID: GetPIDFn?
     private let sendCommand: SendCommandFn?
     private let setElapsed: SetElapsedFn?
+    private let register: RegisterFn?
     private var lastArtworkData: Data?
+    /// Title of the item `lastArtworkData` belongs to — callers borrowing
+    /// the bytes for a dedicated player check they describe the same item.
+    private(set) var lastTitle: String?
+    /// Whether the change notifications are wired up; `false` means the
+    /// register symbol is missing and the owner has to fall back to polling.
+    private(set) var isObserving = false
 
     init() {
         let handle = dlopen(
@@ -39,9 +54,26 @@ final class SystemNowPlayingSource: MediaSource {
         getPID = symbol("MRMediaRemoteGetNowPlayingApplicationPID", as: GetPIDFn.self)
         sendCommand = symbol("MRMediaRemoteSendCommand", as: SendCommandFn.self)
         setElapsed = symbol("MRMediaRemoteSetElapsedTime", as: SetElapsedFn.self)
+        register = symbol("MRMediaRemoteRegisterForNowPlayingNotifications", as: RegisterFn.self)
     }
 
     func isAvailable() -> Bool { getInfo != nil }
+
+    /// Subscribes to the now-playing change notifications and forwards each
+    /// one to `handler` on the main actor. Returns `false` when the register
+    /// symbol is unavailable (nothing will ever be posted).
+    @discardableResult
+    func startObserving(_ handler: @escaping @MainActor () -> Void) -> Bool {
+        guard let register, !isObserving else { return isObserving }
+        register(DispatchQueue.main)
+        for name in [Self.infoDidChange, Self.applicationDidChange, Self.isPlayingDidChange] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { handler() }
+            }
+        }
+        isObserving = true
+        return true
+    }
 
     /// Sendable snapshot extracted from the MediaRemote info dictionary
     /// inside the callback (the raw dictionary must not cross isolation).
@@ -98,6 +130,7 @@ final class SystemNowPlayingSource: MediaSource {
         }
         guard let raw else {
             lastArtworkData = nil
+            lastTitle = nil
             nowPlayingAppName = nil
             nowPlayingBundleID = nil
             return nil
@@ -105,18 +138,21 @@ final class SystemNowPlayingSource: MediaSource {
 
         await refreshNowPlayingApp()
 
-        var elapsed = raw.elapsed
-        if raw.rate > 0, let timestamp = raw.timestamp {
-            elapsed += Date().timeIntervalSince(timestamp) * raw.rate
-        }
         lastArtworkData = raw.artworkData
+        lastTitle = raw.title
 
+        // MediaRemote hands out the sample as-is (elapsed at `timestamp`);
+        // the view derives the live position from it.
         return MediaTrack(
             source: .client(bundleID: nowPlayingBundleID ?? ""),
             title: raw.title,
             artist: raw.artist,
             duration: raw.duration,
-            position: elapsed,
+            playback: MediaPlayback(
+                elapsed: raw.elapsed,
+                timestamp: raw.timestamp ?? Date(),
+                rate: raw.rate
+            ),
             isPlaying: raw.rate > 0,
             artworkKey: raw.artworkID ?? raw.title
         )

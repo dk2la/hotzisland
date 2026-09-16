@@ -67,12 +67,25 @@ struct ModuleBackButton: View {
                 }
                 : nil
         case .calendar:
-            services.calendarService.showingPicker
-                ? { services.calendarService.showingPicker = false }
-                : nil
+            calendarBackAction
         default:
             nil
         }
+    }
+
+    /// Form → card → list, one level per chevron.
+    private var calendarBackAction: (() -> Void)? {
+        let calendar = services.calendarService
+        if calendar.editingEvent != nil {
+            return { calendar.cancelEditing() }
+        } else if calendar.isCreating {
+            return { calendar.cancelCreating() }
+        } else if calendar.selectedEvent != nil {
+            return { calendar.closeEvent() }
+        } else if calendar.showingPicker {
+            return { calendar.showingPicker = false }
+        }
+        return nil
     }
 }
 
@@ -116,8 +129,11 @@ struct ModuleAccessoriesView: View {
         let service = services.emailService
         if service.config != nil, !service.isComposeOpen {
             if let message = service.openMessage {
-                HeaderIconButton("archivebox", help: L10n.t(.mailArchive)) {
-                    service.archive(message)
+                // Sent and Spam mail is not in the inbox — nothing to archive.
+                if service.canArchive(message) {
+                    HeaderIconButton("archivebox", help: L10n.t(.mailArchive)) {
+                        service.archive(message)
+                    }
                 }
                 HeaderIconButton("arrow.up.forward.app", help: L10n.t(.mailOpenInApp)) {
                     service.openInMailApp()
@@ -143,7 +159,15 @@ struct ModuleAccessoriesView: View {
     @ViewBuilder
     private var calendarAccessories: some View {
         let service = services.calendarService
-        if service.access == .granted, !service.showingPicker {
+        // The detail card and the form carry their own actions; the header
+        // only adds to the list.
+        if service.access == .granted, !service.showingPicker,
+           service.selectedEvent == nil, !service.isCreating, service.editingEvent == nil {
+            if !service.writableCalendars.isEmpty {
+                HeaderIconButton("plus", help: L10n.t(.calNewEvent)) {
+                    service.startCreating(on: service.selectedDay)
+                }
+            }
             ForEach(CalendarDisplayMode.allCases) { mode in
                 HeaderIconButton(mode.icon, active: service.displayMode == mode) {
                     service.setDisplayMode(mode)

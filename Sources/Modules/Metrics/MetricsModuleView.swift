@@ -7,6 +7,11 @@ struct MetricsModuleView: View {
     var power: PowerSourceMonitor
     var audio: AudioSystemMonitor
 
+    /// Whether this view instance currently holds a stats observer. SwiftUI
+    /// can fire appear/disappear repeatedly during transitions; the flag
+    /// keeps the contribution to the service's count at exactly zero or one.
+    @State private var isObservingStats = false
+
     var body: some View {
         VStack(spacing: 6) {
             statRow(label: "CPU", value: percentText(stats.cpuUsage), fraction: stats.cpuUsage)
@@ -19,6 +24,16 @@ struct MetricsModuleView: View {
             powerRow
             volumeRow
             Spacer(minLength: 0)
+        }
+        .onAppear {
+            guard !isObservingStats else { return }
+            isObservingStats = true
+            stats.beginObserving()
+        }
+        .onDisappear {
+            guard isObservingStats else { return }
+            isObservingStats = false
+            stats.endObserving()
         }
     }
 
