@@ -53,7 +53,7 @@ final class AssistantToolbox {
         ),
         ToolSpec(
             name: "run_playbook",
-            description: "Run one of the user's playbooks (opens/closes apps, runs a shortcut) by name.",
+            description: "Run one of the user's playbooks (opens/arranges/closes apps, runs a shortcut, starts a timer, opens links) by name.",
             exampleArguments: #"{"name": "Focus"}"#,
             parameters: ["name": ["type": "string", "description": "Playbook name, exact or approximate"]],
             required: ["name"]
@@ -399,12 +399,8 @@ final class AssistantToolbox {
             let all = playbooks.playbooks
             guard !all.isEmpty else { return ToolOutcome(text: "The user has no playbooks yet.") }
             let lines = all.map { playbook -> String in
-                var parts: [String] = []
-                if !playbook.openBundleIDs.isEmpty { parts.append("opens \(playbook.openBundleIDs.count) app(s)") }
-                if playbook.closeOthers { parts.append("closes other apps") }
-                if let shortcut = playbook.shortcutName { parts.append("runs shortcut \"\(shortcut)\"") }
-                if let minutes = playbook.timerMinutes { parts.append("starts a \(minutes)-minute timer") }
-                return "- \(playbook.name): " + (parts.isEmpty ? "does nothing yet" : parts.joined(separator: ", "))
+                let steps = playbook.summaryLines
+                return "- \(playbook.name): " + (steps.isEmpty ? "does nothing yet" : steps.joined(separator: ", "))
             }
             return ToolOutcome(text: lines.joined(separator: "\n"))
 

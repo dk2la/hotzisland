@@ -252,6 +252,12 @@ final class EmailService {
                     try await session.idle(onEvent: onEvent)
                     guard !Task.isCancelled else { return }
                     self?.idleSupported = true
+                    // A body prefetch is a burst of commands on this very
+                    // session; re-entering IDLE between them would DONE/IDLE
+                    // once per message. Let the burst finish first.
+                    while let prefetch = self?.prefetchTask, !Task.isCancelled {
+                        await prefetch.value
+                    }
                     try? await Task.sleep(for: Self.idleReenterDelay)
                 } catch MailSessionError.idleUnsupported {
                     self?.idleSupported = false

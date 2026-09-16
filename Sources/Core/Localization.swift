@@ -133,6 +133,11 @@ enum L10nKey {
     // Playbooks
     case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playEdit, playAdd
     case playApps, playCloseRest, playFocus, playLaunch
+    case playStepOpenApps, playStepCloseOthers, playStepShortcut, playStepFocus, playStepTimer, playStepURLs
+    case playAddStep, playLayout, playGrantAccess, playLayoutHint
+    case playLayoutNone, playLayoutLeftRight, playLayoutThirds, playLayoutGrid2x2, playLayoutMainSide, playLayoutFullscreen
+    case playName, playIcon, playSteps, playNoSteps, playSearchApps, playAddBundleID, playSelectedCount
+    case playChooseShortcut, playShortcutName, playMinutes, playMinutesShort, playURLsHint, playLinks
 
     // Metrics
     case sysMemory, sysNetwork, sysBattery, sysCharging, sysVolume
@@ -316,6 +321,35 @@ enum L10nKey {
         case .playOpened: return ["opened %d", "открыто %d", "ouvert %d", "abiertas %d", "已打开 %d", "abertas %d", "geöffnet %d", "aperte %d", "起動 %d", "열림 %d"]
         case .playErrors: return ["errors %d", "ошибок %d", "erreurs %d", "errores %d", "错误 %d", "erros %d", "Fehler %d", "errori %d", "エラー %d", "오류 %d"]
         case .playEdit: return ["Edit", "Изменить", "Modifier", "Editar", "编辑", "Editar", "Bearbeiten", "Modifica", "編集", "편집"]
+        case .playStepOpenApps: return ["Open apps", "Открыть приложения", "Ouvrir des apps", "Abrir apps", "打开应用", "Abrir apps", "Apps öffnen", "Apri app", "Appを開く", "앱 열기"]
+        case .playStepCloseOthers: return ["Close other apps", "Закрыть остальные приложения", "Fermer les autres apps", "Cerrar las demás apps", "关闭其他应用", "Fechar as outras apps", "Andere Apps schließen", "Chiudi le altre app", "他のAppを閉じる", "다른 앱 닫기"]
+        case .playStepShortcut: return ["Run shortcut", "Запустить быструю команду", "Lancer un raccourci", "Ejecutar atajo", "运行快捷指令", "Executar atalho", "Kurzbefehl ausführen", "Esegui comando rapido", "ショートカットを実行", "단축어 실행"]
+        case .playStepFocus: return ["Set Focus (via shortcut)", "Включить фокус (через команду)", "Définir Concentration (via raccourci)", "Activar Modo de concentración (vía atajo)", "设置专注模式（通过快捷指令）", "Definir Foco (via atalho)", "Fokus setzen (per Kurzbefehl)", "Imposta Full Immersion (via comando)", "集中モードを設定（ショートカット経由）", "집중 모드 설정 (단축어로)"]
+        case .playStepTimer: return ["Start timer", "Запустить таймер", "Lancer le minuteur", "Iniciar temporizador", "启动计时器", "Iniciar temporizador", "Timer starten", "Avvia timer", "タイマーを開始", "타이머 시작"]
+        case .playStepURLs: return ["Open links", "Открыть ссылки", "Ouvrir des liens", "Abrir enlaces", "打开链接", "Abrir links", "Links öffnen", "Apri link", "リンクを開く", "링크 열기"]
+        case .playAddStep: return ["Add step", "Добавить шаг", "Ajouter une étape", "Añadir paso", "添加步骤", "Adicionar passo", "Schritt hinzufügen", "Aggiungi passaggio", "ステップを追加", "단계 추가"]
+        case .playLayout: return ["Window layout", "Расположение окон", "Disposition des fenêtres", "Disposición de ventanas", "窗口布局", "Disposição das janelas", "Fensteranordnung", "Disposizione finestre", "ウインドウの配置", "창 배치"]
+        case .playGrantAccess: return ["Grant access", "Дать доступ", "Autoriser l'accès", "Conceder acceso", "授予权限", "Conceder acesso", "Zugriff erlauben", "Concedi accesso", "アクセスを許可", "접근 허용"]
+        case .playLayoutHint: return ["Arranging windows needs Accessibility access", "Для расстановки окон нужен доступ к Универсальному доступу", "Disposer les fenêtres requiert l'accès Accessibilité", "Ordenar ventanas requiere acceso de Accesibilidad", "排列窗口需要辅助功能权限", "Organizar janelas requer acesso de Acessibilidade", "Fensteranordnung braucht Bedienungshilfen-Zugriff", "Disporre le finestre richiede l'accesso Accessibilità", "ウインドウの配置にはアクセシビリティの許可が必要です", "창 배치에는 손쉬운 사용 접근 권한이 필요합니다"]
+        case .playLayoutNone: return ["Leave as is", "Оставить как есть", "Laisser tel quel", "Dejar como está", "保持原样", "Deixar como está", "So lassen", "Lascia com'è", "そのまま", "그대로 두기"]
+        case .playLayoutLeftRight: return ["Side by side", "Рядом", "Côte à côte", "Lado a lado", "并排", "Lado a lado", "Nebeneinander", "Affiancate", "左右に並べる", "나란히"]
+        case .playLayoutThirds: return ["Three columns", "Три колонки", "Trois colonnes", "Tres columnas", "三列", "Três colunas", "Drei Spalten", "Tre colonne", "3列", "세 열"]
+        case .playLayoutGrid2x2: return ["2 × 2 grid", "Сетка 2 × 2", "Grille 2 × 2", "Cuadrícula 2 × 2", "2 × 2 网格", "Grelha 2 × 2", "2 × 2-Raster", "Griglia 2 × 2", "2 × 2 グリッド", "2 × 2 격자"]
+        case .playLayoutMainSide: return ["Main + sidebar", "Главное + боковое", "Principale + latérale", "Principal + lateral", "主窗口 + 侧栏", "Principal + lateral", "Haupt + Seitenleiste", "Principale + laterale", "メイン + サイド", "메인 + 사이드"]
+        case .playLayoutFullscreen: return ["Fill the screen", "Во весь экран", "Remplir l'écran", "Llenar la pantalla", "填满屏幕", "Preencher o ecrã", "Bildschirm füllen", "Riempi lo schermo", "画面いっぱい", "화면 채우기"]
+        case .playName: return ["Name", "Название", "Nom", "Nombre", "名称", "Nome", "Name", "Nome", "名前", "이름"]
+        case .playIcon: return ["Icon", "Иконка", "Icône", "Icono", "图标", "Ícone", "Symbol", "Icona", "アイコン", "아이콘"]
+        case .playSteps: return ["Steps", "Шаги", "Étapes", "Pasos", "步骤", "Passos", "Schritte", "Passaggi", "ステップ", "단계"]
+        case .playNoSteps: return ["No steps yet — add the first one below", "Шагов пока нет — добавьте первый ниже", "Aucune étape — ajoutez la première ci-dessous", "Sin pasos aún — añade el primero abajo", "还没有步骤 — 在下方添加第一个", "Ainda sem passos — adicione o primeiro abaixo", "Noch keine Schritte — unten den ersten hinzufügen", "Nessun passaggio — aggiungi il primo qui sotto", "まだステップがありません — 下から追加", "아직 단계가 없습니다 — 아래에서 추가하세요"]
+        case .playSearchApps: return ["Search all applications…", "Поиск по всем приложениям…", "Rechercher dans toutes les apps…", "Buscar en todas las apps…", "搜索所有应用…", "Procurar em todas as apps…", "Alle Apps durchsuchen…", "Cerca tra tutte le app…", "すべてのAppを検索…", "모든 앱 검색…"]
+        case .playAddBundleID: return ["Add by bundle ID (e.g. com.figma.Desktop)", "Добавить по bundle ID (например, com.figma.Desktop)", "Ajouter par bundle ID (ex. com.figma.Desktop)", "Añadir por bundle ID (p. ej. com.figma.Desktop)", "按 bundle ID 添加（如 com.figma.Desktop）", "Adicionar por bundle ID (ex. com.figma.Desktop)", "Per Bundle-ID hinzufügen (z. B. com.figma.Desktop)", "Aggiungi per bundle ID (es. com.figma.Desktop)", "バンドルIDで追加（例: com.figma.Desktop）", "번들 ID로 추가 (예: com.figma.Desktop)"]
+        case .playSelectedCount: return ["%d selected", "выбрано %d", "%d sélectionnée(s)", "%d seleccionadas", "已选 %d", "%d selecionadas", "%d ausgewählt", "%d selezionate", "%d個を選択", "%d개 선택됨"]
+        case .playChooseShortcut: return ["Choose a shortcut…", "Выберите команду…", "Choisir un raccourci…", "Elegir un atajo…", "选择快捷指令…", "Escolher um atalho…", "Kurzbefehl wählen…", "Scegli un comando…", "ショートカットを選択…", "단축어 선택…"]
+        case .playShortcutName: return ["Or type a shortcut name", "Или введите название команды", "Ou saisir un nom de raccourci", "O escribe el nombre del atajo", "或输入快捷指令名称", "Ou escreva o nome do atalho", "Oder Kurzbefehl-Namen eingeben", "O digita il nome del comando", "またはショートカット名を入力", "또는 단축어 이름 입력"]
+        case .playMinutes: return ["Minutes", "Минуты", "Minutes", "Minutos", "分钟", "Minutos", "Minuten", "Minuti", "分", "분"]
+        case .playMinutesShort: return ["%d min", "%d мин", "%d min", "%d min", "%d 分钟", "%d min", "%d Min.", "%d min", "%d分", "%d분"]
+        case .playURLsHint: return ["One link per line", "По одной ссылке на строку", "Un lien par ligne", "Un enlace por línea", "每行一个链接", "Um link por linha", "Ein Link pro Zeile", "Un link per riga", "1行に1リンク", "한 줄에 링크 하나"]
+        case .playLinks: return ["%d links", "%d ссыл.", "%d liens", "%d enlaces", "%d 个链接", "%d links", "%d Links", "%d link", "%d件のリンク", "링크 %d개"]
         case .playAdd: return ["Add playbook…", "Добавить плейбук…", "Ajouter un playbook…", "Añadir playbook…", "添加行动手册…", "Adicionar playbook…", "Playbook hinzufügen…", "Aggiungi playbook…", "プレイブックを追加…", "플레이북 추가…"]
 
         case .sysMemory: return ["Memory", "Память", "Mémoire", "Memoria", "内存", "Memória", "Speicher", "Memoria", "メモリ", "메모리"]
