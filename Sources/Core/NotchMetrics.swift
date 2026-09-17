@@ -15,6 +15,10 @@ enum NotchMetrics {
     static let expandedMinSize = CGSize(width: 720, height: 520)
     static let expandedMaxSize = CGSize(width: 1100, height: 760)
 
+    /// Expanded island: the drop's concave shoulders below the menu bar,
+    /// where the housing-wide neck widens into the panel.
+    static let dropFillet: CGFloat = 12
+
     /// Capsule size on Macs without a physical notch.
     static let fallbackClosedSize = CGSize(width: 196, height: 32)
 

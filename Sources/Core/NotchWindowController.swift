@@ -137,11 +137,29 @@ final class NotchWindowController: NSObject {
         clickMonitors.removeAll()
     }
 
+    /// Expanded, the island is a drop: through the menu-bar band only the
+    /// neck (the housing's width) is ours; below it the whole body is.
+    private func islandOwns(viewPoint point: NSPoint, in bounds: NSRect) -> Bool {
+        guard targetState == .expanded else { return true }
+        let inNeckBand = point.y > bounds.maxY - closedSize.height
+        guard inNeckBand else { return true }
+        let notchWidth = closedSize.width - 2 * NotchMetrics.closedTopRadius
+        return abs(point.x - bounds.midX) <= notchWidth / 2
+    }
+
+    /// Same test in screen coordinates.
+    private func expandedContains(_ location: NSPoint, on screen: NSScreen) -> Bool {
+        let frame = frame(for: .expanded, on: screen)
+        guard frame.contains(location) else { return false }
+        let local = NSPoint(x: location.x - frame.minX, y: location.y - frame.minY)
+        return islandOwns(viewPoint: local, in: NSRect(origin: .zero, size: frame.size))
+    }
+
     private func handleOutsideClick(at location: NSPoint) {
         guard targetState == .expanded, !viewModel.isResizingPanel,
               panel.attachedSheet == nil, !hasOwnPopupWindow,
               let screen = NotchGeometry.targetScreen else { return }
-        if !frame(for: .expanded, on: screen).contains(location) {
+        if !expandedContains(location, on: screen) {
             closeSettings()
         }
     }
@@ -263,7 +281,7 @@ final class NotchWindowController: NSObject {
         guard targetState == .expanded, !settingsPinned, !viewModel.isResizingPanel else { return }
         guard panel.attachedSheet == nil, !hasOwnPopupWindow else { return }
         guard let screen = NotchGeometry.targetScreen else { return }
-        if frame(for: .expanded, on: screen).contains(NSEvent.mouseLocation) { return }
+        if expandedContains(NSEvent.mouseLocation, on: screen) { return }
         requestState(idleState)
     }
 
@@ -364,6 +382,9 @@ final class NotchWindowController: NSObject {
         hostingView.layer?.backgroundColor = .clear
         hostingView.onMouseEntered = { [weak self] in self?.hoverEntered() }
         hostingView.onMouseExited = { [weak self] in self?.hoverExited() }
+        hostingView.ownsPoint = { [weak self] point in
+            self?.islandOwns(viewPoint: point, in: hostingView.bounds) ?? true
+        }
         panel.contentView = hostingView
 
         panel.setFrame(frame(for: viewModel.state, on: screen), display: true)
@@ -375,7 +396,12 @@ final class NotchWindowController: NSObject {
         case .expanded:
             // Already clamped (including to the screen) by AppSettings — the
             // window and the SwiftUI island must always agree on this size.
-            settings.expandedPanelSize
+            // The panel sits below the menu bar; the neck through it adds
+            // the housing's height.
+            CGSize(
+                width: settings.expandedPanelSize.width,
+                height: settings.expandedPanelSize.height + closedSize.height + NotchMetrics.dropFillet
+            )
         case .compact:
             CGSize(
                 width: closedSize.width + NotchMetrics.compactSideWidth * 2,

@@ -16,6 +16,16 @@ import SwiftUI
 final class NotchHostingView<Content: View>: NSHostingView<Content> {
     var onMouseEntered: (() -> Void)?
     var onMouseExited: (() -> Void)?
+    /// Points the island does not own (the menu bar beside the neck while
+    /// expanded) fall through to whatever is underneath. View coordinates,
+    /// y up.
+    var ownsPoint: ((NSPoint) -> Bool)?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        if let ownsPoint, !ownsPoint(local) { return nil }
+        return super.hitTest(point)
+    }
     private var hoverArea: NSTrackingArea?
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
