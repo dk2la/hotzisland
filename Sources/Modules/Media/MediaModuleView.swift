@@ -12,10 +12,10 @@ struct MediaModuleView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(track.title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(Theme.titleFont)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .foregroundStyle(Theme.textPrimary.opacity(0.95))
+                            .foregroundStyle(Theme.textPrimary)
                         Spacer(minLength: 12)
                         sourceTag
                     }
@@ -26,20 +26,7 @@ struct MediaModuleView: View {
                             .foregroundStyle(Theme.textTertiary)
                             .padding(.top, 2)
                     }
-                    SegmentBar(
-                        fraction: track.duration > 0 ? track.position / track.duration : 0,
-                        segments: 15,
-                        fillColor: Theme.accent
-                    )
-                    .padding(.top, 12)
-                    HStack {
-                        Text(TimeFormat.mmss(track.position))
-                        Spacer()
-                        Text("−" + TimeFormat.mmss(track.duration - track.position))
-                    }
-                    .font(Theme.readoutSFont)
-                    .foregroundStyle(Theme.textTertiary)
-                    .padding(.top, 5)
+                    progress(for: track)
                     transport(for: track)
                         .padding(.top, 10)
                 }
@@ -50,10 +37,37 @@ struct MediaModuleView: View {
                 if media.availableSources.count > 1 {
                     sourceSwitcher
                 }
-                DashedZone(label: L10n.t(.mediaNoSignal), sublabel: idleMessage)
+                EmptyStateZone(label: L10n.t(.mediaNoSignal), sublabel: idleMessage)
                     .frame(maxHeight: 110)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// Scrubber and time readouts. Progress is derived from the track's
+    /// timing sample on a one-second `TimelineView`, so only this subtree
+    /// re-renders per tick (and only while the module is on screen); the
+    /// title, artwork and transport above and below stay untouched.
+    private func progress(for track: MediaTrack) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let position = track.position(at: context.date)
+            VStack(alignment: .leading, spacing: 0) {
+                ScrubberBar(
+                    fraction: track.duration > 0 ? position / track.duration : 0
+                ) { target in
+                    media.seek(toFraction: target)
+                }
+                .disabled(!media.canControlActive)
+                .padding(.top, 8)
+                HStack {
+                    Text(TimeFormat.mmss(position))
+                    Spacer()
+                    Text("−" + TimeFormat.mmss(track.duration - position))
+                }
+                .font(Theme.readoutSFont)
+                .foregroundStyle(Theme.textTertiary)
+                .padding(.top, 5)
+            }
         }
     }
 

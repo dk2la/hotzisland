@@ -3,18 +3,17 @@ import CoreGraphics
 enum NotchMetrics {
     /// Top "flared" corners — concave arcs blending the capsule into the
     /// screen edge (mimicking the physical notch fillets).
-    // Instrument DS: harder corners — 10 outside, 6 inside.
+    // Instrument DS: harder corners — closed capsule 8 top / 10 bottom,
+    // expanded panel 10 all round.
     static let closedTopRadius: CGFloat = 8
     static let closedBottomRadius: CGFloat = 10
     static let expandedTopRadius: CGFloat = 10
     static let expandedBottomRadius: CGFloat = 10
 
-    /// One user-resizable panel size shared by every tab — sizes that differ
-    /// per tab made the island collapse when switching from a tall tab to a
-    /// short one (the cursor ended up outside the shrunken capsule).
-    /// The minimum fits the calendar, the largest layout.
-    static let expandedMinSize = CGSize(width: 560, height: 300)
-    static let expandedMaxSize = CGSize(width: 960, height: 620)
+    /// The expanded island hosts the settings UI (sidebar + page), so the
+    /// minimum is what that layout needs; the user can grow it from there.
+    static let expandedMinSize = CGSize(width: 720, height: 520)
+    static let expandedMaxSize = CGSize(width: 1100, height: 760)
 
     /// Capsule size on Macs without a physical notch.
     static let fallbackClosedSize = CGSize(width: 196, height: 32)

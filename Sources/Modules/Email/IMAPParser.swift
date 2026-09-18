@@ -37,17 +37,6 @@ indirect enum IMAPValue: Equatable, Sendable {
 enum IMAPParser {
     // MARK: - Tokenizer / value parser
 
-    /// Parses the remainder of a FETCH-style line into values. `data` must
-    /// contain the full unit including literal payloads inline.
-    static func parseValues(_ data: Data) -> [IMAPValue] {
-        var index = data.startIndex
-        var values: [IMAPValue] = []
-        while let value = parseValue(data, &index) {
-            values.append(value)
-        }
-        return values
-    }
-
     private static func skipSpaces(_ data: Data, _ index: inout Data.Index) {
         while index < data.endIndex, data[index] == UInt8(ascii: " ") {
             index = data.index(after: index)
@@ -149,6 +138,11 @@ enum IMAPParser {
         var subject: String
         var fromName: String
         var fromAddress: String
+        var replyTo: String?
+        var to: [String] = []
+        /// Name of the first To address, if the sender supplied one.
+        var toName: String?
+        var cc: [String] = []
         var messageID: String?
         var inReplyTo: String?
     }
@@ -221,17 +215,52 @@ enum IMAPParser {
                 envelope.fromName = envelope.fromAddress
             }
         }
+        envelope.replyTo = addresses(fields[4]).first
+        envelope.to = addresses(fields[5])
+        envelope.toName = firstName(in: fields[5])
+        envelope.cc = addresses(fields[6])
         envelope.inReplyTo = fields[8].text
         envelope.messageID = fields[9].text
         return envelope
     }
 
-    /// Picks the part to show for a message: the first text/plain leaf, or
-    /// the first text/html one when the sender shipped HTML only.
+    /// Plain "mailbox@host" strings from an envelope address list. Group
+    /// markers (RFC 3501: a NIL host) carry no deliverable address and are
+    /// dropped; so is a NIL list.
+    private static func addresses(_ value: IMAPValue) -> [String] {
+        guard let list = value.items else { return [] }
+        return list.compactMap { entry -> String? in
+            guard let parts = entry.items, parts.count >= 4,
+                  let mailbox = parts[2].text, !mailbox.isEmpty,
+                  let host = parts[3].text, !host.isEmpty
+            else { return nil }
+            return "\(mailbox)@\(host)"
+        }
+    }
+
+    /// The display name of the first deliverable address in a list; nil
+    /// when the sender gave only the bare address.
+    private static func firstName(in value: IMAPValue) -> String? {
+        guard let list = value.items else { return nil }
+        for entry in list {
+            guard let parts = entry.items, parts.count >= 4,
+                  let mailbox = parts[2].text, !mailbox.isEmpty,
+                  let host = parts[3].text, !host.isEmpty
+            else { continue }
+            let name = decodedText(parts[0]).trimmingCharacters(in: .whitespaces)
+            return name.isEmpty ? nil : name
+        }
+        return nil
+    }
+
+    /// Picks the part to show. HTML wins over the plain alternative: the
+    /// widget renders HTML properly, and senders' auto-generated plain-text
+    /// alternatives are routinely garbage (stripped tags with the CSS and
+    /// entities left in). Plain is the fallback for plain-only mail.
     static func findTextPart(_ value: IMAPValue, path: [Int]) -> EmailMessage.TextPartInfo? {
         var found: [EmailMessage.TextPartInfo] = []
         collectTextParts(value, path: path, into: &found)
-        return found.first { !$0.isHTML } ?? found.first
+        return found.first { $0.isHTML } ?? found.first
     }
 
     /// Walks a BODYSTRUCTURE, tracking the IMAP section path ("1", "1.2", …).
@@ -311,6 +340,43 @@ enum IMAPParser {
             return Int(items[index + 1])
         }
         return nil
+    }
+
+    /// One `* LIST (\attrs) "delim" name` (or Gmail's `* XLIST`) entry.
+    struct ListEntry: Equatable, Sendable {
+        /// Attributes as sent, backslash included: `\HasNoChildren`, `\Junk`.
+        var attributes: [String]
+        var delimiter: String?
+        var name: String
+
+        func has(_ attribute: String) -> Bool {
+            attributes.contains { $0.caseInsensitiveCompare(attribute) == .orderedSame }
+        }
+    }
+
+    /// Parses one LIST/XLIST unit. The name may be an atom (`INBOX`), a
+    /// quoted string (`"Sent Messages"`) or a literal. Returns nil for
+    /// anything else.
+    static func parseList(_ unit: Data) -> ListEntry? {
+        let head = String(decoding: unit.prefix(12), as: UTF8.self).uppercased()
+        let prefix: String
+        if head.hasPrefix("* LIST ") {
+            prefix = "* LIST "
+        } else if head.hasPrefix("* XLIST ") {
+            prefix = "* XLIST "
+        } else {
+            return nil
+        }
+        var index = unit.index(unit.startIndex, offsetBy: prefix.utf8.count)
+        guard let attributes = parseValue(unit, &index)?.items,
+              let delimiter = parseValue(unit, &index),
+              let name = parseValue(unit, &index)?.text
+        else { return nil }
+        return ListEntry(
+            attributes: attributes.compactMap(\.text),
+            delimiter: delimiter.text,
+            name: name
+        )
     }
 
     /// "* 231 EXISTS" → 231

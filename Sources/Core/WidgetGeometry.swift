@@ -26,6 +26,14 @@ enum WidgetMetrics {
     /// Drag-handle dots zone at the strip's leading end.
     static let gripSize: CGFloat = 14
     static let endPadding: CGFloat = 6
+    /// Widget panel: user-resizable in both axes — width grip on the outer
+    /// edge, height grip on the bottom. Defaults are deliberately compact.
+    static let panelMinWidth: CGFloat = 300
+    static let panelMaxWidth: CGFloat = 900
+    static let panelDefaultWidth: CGFloat = 340
+    static let panelMinHeight: CGFloat = 260
+    static let panelMaxHeight: CGFloat = 1200
+    static let panelDefaultHeight: CGFloat = 360
 }
 
 /// Pure frame math for the edge-docked widget. All rects are in Cocoa screen
@@ -134,11 +142,12 @@ enum WidgetGeometry {
         case .bottom: CGSize(width: vf.width, height: vf.maxY - strip.maxY - gap - inset)
         case .top: CGSize(width: vf.width, height: strip.minY - gap - vf.minY - inset)
         }
-        // Side-docked strips: the panel matches the strip's height exactly,
-        // so the pair reads as one instrument. Only the width is user-sized.
+        // Both axes are user-sized, clamped to what the screen leaves. On a
+        // side dock the panel stays centered on the strip, so height growth
+        // spreads both ways until a screen edge pushes back.
         let size = CGSize(
             width: min(panelSize.width, available.width),
-            height: edge.isVertical ? strip.height : min(panelSize.height, available.height)
+            height: min(panelSize.height, available.height)
         )
 
         let panel: NSRect = switch edge {

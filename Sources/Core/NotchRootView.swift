@@ -66,22 +66,34 @@ struct NotchRootView: View {
                 }
             }
             .clipShape(shape)
+            .contentShape(shape)
+            // A click on the resting island opens the settings; the expanded
+            // panel hosts its own controls, so the tap is inert there.
+            .onTapGesture {
+                if !isExpanded { viewModel.onIslandTapped?() }
+            }
+            .contextMenu {
+                Button(L10n.t(.menuSettings)) {
+                    viewModel.onIslandTapped?()
+                }
+                Divider()
+                Button(L10n.t(.menuQuit)) {
+                    NSApplication.shared.terminate(nil)
+                }
+            }
             .frame(width: islandSize.width, height: islandSize.height)
             .animation(Theme.stateSpring, value: viewModel.state)
-            .animation(Theme.stateSpring, value: viewModel.selectedTab)
+            // Files dropped on the notch still land on the shelf (which
+            // lives in the widget).
             .dropDestination(for: URL.self) { urls, _ in
                 services.shelfStore.add(urls)
                 return !urls.isEmpty
-            } isTargeted: { targeted in
-                if targeted {
-                    viewModel.onDragTargeted?()
-                }
             }
             .animation(Theme.eventSpring, value: viewModel.activeEvent)
     }
 
     private var expandedContent: some View {
-        ExpandedPanelView(
+        IslandSettingsView(
             viewModel: viewModel,
             services: services,
             settings: settings,

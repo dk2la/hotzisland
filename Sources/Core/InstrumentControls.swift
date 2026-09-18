@@ -6,7 +6,12 @@ struct PressableStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.7 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            // Asymmetric on purpose: the press lands near-instantly ("heard
+            // you"), the release settles a touch softer.
+            .animation(
+                .easeOut(duration: configuration.isPressed ? 0.06 : 0.16),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -40,11 +45,10 @@ struct BlinkingDot: View {
             .fill(color)
             .frame(width: size, height: size)
             .opacity(dimmed ? 0.2 : 1)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) {
-                    dimmed = true
-                }
-            }
+            // Value-scoped, not withAnimation-in-onAppear: re-created view
+            // identities would stack forever-animations and double the pulse.
+            .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: dimmed)
+            .onAppear { dimmed = true }
     }
 }
 
@@ -82,7 +86,8 @@ struct KeyButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 11.5, weight: isPrimary ? .semibold : .medium))
+                .font(Theme.subFont)
+                .fontWeight(isPrimary ? .semibold : .medium)
                 .kerning(0.3)
                 .foregroundStyle(foreground)
                 .padding(.horizontal, 13)
@@ -99,7 +104,7 @@ struct KeyButton: View {
     private var foreground: Color {
         if isPrimary { return Theme.inkOnAccent }
         if isActive { return Theme.textPrimary }
-        return Theme.textPrimary.opacity(0.7)
+        return Theme.textSecondary
     }
 
     private var background: Color {
@@ -126,25 +131,25 @@ struct Hairline: View {
     }
 }
 
-/// Dashed outline area: empty states and drop zones ("no signal").
-struct DashedZone: View {
+/// Quiet empty state: centered label + optional subline, no chrome. (The
+/// shelf's drop tile draws its own dashed border — that one is a real drop
+/// target, not an empty state.)
+struct EmptyStateZone: View {
     let label: String
     var sublabel: String?
 
     var body: some View {
         VStack(spacing: 6) {
-            InstrumentLabel(label, color: Theme.textPrimary.opacity(0.45))
+            InstrumentLabel(label, color: Theme.textQuaternary)
             if let sublabel {
                 Text(sublabel)
                     .font(Theme.subFont)
                     .foregroundStyle(Theme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .stroke(Theme.dashedBorder, style: StrokeStyle(lineWidth: 1, dash: [5, 6]))
-        )
     }
 }
 
@@ -207,7 +212,7 @@ struct ModuleSetupPrompt: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            DashedZone(label: title, sublabel: sublabel)
+            EmptyStateZone(label: title, sublabel: sublabel)
                 .frame(maxHeight: 110)
             GlassCapsuleButton(label: L10n.t(.mailSetupAction), isPrimary: true) {
                 NotificationCenter.default.post(

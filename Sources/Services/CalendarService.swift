@@ -23,7 +23,28 @@ final class CalendarService {
 
     /// Calendars the user picked. Empty means "all of them".
     private(set) var enabledCalendarIDs: Set<String> = []
-    private(set) var displayMode: CalendarDisplayMode = .gridAndList
+    /// Agenda-first: the list is what answers "when is my next meeting";
+    /// the grid stays one toggle away.
+    private(set) var displayMode: CalendarDisplayMode = .listOnly
+    /// Calendar-visibility picker, shown in place of the content. Lives here
+    /// because the panel header owns the toggle.
+    var showingPicker = false
+
+    /// Event whose detail card is open — replaces the list.
+    private(set) var selectedEvent: CalendarEvent?
+    /// Event whose edit form is open; nil while creating or browsing.
+    private(set) var editingEvent: CalendarEvent?
+    /// The blank form for a new event is open.
+    private(set) var isCreating = false
+    /// Day the new event is proposed on.
+    private(set) var creationDay: Date = Calendar.current.startOfDay(for: Date())
+    /// A prefilled form handed over by the assistant; consumed by the next
+    /// `newDraft()` so the editor opens with it instead of a blank draft.
+    @ObservationIgnored var pendingDraft: EventDraft?
+    /// Calendars that accept new and edited events, sorted by title.
+    private(set) var writableCalendars: [CalendarInfo] = []
+    /// Last save/delete failure, shown by the form and the detail card.
+    var lastError: String?
 
     var displayedMonth: Date = Date()
     var selectedDay: Date = Calendar.current.startOfDay(for: Date())
@@ -79,6 +100,11 @@ final class CalendarService {
     func setDisplayMode(_ mode: CalendarDisplayMode) {
         displayMode = mode
         defaults.set(mode.rawValue, forKey: Self.modeKey)
+        // The agenda always starts from now; a month browsed in grid mode
+        // would otherwise leave it staring at unloaded days.
+        if mode == .listOnly {
+            goToToday()
+        }
     }
 
     func isEnabled(_ calendarID: String) -> Bool {
@@ -134,6 +160,142 @@ final class CalendarService {
         !(eventsByDay[calendar.startOfDay(for: day)] ?? []).isEmpty
     }
 
+    // MARK: - Detail, create, edit
+
+    func open(_ event: CalendarEvent) {
+        lastError = nil
+        showingPicker = false
+        selectedEvent = event
+    }
+
+    func closeEvent() {
+        selectedEvent = nil
+        editingEvent = nil
+        lastError = nil
+    }
+
+    func startCreating(on day: Date) {
+        guard access == .granted, !writableCalendars.isEmpty else { return }
+        lastError = nil
+        showingPicker = false
+        creationDay = calendar.startOfDay(for: day)
+        isCreating = true
+    }
+
+    func cancelCreating() {
+        isCreating = false
+        lastError = nil
+    }
+
+    func startEditing(_ event: CalendarEvent) {
+        guard event.isEditable else { return }
+        lastError = nil
+        editingEvent = event
+    }
+
+    func cancelEditing() {
+        editingEvent = nil
+        lastError = nil
+    }
+
+    /// Calendar new events land in unless the user picks another one.
+    var defaultCalendarIdentifier: String? {
+        if let preferred = store.defaultCalendarForNewEvents,
+           preferred.allowsContentModifications {
+            return preferred.calendarIdentifier
+        }
+        return writableCalendars.first?.id
+    }
+
+    /// Blank form for `creationDay` on the default calendar — or the draft
+    /// the assistant prepared, once.
+    func newDraft() -> EventDraft {
+        if let pending = pendingDraft {
+            pendingDraft = nil
+            return pending
+        }
+        return EventDraft.new(
+            on: creationDay,
+            calendarIdentifier: defaultCalendarIdentifier ?? "",
+            calendar: calendar
+        )
+    }
+
+    /// Writes the form into EventKit — a fresh `EKEvent` for a new one, the
+    /// stored event for an edit — and shows the result's detail card. The
+    /// month is reloaded so lists and dots catch up.
+    func save(draft: EventDraft) throws {
+        let event: EKEvent
+        if let id = draft.id {
+            guard let existing = store.event(withIdentifier: id) else {
+                throw CalendarError.eventNotFound
+            }
+            event = existing
+        } else {
+            event = EKEvent(eventStore: store)
+        }
+        // Only a writable calendar may be chosen; an edited event keeps its
+        // calendar when the picked one has vanished.
+        if let picked = store.calendar(withIdentifier: draft.calendarIdentifier),
+           picked.allowsContentModifications {
+            event.calendar = picked
+        } else if draft.id == nil {
+            guard let fallback = store.defaultCalendarForNewEvents,
+                  fallback.allowsContentModifications
+            else { throw CalendarError.noWritableCalendar }
+            event.calendar = fallback
+        }
+        event.title = draft.trimmedTitle
+        event.isAllDay = draft.isAllDay
+        if draft.isAllDay {
+            // All-day spans whole days: midnight to the last second of the
+            // last day, which is how Calendar.app stores them.
+            let first = calendar.startOfDay(for: draft.start)
+            let last = calendar.startOfDay(for: max(draft.start, draft.end))
+            event.startDate = first
+            event.endDate = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: last) ?? last
+        } else {
+            event.startDate = draft.start
+            event.endDate = draft.end
+        }
+        let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
+        event.location = location.isEmpty ? nil : location
+        let notes = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        event.notes = notes.isEmpty ? nil : notes
+        let urlText = draft.url.trimmingCharacters(in: .whitespacesAndNewlines)
+        event.url = urlText.isEmpty ? nil : URL(string: urlText)
+
+        try store.save(event, span: .thisEvent, commit: true)
+        log.info("saved event \(event.eventIdentifier ?? "?", privacy: .public) new=\(draft.id == nil, privacy: .public)")
+
+        lastError = nil
+        isCreating = false
+        editingEvent = nil
+        selectedEvent = makeEvent(from: event)
+        reload()
+    }
+
+    /// Removes this occurrence only; the detail card closes with it.
+    func delete(_ event: CalendarEvent) throws {
+        guard let stored = store.event(withIdentifier: event.eventIdentifier) else {
+            throw CalendarError.eventNotFound
+        }
+        try store.remove(stored, span: .thisEvent, commit: true)
+        log.info("deleted event \(event.eventIdentifier, privacy: .public)")
+        lastError = nil
+        if selectedEvent?.id == event.id { closeEvent() }
+        reload()
+    }
+
+    /// Hands the event to Calendar.app. EventKit cannot add invitees on
+    /// macOS, so that is where attendees get managed.
+    func openInCalendarApp(_ event: CalendarEvent) {
+        let identifier = event.eventIdentifier
+            .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? event.eventIdentifier
+        guard let url = URL(string: "ical://ekevent/\(identifier)") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     // MARK: - Loading
 
     func reload() {
@@ -149,20 +311,31 @@ final class CalendarService {
             )
         }
         .sorted { ($0.sourceTitle, $0.title) < ($1.sourceTitle, $1.title) }
+        writableCalendars = ekCalendars
+            .filter(\.allowsContentModifications)
+            .map { calendar in
+                CalendarInfo(
+                    id: calendar.calendarIdentifier,
+                    title: calendar.title,
+                    sourceTitle: calendar.source?.title ?? "Local",
+                    color: Color(nsColor: calendar.color ?? .systemBlue)
+                )
+            }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
 
         let active = ekCalendars.filter { isEnabled($0.calendarIdentifier) }
         guard !active.isEmpty,
               let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth),
               // Pad by a week on both sides so leading/trailing grid days
               // also show their event dots.
-              let start = calendar.date(byAdding: .day, value: -7, to: monthInterval.start),
-              let end = calendar.date(byAdding: .day, value: 7, to: monthInterval.end)
+              let rangeStart = calendar.date(byAdding: .day, value: -7, to: monthInterval.start),
+              let rangeEnd = calendar.date(byAdding: .day, value: 7, to: monthInterval.end)
         else {
             eventsByDay = [:]
             return
         }
 
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: active)
+        let predicate = store.predicateForEvents(withStart: rangeStart, end: rangeEnd, calendars: active)
         var grouped: [Date: [CalendarEvent]] = [:]
         // The same meeting often exists in several calendars (work Exchange +
         // Google invite) — deduplicate by title and exact time.
@@ -171,18 +344,20 @@ final class CalendarService {
             guard let start = event.startDate else { continue }
             let dedupKey = "\(event.title ?? "")|\(start.timeIntervalSince1970)|\(event.endDate?.timeIntervalSince1970 ?? 0)"
             guard seen.insert(dedupKey).inserted else { continue }
-            let day = calendar.startOfDay(for: start)
-            grouped[day, default: []].append(
-                CalendarEvent(
-                    id: event.eventIdentifier ?? UUID().uuidString,
-                    title: event.title ?? "(No title)",
-                    start: start,
-                    end: event.endDate ?? start,
-                    isAllDay: event.isAllDay,
-                    color: Color(nsColor: event.calendar.color ?? .systemBlue),
-                    joinURL: Self.meetingURL(for: event)
-                )
-            )
+            let end = event.endDate ?? start
+            let calendarEvent = makeEvent(from: event)
+            // A multi-day event belongs to every day it covers. The last day
+            // is the one containing (end − 1s): an event ending exactly at
+            // midnight — which is how EventKit ends all-day events — must
+            // not spill onto the next day. Clipped to the loaded window so
+            // a months-long event does not register hundreds of days.
+            var day = max(calendar.startOfDay(for: start), rangeStart)
+            let lastDay = min(calendar.startOfDay(for: max(start, end - 1)), rangeEnd)
+            while day <= lastDay {
+                grouped[day, default: []].append(calendarEvent)
+                guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
+            }
         }
         for (day, events) in grouped {
             grouped[day] = events.sorted { lhs, rhs in
@@ -190,6 +365,12 @@ final class CalendarService {
             }
         }
         eventsByDay = grouped
+        // An open detail card follows external edits; a vanished event
+        // keeps its last known values until the user closes it.
+        if let open = selectedEvent,
+           let fresh = grouped.values.lazy.flatMap({ $0 }).first(where: { $0.id == open.id }) {
+            selectedEvent = fresh
+        }
         log.info("""
         loaded calendars=\(self.calendars.count, privacy: .public) \
         sources=\(Set(self.calendars.map(\.sourceTitle)).sorted().joined(separator: ","), privacy: .public) \
@@ -197,6 +378,81 @@ final class CalendarService {
         days=\(grouped.count, privacy: .public) \
         events=\(grouped.values.map(\.count).reduce(0, +), privacy: .public)
         """)
+    }
+
+    /// Snapshot of an `EKEvent` as a plain value — built here, on the main
+    /// actor, so views never touch EventKit objects.
+    private func makeEvent(from event: EKEvent) -> CalendarEvent {
+        let start = event.startDate ?? Date()
+        let organizer = event.organizer
+        let attendees = (event.attendees ?? []).map { participant in
+            Self.attendee(from: participant, organizer: organizer)
+        }
+        // Someone else's invite is answered, not rewritten — Calendar.app
+        // refuses the edit too.
+        let isOwn = organizer == nil || organizer?.isCurrentUser == true
+        return CalendarEvent(
+            id: event.eventIdentifier ?? UUID().uuidString,
+            title: event.title ?? "(No title)",
+            start: start,
+            end: event.endDate ?? start,
+            isAllDay: event.isAllDay,
+            color: Color(nsColor: event.calendar.color ?? .systemBlue),
+            joinURL: Self.meetingURL(for: event),
+            location: Self.nonEmpty(event.location),
+            notes: Self.nonEmpty(event.notes),
+            url: event.url,
+            calendarTitle: event.calendar.title,
+            calendarIdentifier: event.calendar.calendarIdentifier,
+            attendees: attendees,
+            organizerName: organizer.map { Self.participantName($0) },
+            isEditable: event.calendar.allowsContentModifications && isOwn,
+            eventIdentifier: event.eventIdentifier ?? ""
+        )
+    }
+
+    private static func attendee(from participant: EKParticipant, organizer: EKParticipant?) -> CalendarEvent.Attendee {
+        let status: CalendarEvent.Attendee.Status = switch participant.participantStatus {
+        case .accepted, .completed, .inProcess: .accepted
+        case .declined: .declined
+        case .tentative, .delegated: .tentative
+        case .pending: .pending
+        case .unknown: .unknown
+        @unknown default: .unknown
+        }
+        let email = Self.email(of: participant)
+        let isOrganizer: Bool = if let organizer {
+            organizer.url == participant.url
+                || (email != nil && email == Self.email(of: organizer))
+        } else {
+            false
+        }
+        return CalendarEvent.Attendee(
+            name: participant.name ?? "",
+            email: email,
+            status: status,
+            isOrganizer: isOrganizer,
+            isCurrentUser: participant.isCurrentUser
+        )
+    }
+
+    /// `mailto:someone@host` → `someone@host`; anything else is not an email.
+    private static func email(of participant: EKParticipant) -> String? {
+        let url = participant.url
+        guard url.scheme?.lowercased() == "mailto" else { return nil }
+        let address = url.absoluteString.dropFirst("mailto:".count)
+        return address.isEmpty ? nil : String(address)
+    }
+
+    private static func participantName(_ participant: EKParticipant) -> String {
+        if let name = participant.name, !name.isEmpty { return name }
+        return email(of: participant) ?? ""
+    }
+
+    private static func nonEmpty(_ text: String?) -> String? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+        else { return nil }
+        return text
     }
 
     /// Zoom/Meet/Teams links live either in the event URL or somewhere in the
@@ -208,5 +464,17 @@ final class CalendarService {
         else { return nil }
         let range = NSRange(notes.startIndex..., in: notes)
         return detector.firstMatch(in: notes, range: range)?.url
+    }
+}
+
+enum CalendarError: LocalizedError {
+    case eventNotFound
+    case noWritableCalendar
+
+    var errorDescription: String? {
+        switch self {
+        case .eventNotFound: "The event no longer exists."
+        case .noWritableCalendar: "No calendar accepts new events."
+        }
     }
 }

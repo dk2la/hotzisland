@@ -15,10 +15,15 @@ enum MailComposer {
         var headers: [(String, String)] = [
             ("From", mail.from),
             ("To", mail.to),
+        ]
+        if !mail.cc.isEmpty {
+            headers.append(("Cc", fold(mail.cc.joined(separator: ", "))))
+        }
+        headers.append(contentsOf: [
             ("Subject", encodeHeader(mail.subject)),
             ("Date", rfc5322Date(date)),
             ("Message-ID", messageID),
-        ]
+        ])
         if let inReplyTo = mail.inReplyTo {
             headers.append(("In-Reply-To", inReplyTo))
         }
@@ -52,6 +57,35 @@ enum MailComposer {
         let trimmed = subject.trimmingCharacters(in: .whitespaces)
         if trimmed.lowercased().hasPrefix("re:") { return trimmed }
         return trimmed.isEmpty ? "Re:" : "Re: \(trimmed)"
+    }
+
+    /// "Fwd: " added once; "FW:" counts as already forwarded.
+    static func forwardSubject(_ subject: String) -> String {
+        let trimmed = subject.trimmingCharacters(in: .whitespaces)
+        let lower = trimmed.lowercased()
+        if lower.hasPrefix("fwd:") || lower.hasPrefix("fw:") { return trimmed }
+        return trimmed.isEmpty ? "Fwd:" : "Fwd: \(trimmed)"
+    }
+
+    /// The block a forwarded message carries: a blank line, a labelled
+    /// rule, the original's From/Date/Subject, and its text. `headerLabel`
+    /// is the localised "Forwarded message".
+    static func forwardQuote(of message: EmailMessage, text: String, headerLabel: String) -> String {
+        let sender = message.fromName.isEmpty || message.fromName == message.fromAddress
+            ? message.fromAddress
+            : "\(message.fromName) <\(message.fromAddress)>"
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return [
+            "",
+            "---------- \(headerLabel) ----------",
+            "From: \(sender)",
+            "Date: \(formatter.string(from: message.date))",
+            "Subject: \(message.subject)",
+            "",
+            text,
+        ].joined(separator: "\n")
     }
 
     // MARK: - Header encoding

@@ -63,6 +63,40 @@ final class MailComposerTests: XCTestCase {
         XCTAssertEqual(MailComposer.encodeHeader("Plain subject"), "Plain subject")
     }
 
+    func testCcHeaderAndRecipients() {
+        var mail = reply
+        mail.cc = ["boris@acme.io", "chen@acme.io"]
+        let headers = headerBlock(compose(mail))
+        XCTAssertEqual(headers["to"], "them@example.com")
+        XCTAssertEqual(headers["cc"], "boris@acme.io, chen@acme.io")
+        // No Cc list, no Cc header.
+        XCTAssertNil(headerBlock(compose(reply))["cc"])
+    }
+
+    func testForwardSubjectPrefixesOnce() {
+        XCTAssertEqual(MailComposer.forwardSubject("Plan"), "Fwd: Plan")
+        XCTAssertEqual(MailComposer.forwardSubject("Fwd: Plan"), "Fwd: Plan")
+        XCTAssertEqual(MailComposer.forwardSubject("FW: Plan"), "FW: Plan")
+        XCTAssertEqual(MailComposer.forwardSubject(""), "Fwd:")
+    }
+
+    func testForwardQuoteCarriesTheOriginalHeaders() {
+        let message = EmailMessage(
+            uid: 1, subject: "Plan", fromName: "Anna", fromAddress: "anna@acme.io",
+            date: Date(timeIntervalSince1970: 1_787_653_804), isUnread: false,
+            messageID: nil, references: [], bodyPlain: "See attached."
+        )
+        let quote = MailComposer.forwardQuote(of: message, text: "See attached.", headerLabel: "Forwarded message")
+        let lines = quote.components(separatedBy: "\n")
+        XCTAssertEqual(lines[0], "")
+        XCTAssertEqual(lines[1], "---------- Forwarded message ----------")
+        XCTAssertEqual(lines[2], "From: Anna <anna@acme.io>")
+        XCTAssertTrue(lines[3].hasPrefix("Date: "))
+        XCTAssertEqual(lines[4], "Subject: Plan")
+        XCTAssertEqual(lines[5], "")
+        XCTAssertEqual(lines[6], "See attached.")
+    }
+
     func testReplySubjectPrefixesOnce() {
         XCTAssertEqual(MailComposer.replySubject("Привет"), "Re: Привет")
         XCTAssertEqual(MailComposer.replySubject("Re: Привет"), "Re: Привет")

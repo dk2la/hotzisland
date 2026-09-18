@@ -17,6 +17,7 @@ final class ModuleServices {
     let speechCapture = SpeechCaptureService()
     let speechSynthesis = SpeechSynthesisService()
     let emailService = EmailService()
+    let senderAvatars = SenderAvatarStore()
     let assistantService = AssistantService()
     let playbookStore = PlaybookStore()
     let playbookRunner: PlaybookRunner

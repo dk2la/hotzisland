@@ -19,6 +19,8 @@ final class AssistantService {
     private(set) var isVoiceMode = false
     /// The newest assistant answer, if it still needs speaking.
     private(set) var pendingSpeech: String?
+    /// A playbook the model asked to run, waiting for the user's Confirm.
+    private(set) var pendingPlaybook: Playbook?
 
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "assistant")
     @ObservationIgnored private let defaults = UserDefaults.standard
@@ -91,7 +93,28 @@ final class AssistantService {
             toolLabel: AssistantToolbox.label(name: name, argumentsJSON: argumentsJSON),
             isError: outcome.isError
         ))
+        if let playbook = outcome.playbookToConfirm {
+            pendingPlaybook = playbook
+        }
         return outcome
+    }
+
+    // MARK: - Playbook confirmation
+
+    func confirmPendingPlaybook() {
+        guard let playbook = pendingPlaybook else { return }
+        pendingPlaybook = nil
+        toolbox?.runPlaybook(playbook)
+        // Shown as a tool row so the next CLI turn sees that it really ran.
+        transcript.append(AssistantMessage(
+            role: .tool,
+            text: "Playbook \"\(playbook.name)\" started.",
+            toolLabel: "run_playbook(\"\(playbook.name)\")"
+        ))
+    }
+
+    func cancelPendingPlaybook() {
+        pendingPlaybook = nil
     }
 
     private func appendRoundLimitTail() {
@@ -107,12 +130,21 @@ final class AssistantService {
 
     // MARK: - Configuration
 
+    /// The key as stored, for the setup form to show on reopen.
+    func storedKey() -> String {
+        apiKey()
+    }
+
     func saveConfig(_ newConfig: AssistantConfig, key: String) {
-        do {
-            try vault.set(key, account: Self.keyAccount)
-        } catch {
-            log.error("keychain save failed: \(error.localizedDescription, privacy: .public)")
-            return
+        // CLI providers carry their own auth, and an unchanged key must not
+        // be rewritten — a fresh Keychain add is a fresh access prompt.
+        if !newConfig.provider.isCLI, key != storedKey() {
+            do {
+                try vault.set(key, account: Self.keyAccount)
+            } catch {
+                log.error("keychain save failed: \(error.localizedDescription, privacy: .public)")
+                return
+            }
         }
         config = newConfig
         if let data = try? JSONEncoder().encode(newConfig) {
@@ -127,12 +159,14 @@ final class AssistantService {
         defaults.removeObject(forKey: AssistantConfig.defaultsKey)
         transcript = []
         apiHistory = []
+        pendingPlaybook = nil
         log.info("assistant removed")
     }
 
     func clearTranscript() {
         transcript = []
         apiHistory = []
+        pendingPlaybook = nil
     }
 
     /// Setup-form probe: one tiny round-trip proves the whole path.
@@ -162,6 +196,8 @@ final class AssistantService {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isThinking, let config else { return }
         draft = ""
+        // Typing on instead of confirming is a "no".
+        pendingPlaybook = nil
         transcript.append(AssistantMessage(role: .user, text: text))
         apiHistory.append(["role": "user", "content": text])
         trimHistory()

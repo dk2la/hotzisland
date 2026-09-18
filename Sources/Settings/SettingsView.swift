@@ -2,9 +2,10 @@ import AppKit
 import EventKit
 import SwiftUI
 
-/// Settings window, V3: always the dark rack — matches the widget and the
-/// notch. Sidebar of icon rows on the left, pages on the right, acid-green
-/// active states, fully localized.
+/// Settings UI, hosted inside the expanded island (see IslandSettingsView).
+/// Always the dark rack — matches the widget and the notch. Sidebar of icon
+/// rows on the left, pages on the right, fully localized. Sized by its
+/// host, not itself.
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     var playbooks: PlaybookStore
@@ -66,18 +67,8 @@ struct SettingsView: View {
                 .padding(24)
                 .background(palette.panel)
         }
-        .frame(width: 700, height: 490)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(palette.desk)
-        .sheet(item: $editingPlaybook) { playbook in
-            PlaybookEditorView(store: playbooks, existing: playbook) {
-                editingPlaybook = nil
-            }
-        }
-        .sheet(isPresented: $creatingPlaybook) {
-            PlaybookEditorView(store: playbooks, existing: nil) {
-                creatingPlaybook = false
-            }
-        }
     }
 
     // MARK: - Sidebar
@@ -190,24 +181,6 @@ struct SettingsView: View {
                     isOn: Binding(
                         get: { settings.closeOnOutsideClick },
                         set: { settings.closeOnOutsideClick = $0 }
-                    ),
-                    palette: palette
-                )
-            }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setDisplayMode),
-                subtitle: L10n.t(.setDisplayModeSub),
-                palette: palette
-            ) {
-                WindowSegmented(
-                    options: [
-                        (DisplayMode.island, L10n.t(.setIsland)),
-                        (DisplayMode.widget, L10n.t(.setWidget)),
-                    ],
-                    selection: Binding(
-                        get: { settings.displayMode },
-                        set: { settings.displayMode = $0 }
                     ),
                     palette: palette
                 )
@@ -343,7 +316,26 @@ struct SettingsView: View {
         }
     }
 
+    /// The editor replaces the page in place: a sheet would hang out of the
+    /// island and fight its hover tracking.
+    @ViewBuilder
     private var playbooksPage: some View {
+        if creatingPlaybook {
+            PlaybookEditorView(store: playbooks, existing: nil) {
+                creatingPlaybook = false
+            }
+            .id("new")
+        } else if let playbook = editingPlaybook {
+            PlaybookEditorView(store: playbooks, existing: playbook) {
+                editingPlaybook = nil
+            }
+            .id(playbook.id)
+        } else {
+            playbooksList
+        }
+    }
+
+    private var playbooksList: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(L10n.t(.setPlaybooks))
             ScrollView(.vertical, showsIndicators: false) {
@@ -403,7 +395,7 @@ struct SettingsView: View {
                 subtitle: L10n.t(.setExpandIslandSub),
                 palette: palette
             ) {
-                KeyCap(symbol: "hover", palette: palette)
+                KeyCap(symbol: "click", palette: palette)
             }
             Hairline(color: palette.hairline)
             SettingRow(
@@ -420,6 +412,14 @@ struct SettingsView: View {
                 palette: palette
             ) {
                 keyCaps(HotkeyService.Action.togglePanelPin.keyCaps)
+            }
+            Hairline(color: palette.hairline)
+            SettingRow(
+                title: L10n.t(.setModeToggle),
+                subtitle: L10n.t(.setModeToggleSub),
+                palette: palette
+            ) {
+                keyCaps(HotkeyService.Action.toggleSettings.keyCaps)
             }
         }
     }
@@ -492,4 +492,12 @@ struct ModulesOrderList: View {
         .scrollContentBackground(.hidden)
         .background(Color.clear)
     }
+}
+
+/// Shared page selection so module UI can deep-link into a settings page
+/// (e.g. "Set up account" → Accounts).
+@MainActor
+@Observable
+final class SettingsPageSelection {
+    var page: SettingsView.Page = .general
 }
