@@ -84,7 +84,29 @@ final class PlaybookStore {
         }
     }
 
+    // MARK: - Demo mode
+
+    /// Scripted playbooks; edits made on camera stay in memory and the
+    /// user's file is untouched.
+    private(set) var isDemo = false
+    @ObservationIgnored private var parkedPlaybooks: [Playbook] = []
+
+    func enterDemo(playbooks demoPlaybooks: [Playbook]) {
+        guard !isDemo else { return }
+        isDemo = true
+        parkedPlaybooks = playbooks
+        playbooks = demoPlaybooks
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
+        playbooks = parkedPlaybooks
+        parkedPlaybooks = []
+    }
+
     private func save() {
+        guard !isDemo else { return }
         do {
             let directory = Self.fileURL.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

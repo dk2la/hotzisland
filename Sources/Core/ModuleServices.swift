@@ -21,10 +21,13 @@ final class ModuleServices {
     let assistantService = AssistantService()
     let playbookStore = PlaybookStore()
     let playbookRunner: PlaybookRunner
+    /// Scripted data in every module, for promo recordings.
+    let demo = DemoMode()
 
     init() {
         playbookRunner = PlaybookRunner(timer: timerService)
         // The toolbox needs the fully built container, so it attaches last.
         assistantService.attachToolbox(services: self, playbooks: playbookStore)
+        demo.attach(services: self)
     }
 }

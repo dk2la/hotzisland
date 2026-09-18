@@ -71,6 +71,11 @@ final class AudioSystemMonitor {
         }
         deviceID = newID
         AudioObjectAddPropertyListenerBlock(deviceID, &volumeAddress, .main, volumeListener)
+        // Listeners follow the real device even in demo; the readout does not.
+        if isDemo {
+            suppressInitialDeviceEvent = false
+            return
+        }
         currentDeviceName = deviceName(deviceID)
         refreshVolume()
         log.notice("default output -> \(self.currentDeviceName ?? "?", privacy: .public) id=\(newID, privacy: .public) volume=\(self.volume, privacy: .public)")
@@ -83,8 +88,30 @@ final class AudioSystemMonitor {
     }
 
     private func volumeDidChange() {
+        guard !isDemo else { return }
         refreshVolume()
         onEvent?(.volume(level: volume))
+    }
+
+    // MARK: - Demo mode
+
+    /// Scripted output device and level; the slider moves the scripted
+    /// level only, never the Mac's volume.
+    private(set) var isDemo = false
+
+    func enterDemo(volume: Double, deviceName: String) {
+        guard !isDemo else { return }
+        isDemo = true
+        self.volume = volume
+        currentDeviceName = deviceName
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
+        guard deviceID != AudioObjectID(kAudioObjectUnknown) else { return }
+        currentDeviceName = deviceName(deviceID)
+        refreshVolume()
     }
 
     private func refreshVolume() {
@@ -99,6 +126,10 @@ final class AudioSystemMonitor {
     /// Sets the system output volume (0...1). The property listener fires
     /// afterwards and keeps `volume` in sync.
     func setVolume(_ level: Double) {
+        if isDemo {
+            volume = min(max(level, 0), 1)
+            return
+        }
         guard deviceID != AudioObjectID(kAudioObjectUnknown) else { return }
         var value = Float32(min(max(level, 0), 1))
         let size = UInt32(MemoryLayout<Float32>.size)

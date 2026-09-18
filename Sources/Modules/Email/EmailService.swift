@@ -97,6 +97,24 @@ final class EmailService {
     private(set) var searchResults: [EmailMessage]?
     private(set) var isSearching = false
 
+    /// Demo mode: scripted lists, no server. Every action that would touch
+    /// IMAP/SMTP does its optimistic local part and stops there.
+    private(set) var isDemo = false
+    /// The real account's state, parked while the demo runs.
+    private struct ParkedState {
+        var config: EmailAccountConfig?
+        var connection: MailConnectionState
+        var unreadCount: Int
+        var selectedMailbox: Mailbox
+        var availableMailboxes: [Mailbox]
+        var messagesByMailbox: [Mailbox: [EmailMessage]]
+        var refreshedAt: [Mailbox: Date]
+        var specialFolders: IMAPClient.SpecialFolders?
+        var isGmail: Bool
+        var openMessage: EmailMessage?
+    }
+    @ObservationIgnored private var parked: ParkedState?
+
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private let vault = SecretVault(service: EmailAccountConfig.keychainService)
@@ -144,6 +162,7 @@ final class EmailService {
     // MARK: - Account
 
     func saveAccount(_ newConfig: EmailAccountConfig, password: String) {
+        guard !isDemo else { return }
         do {
             try vault.set(password, account: newConfig.email)
         } catch {
@@ -163,6 +182,7 @@ final class EmailService {
     }
 
     func removeAccount() {
+        guard !isDemo else { return }
         if let config {
             vault.delete(account: config.email)
         }
@@ -293,7 +313,7 @@ final class EmailService {
     }
 
     private func makeSession() -> MailSession? {
-        guard let config, let password = accountPassword() else { return nil }
+        guard !isDemo, let config, let password = accountPassword() else { return nil }
         return MailSession(
             host: config.imapHost,
             port: config.imapPort,
@@ -334,7 +354,7 @@ final class EmailService {
     }
 
     func refresh() {
-        guard refreshTask == nil, config != nil else { return }
+        guard !isDemo, refreshTask == nil, config != nil else { return }
         guard accountPassword() != nil else {
             connection = .failed("No password in Keychain")
             return
@@ -464,12 +484,14 @@ final class EmailService {
     func select(_ mailbox: Mailbox) {
         guard mailbox != selectedMailbox else { return }
         selectedMailbox = mailbox
-        defaults.set(mailbox.rawValue, forKey: Mailbox.defaultsKey)
+        if !isDemo {
+            defaults.set(mailbox.rawValue, forKey: Mailbox.defaultsKey)
+        }
         // Search results are INBOX hits; they do not belong to the new section.
         if searchResults != nil {
             clearSearch()
         }
-        guard isStale(mailbox) else { return }
+        guard !isDemo, isStale(mailbox) else { return }
         if refreshTask != nil {
             refreshAgain = true
         } else {
@@ -525,6 +547,8 @@ final class EmailService {
     }
 
     private func saveCachedLists() {
+        // Demo lists must never land in the cache the real account reads.
+        guard !isDemo else { return }
         var headersOnly = messagesByMailbox
         for mailbox in headersOnly.keys {
             headersOnly[mailbox] = headersOnly[mailbox]?.map { message in
@@ -605,7 +629,12 @@ final class EmailService {
 
     func runSearch() {
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty, !isSearching, let session = activeUserSession() else { return }
+        guard !query.isEmpty, !isSearching else { return }
+        if isDemo {
+            runDemoSearch(query)
+            return
+        }
+        guard let session = activeUserSession() else { return }
         isSearching = true
         let limit = Self.messageLimit
         Task { [weak self] in
@@ -641,7 +670,9 @@ final class EmailService {
     /// Moves the message out of INBOX. Optimistic: the row disappears at
     /// once; a failed move logs, surfaces, and the next poll resyncs.
     func archive(_ message: EmailMessage) {
-        guard canArchive(message), let session = activeUserSession() else { return }
+        guard canArchive(message) else { return }
+        let session = activeUserSession()
+        guard isDemo || session != nil else { return }
         if message.isUnread, message.mailbox == "INBOX" {
             unreadCount = max(0, unreadCount - 1)
         }
@@ -653,6 +684,8 @@ final class EmailService {
         if openMessage?.key == key {
             closeMessage()
         }
+        // Demo: the row is gone, and that is the whole story.
+        guard let session else { return }
         let messageID = message.messageID
         let folders = archiveFolders
         Task { [weak self] in
@@ -752,7 +785,7 @@ final class EmailService {
     }
 
     private func loadBody(for message: EmailMessage) {
-        guard let session = activeUserSession() else { return }
+        guard !isDemo, let session = activeUserSession() else { return }
         isLoadingBody = true
         let key = message.key
         let part = message.textPart
@@ -934,6 +967,10 @@ final class EmailService {
 
     func sendCompose() {
         guard let config, canSendCompose else { return }
+        if isDemo {
+            sendDemoCompose(from: config.email)
+            return
+        }
         guard let password = accountPassword() else {
             sendError = "No password in Keychain"
             return
@@ -977,7 +1014,8 @@ final class EmailService {
 
     /// Optimistic local flip, then the server call.
     func markRead(_ message: EmailMessage) {
-        guard let session = activePollSession() else { return }
+        let session = activePollSession()
+        guard isDemo || session != nil else { return }
         let key = message.key
         // The badge counts INBOX; a message read in another folder is not
         // in it (or, on Gmail, the next poll settles it).
@@ -985,9 +1023,131 @@ final class EmailService {
             unreadCount = max(0, unreadCount - 1)
         }
         updateEverywhere(key) { $0.isUnread = false }
+        guard let session else { return }
         Task {
             // Failure is fine: the next poll reconciles the flag.
             try? await session.run(in: key.mailbox) { try await $0.markSeen(uid: key.uid) }
+        }
+    }
+
+    // MARK: - Demo mode
+
+    /// Parks the real account and shows scripted lists as a connected Gmail
+    /// account. Sessions are dropped so nothing in flight can land on top.
+    func enterDemo(account: EmailAccountConfig, folders: IMAPClient.SpecialFolders, lists: [Mailbox: [EmailMessage]]) {
+        guard !isDemo else { return }
+        refreshTask?.cancel()
+        refreshTask = nil
+        dropSessions()
+        parked = ParkedState(
+            config: config,
+            connection: connection,
+            unreadCount: unreadCount,
+            selectedMailbox: selectedMailbox,
+            availableMailboxes: availableMailboxes,
+            messagesByMailbox: messagesByMailbox,
+            refreshedAt: refreshedAt,
+            specialFolders: specialFolders,
+            isGmail: isGmail,
+            openMessage: openMessage
+        )
+        isDemo = true
+        config = account
+        specialFolders = folders
+        isGmail = true
+        messagesByMailbox = lists
+        refreshedAt = [:]
+        availableMailboxes = Mailbox.allCases
+        selectedMailbox = .primary
+        unreadCount = (lists[.primary] ?? []).filter(\.isUnread).count
+        openMessage = nil
+        searchResults = nil
+        isSearchOpen = false
+        searchQuery = ""
+        clearDraft()
+        isComposeOpen = false
+        sendError = nil
+        didSend = false
+        connection = .online
+        log.info("demo on")
+    }
+
+    /// Brings the real account back exactly as it was, then refreshes it.
+    func exitDemo() {
+        guard isDemo, let parked else { return }
+        isDemo = false
+        self.parked = nil
+        config = parked.config
+        specialFolders = parked.specialFolders
+        isGmail = parked.isGmail
+        messagesByMailbox = parked.messagesByMailbox
+        refreshedAt = parked.refreshedAt
+        availableMailboxes = parked.availableMailboxes
+        selectedMailbox = parked.selectedMailbox
+        unreadCount = parked.unreadCount
+        openMessage = parked.openMessage
+        searchResults = nil
+        isSearchOpen = false
+        searchQuery = ""
+        clearDraft()
+        isComposeOpen = false
+        connection = parked.connection
+        log.info("demo off")
+        if config != nil {
+            refresh()
+        }
+    }
+
+    /// Local substring search over every cached list, with a short pause
+    /// so the search row shows its working state like the real one.
+    private func runDemoSearch(_ query: String) {
+        isSearching = true
+        let needle = query.lowercased()
+        let hits = cachedMessages.filter { message in
+            message.subject.lowercased().contains(needle)
+                || message.fromName.lowercased().contains(needle)
+                || message.fromAddress.lowercased().contains(needle)
+                || (message.bodyPlain?.lowercased().contains(needle) ?? false)
+        }
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard let self, self.isDemo else { return }
+            self.searchResults = hits
+            self.isSearching = false
+        }
+    }
+
+    /// "Sends" the draft: a moment of spinner, then it appears in Sent.
+    private func sendDemoCompose(from sender: String) {
+        let subject = composeSubject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let to = composeTo.trimmingCharacters(in: .whitespaces)
+        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cc = Self.addressList(composeCc)
+        let inReplyTo = composeInReplyTo
+        isSending = true
+        sendError = nil
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard let self, self.isDemo else { return }
+            let nextUID = ((self.messagesByMailbox[.sent] ?? []).map(\.uid).max() ?? 0) + 1
+            let sent = EmailMessage(
+                uid: nextUID,
+                mailbox: self.specialFolders?.sent ?? "Sent",
+                subject: subject,
+                fromName: DemoFixtures.userName,
+                fromAddress: sender,
+                to: [to],
+                cc: cc,
+                date: Date(),
+                isUnread: false,
+                messageID: "<demo-sent-\(nextUID)@hotzisland.app>",
+                references: inReplyTo.map { [$0] } ?? [],
+                bodyPlain: body
+            )
+            self.messagesByMailbox[.sent, default: []].insert(sent, at: 0)
+            self.isSending = false
+            self.didSend = true
+            self.discardCompose()
         }
     }
 }

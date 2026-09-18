@@ -22,6 +22,19 @@ final class AssistantService {
     /// A playbook the model asked to run, waiting for the user's Confirm.
     private(set) var pendingPlaybook: Playbook?
 
+    /// Demo mode: a scripted transcript and canned answers, no backend.
+    /// Tools still run for real against the (equally scripted) modules, so
+    /// "start a 25 minute timer" starts one on camera.
+    private(set) var isDemo = false
+    private struct ParkedState {
+        var config: AssistantConfig?
+        var transcript: [AssistantMessage]
+        var apiHistory: [[String: Any & Sendable]]
+        var draft: String
+        var pendingPlaybook: Playbook?
+    }
+    @ObservationIgnored private var parked: ParkedState?
+
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "assistant")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private let vault = SecretVault(service: AssistantConfig.keychainService)
@@ -136,6 +149,7 @@ final class AssistantService {
     }
 
     func saveConfig(_ newConfig: AssistantConfig, key: String) {
+        guard !isDemo else { return }
         // CLI providers carry their own auth, and an unchanged key must not
         // be rewritten — a fresh Keychain add is a fresh access prompt.
         if !newConfig.provider.isCLI, key != storedKey() {
@@ -154,6 +168,7 @@ final class AssistantService {
     }
 
     func removeConfig() {
+        guard !isDemo else { return }
         vault.delete(account: Self.keyAccount)
         config = nil
         defaults.removeObject(forKey: AssistantConfig.defaultsKey)
@@ -203,7 +218,12 @@ final class AssistantService {
         trimHistory()
 
         isThinking = true
-        if config.provider.isCLI {
+        if isDemo {
+            Task { [weak self] in
+                await self?.runDemoTurn(text)
+                self?.isThinking = false
+            }
+        } else if config.provider.isCLI {
             let client = CLIAssistantClient(provider: config.provider, model: config.model)
             Task { [weak self] in
                 await self?.runCLILoop(client: client)
@@ -320,6 +340,89 @@ final class AssistantService {
 
     private func apiKey() -> String {
         vault.secret(account: Self.keyAccount) ?? ""
+    }
+
+    // MARK: - Demo mode
+
+    /// Parks the real setup and shows a ready, CLI-backed assistant with a
+    /// scripted conversation. Nothing is written to defaults or Keychain.
+    func enterDemo(transcript demoTranscript: [AssistantMessage]) {
+        guard !isDemo else { return }
+        isDemo = true
+        parked = ParkedState(
+            config: config,
+            transcript: transcript,
+            apiHistory: apiHistory,
+            draft: draft,
+            pendingPlaybook: pendingPlaybook
+        )
+        config = AssistantConfig(provider: .claudeCode)
+        transcript = demoTranscript
+        apiHistory = []
+        draft = ""
+        pendingPlaybook = nil
+        pendingSpeech = nil
+    }
+
+    func exitDemo() {
+        guard isDemo, let parked else { return }
+        isDemo = false
+        self.parked = nil
+        config = parked.config
+        transcript = parked.transcript
+        apiHistory = parked.apiHistory
+        draft = parked.draft
+        pendingPlaybook = parked.pendingPlaybook
+        pendingSpeech = nil
+    }
+
+    /// One scripted turn: a beat of "thinking", the tool the request
+    /// obviously calls for (run for real), then a canned answer.
+    private func runDemoTurn(_ text: String) async {
+        try? await Task.sleep(for: .milliseconds(900))
+        guard isDemo else { return }
+        var toolResult: String?
+        if let (name, arguments) = Self.demoToolCall(for: text) {
+            toolResult = performToolCall(name: name, argumentsJSON: arguments).text
+            try? await Task.sleep(for: .milliseconds(500))
+            guard isDemo else { return }
+        }
+        appendAnswer(DemoFixtures.assistantReply(for: text, toolResult: toolResult))
+    }
+
+    /// The tool a plain request maps to, by keyword — enough for a script.
+    private static func demoToolCall(for text: String) -> (String, String)? {
+        let lower = text.lowercased()
+        if lower.contains("timer") || lower.contains("focus") || lower.contains("pomodoro") {
+            let digits = lower.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.first
+            return ("set_timer", "{\"minutes\": \(digits ?? 25)}")
+        }
+        if lower.contains("pause") || lower.contains("stop the music") {
+            return ("media_control", "{\"action\": \"pause\"}")
+        }
+        if lower.contains("next") || lower.contains("skip") {
+            return ("media_control", "{\"action\": \"next\"}")
+        }
+        if lower.contains("play") {
+            return ("media_control", "{\"action\": \"play\"}")
+        }
+        if lower.contains("mail") || lower.contains("inbox") || lower.contains("unread") {
+            return ("unread_emails", "{}")
+        }
+        if lower.contains("today") || lower.contains("calendar") || lower.contains("meeting") || lower.contains("schedule") {
+            return ("today_events", "{}")
+        }
+        if lower.contains("note") || lower.contains("remember") || lower.contains("write down") {
+            let escaped = text
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            return ("create_note", "{\"text\": \"\(escaped)\"}")
+        }
+        if lower.contains("playbook") || lower.contains("morning") || lower.contains("campaign") {
+            let name = lower.contains("campaign") ? "Campaign work" : "Morning review"
+            return ("run_playbook", "{\"name\": \"\(name)\"}")
+        }
+        return nil
     }
 
     /// Bounds the wire history. Trimming never starts on a tool message —

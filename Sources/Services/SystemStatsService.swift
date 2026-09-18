@@ -20,6 +20,13 @@ final class SystemStatsService {
     /// Last 16 CPU samples for the Sys history strip.
     private(set) var cpuHistory: [Double] = []
 
+    /// Demo mode: readings are a gentle random walk instead of Mach calls,
+    /// so the strip looks alive without depending on what the Mac is doing.
+    private(set) var isDemo = false
+    @ObservationIgnored private var demoCPU = 0.28
+    @ObservationIgnored private var demoDownload: Double = 2_600_000
+    @ObservationIgnored private var demoTick = 0
+
     /// Number of live `beginObserving()` calls without a matching end.
     /// Sampling runs only while this is above zero.
     @ObservationIgnored private(set) var observerCount = 0
@@ -76,6 +83,10 @@ final class SystemStatsService {
     }
 
     private func sample() {
+        if isDemo {
+            sampleDemo()
+            return
+        }
         sampleCPU()
         sampleMemory()
         sampleNetwork()
@@ -88,6 +99,43 @@ final class SystemStatsService {
             net rx=\(Int(self.downloadRate), privacy: .public)B/s
             """)
         }
+    }
+
+    // MARK: - Demo mode
+
+    func enterDemo() {
+        guard !isDemo else { return }
+        isDemo = true
+        demoCPU = 0.28
+        demoDownload = 2_600_000
+        demoTick = 0
+        // A full history strip from the first frame.
+        cpuHistory = (0..<16).map { _ in Double.random(in: 0.18...0.40) }
+        sampleDemo()
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
+        cpuHistory = []
+        previousTicks = nil
+        previousTraffic = nil
+        sample()
+    }
+
+    private func sampleDemo() {
+        demoTick += 1
+        demoCPU = min(max(demoCPU + Double.random(in: -0.07...0.07), 0.14), 0.62)
+        cpuUsage = demoCPU
+        cpuHistory.append(demoCPU)
+        if cpuHistory.count > 16 {
+            cpuHistory.removeFirst(cpuHistory.count - 16)
+        }
+        let breath = 0.54 + 0.02 * sin(Double(demoTick) / 5)
+        memoryUsed = UInt64(Double(memoryTotal) * breath)
+        demoDownload = min(max(demoDownload + Double.random(in: -900_000...900_000), 400_000), 9_500_000)
+        downloadRate = demoDownload
+        uploadRate = max(60_000, demoDownload * 0.12 + Double.random(in: -50_000...50_000))
     }
 
     // MARK: - CPU

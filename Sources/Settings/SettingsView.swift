@@ -203,7 +203,58 @@ struct SettingsView: View {
                     palette: palette
                 )
             }
+            demoSection
         }
+    }
+
+    /// Demo mode toggle and, while it is on, one button per sample island
+    /// event — everything a promo recording needs from one page.
+    private var demoSection: some View {
+        let demo = services.demo
+        return VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(L10n.t(.setDemoSection))
+                .padding(.top, 18)
+            SettingRow(
+                title: L10n.t(.setDemo),
+                subtitle: L10n.t(.setDemoSub),
+                palette: palette
+            ) {
+                InstrumentToggle(
+                    isOn: Binding(
+                        get: { demo.isActive },
+                        set: { demo.setActive($0) }
+                    ),
+                    palette: palette
+                )
+            }
+            if demo.isActive {
+                Hairline(color: palette.hairline)
+                SettingRow(
+                    title: L10n.t(.setDemoEvents),
+                    subtitle: L10n.t(.setDemoEventsSub),
+                    palette: palette
+                ) {
+                    HStack(spacing: 5) {
+                        ForEach(DemoMode.sampleEvents, id: \.label) { sample in
+                            Button {
+                                demo.fire(sample.event)
+                            } label: {
+                                Text(sample.label)
+                                    .font(Theme.labelFont)
+                                    .kerning(1)
+                                    .foregroundStyle(palette.ink)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 6)
+                                    .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(PressableStyle())
+                        }
+                    }
+                }
+            }
+        }
+        .animation(Theme.stateSpring, value: demo.isActive)
     }
 
     private var languagePicker: some View {

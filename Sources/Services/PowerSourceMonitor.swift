@@ -37,8 +37,29 @@ final class PowerSourceMonitor {
         }
     }
 
-    private func powerSourcesDidChange() {
+    // MARK: - Demo mode
+
+    /// Scripted battery; real IOKit changes are ignored until exit.
+    private(set) var isDemo = false
+
+    func enterDemo(percent: Int, plugged: Bool) {
+        guard !isDemo else { return }
+        isDemo = true
+        self.percent = percent
+        isPlugged = plugged
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
         guard let (onAC, percent) = currentPowerState() else { return }
+        isPlugged = onAC
+        self.percent = percent
+        wasOnAC = onAC
+    }
+
+    private func powerSourcesDidChange() {
+        guard !isDemo, let (onAC, percent) = currentPowerState() else { return }
         isPlugged = onAC
         self.percent = percent
         if let was = wasOnAC, was != onAC {

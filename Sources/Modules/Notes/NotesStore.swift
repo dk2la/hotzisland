@@ -56,11 +56,44 @@ final class NotesStore {
     // MARK: - Folder
 
     func setFolder(_ url: URL) {
+        // The demo folder is temporary; a choice made now would be lost.
+        guard !isDemo else { return }
         flush()
         closeEditor()
         folderURL = url
         defaults.set(url.path, forKey: Self.folderKey)
         log.info("folder -> \(url.path, privacy: .public)")
+        rescan()
+        startWatcher()
+    }
+
+    // MARK: - Demo mode
+
+    /// Points the module at a scripted folder without remembering it; the
+    /// real folder comes back on exit.
+    private(set) var isDemo = false
+    @ObservationIgnored private var parkedFolderURL: URL?
+
+    func enterDemo(folder url: URL) {
+        guard !isDemo else { return }
+        isDemo = true
+        flush()
+        closeEditor()
+        parkedFolderURL = folderURL
+        folderURL = url
+        notes = []
+        rescan()
+        startWatcher()
+    }
+
+    func exitDemo() {
+        guard isDemo, let parkedFolderURL else { return }
+        isDemo = false
+        flush()
+        closeEditor()
+        folderURL = parkedFolderURL
+        self.parkedFolderURL = nil
+        notes = []
         rescan()
         startWatcher()
     }

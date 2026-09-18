@@ -154,6 +154,7 @@ enum L10nKey {
     case setOutsideClick, setOutsideClickSub
     case setHideWidget, setHideWidgetSub, setPinPanel, setPinPanelSub
     case setModeToggle, setModeToggleSub
+    case setDemoSection, setDemo, setDemoSub, setDemoEvents, setDemoEventsSub
 
     var row: [String] {
         switch self {
@@ -395,6 +396,11 @@ enum L10nKey {
         case .setModeToggleSub: return ["Opens or closes the settings on the notch", "Открывает или закрывает настройки на вырезе", "Ouvre ou ferme les réglages sur le notch", "Abre o cierra los ajustes en el notch", "打开或关闭刘海处的设置", "Abre ou fecha os ajustes no notch", "Öffnet oder schließt die Einstellungen am Notch", "Apre o chiude le impostazioni sul notch", "ノッチの設定を開閉します", "노치의 설정을 열거나 닫습니다"]
         case .setPinPanel: return ["Pin the panel", "Закрепить панель", "Épingler le panneau", "Fijar el panel", "固定面板", "Fixar o painel", "Panel anheften", "Fissa il pannello", "パネルを固定", "패널 고정"]
         case .setPinPanelSub: return ["Toggles \"close on outside click\"", "Переключает «закрывать по клику вне виджета»", "Bascule « fermer au clic extérieur »", "Alterna «cerrar al hacer clic fuera»", "切换「点击外部关闭」", "Alterna «fechar ao clicar fora»", "Schaltet \"bei Klick außerhalb schließen\" um", "Commuta «chiudi al clic esterno»", "「外側クリックで閉じる」を切替", "\"밖 클릭 시 닫기\" 전환"]
+        case .setDemoSection: return ["Demo", "Демо", "Démo", "Demo", "演示", "Demo", "Demo", "Demo", "デモ", "데모"]
+        case .setDemo: return ["Demo mode", "Демо-режим", "Mode démo", "Modo demo", "演示模式", "Modo demo", "Demo-Modus", "Modalità demo", "デモモード", "데모 모드"]
+        case .setDemoSub: return ["Sample data in every module for screenshots and videos. Nothing is saved; off again on restart.", "Пример данных во всех модулях для скриншотов и видео. Ничего не сохраняется; после перезапуска выключен.", "Données d'exemple dans chaque module pour captures et vidéos. Rien n'est enregistré ; désactivé au redémarrage.", "Datos de ejemplo en cada módulo para capturas y vídeos. No se guarda nada; se apaga al reiniciar.", "每个模块显示示例数据，用于截图和视频。不保存任何内容；重启后关闭。", "Dados de exemplo em cada módulo para capturas e vídeos. Nada é guardado; desliga ao reiniciar.", "Beispieldaten in jedem Modul für Screenshots und Videos. Nichts wird gespeichert; nach Neustart wieder aus.", "Dati di esempio in ogni modulo per screenshot e video. Nulla viene salvato; disattivo al riavvio.", "スクリーンショットや動画用にすべてのモジュールへサンプルデータを表示。何も保存されず、再起動でオフ。", "스크린샷과 영상용으로 모든 모듈에 샘플 데이터를 표시. 아무것도 저장되지 않으며 재시작 시 꺼짐."]
+        case .setDemoEvents: return ["Island events", "События острова", "Événements de l'îlot", "Eventos de la isla", "灵动岛事件", "Eventos da ilha", "Insel-Ereignisse", "Eventi dell'isola", "アイランドのイベント", "아일랜드 이벤트"]
+        case .setDemoEventsSub: return ["Closes the settings and flashes a sample event on the notch", "Закрывает настройки и показывает пример события на вырезе", "Ferme les réglages et affiche un événement d'exemple sur le notch", "Cierra los ajustes y muestra un evento de ejemplo en el notch", "关闭设置并在刘海处闪现示例事件", "Fecha os ajustes e mostra um evento de exemplo no notch", "Schließt die Einstellungen und zeigt ein Beispiel-Ereignis am Notch", "Chiude le impostazioni e mostra un evento di esempio sul notch", "設定を閉じてノッチにサンプルイベントを表示", "설정을 닫고 노치에 샘플 이벤트를 표시"]
         }
     }
 }
