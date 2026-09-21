@@ -74,19 +74,13 @@ struct ClipboardModuleView: View {
                         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.raisedFill))
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            .cardRow()
         }
         .buttonStyle(PressableStyle())
     }
 
     private static func age(of entry: ClipboardStore.Entry) -> String {
-        let minutes = Int(Date().timeIntervalSince(entry.copiedAt) / 60)
-        if minutes < 1 { return L10n.t(.ageNow) }
-        if minutes < 60 { return L10n.f(.ageMin, minutes) }
-        return L10n.f(.ageHour, minutes / 60)
+        L10n.age(since: entry.copiedAt)
     }
 
     private static func kind(of entry: ClipboardStore.Entry) -> String {

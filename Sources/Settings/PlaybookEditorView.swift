@@ -18,8 +18,6 @@ struct PlaybookEditorView: View {
     /// flipped the switch in System Settings.
     @State private var accessibilityTrusted = false
 
-    private let palette = WindowPalette.rack
-
     init(store: PlaybookStore, existing: Playbook?, onDone: @escaping () -> Void) {
         self.store = store
         self.existing = existing
@@ -41,13 +39,13 @@ struct PlaybookEditorView: View {
                 }
                 .padding(20)
             }
-            Hairline(color: palette.hairline)
+            Hairline(color: Palette.hairline)
             actionRow
                 .padding(16)
         }
         // Sized by the settings page it replaces, not by itself.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(palette.panel)
+        .background(Palette.panel)
         .task {
             apps = await AppCatalog.discover()
         }
@@ -67,12 +65,12 @@ struct PlaybookEditorView: View {
     private var identitySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                InstrumentLabel(L10n.t(.playName), color: palette.ink40)
+                InstrumentLabel(L10n.t(.playName), color: Palette.ink40)
                     .frame(width: 60, alignment: .leading)
-                PaletteTextField(placeholder: L10n.t(.playName), text: $draft.name, palette: palette)
+                PaletteTextField(placeholder: L10n.t(.playName), text: $draft.name)
             }
             HStack(spacing: 12) {
-                InstrumentLabel(L10n.t(.playIcon), color: palette.ink40)
+                InstrumentLabel(L10n.t(.playIcon), color: Palette.ink40)
                     .frame(width: 60, alignment: .leading)
                 HStack(spacing: 6) {
                     ForEach(Self.icons, id: \.self) { icon in
@@ -82,17 +80,9 @@ struct PlaybookEditorView: View {
                         } label: {
                             Image(systemName: icon)
                                 .font(Theme.iconSmallFont)
-                                .foregroundStyle(isActive ? palette.accent : palette.ink60)
+                                .foregroundStyle(isActive ? Palette.accent : Palette.ink60)
                                 .frame(width: 30, height: 26)
-                                .background(
-                                    isActive ? palette.raised : palette.panel,
-                                    in: RoundedRectangle(cornerRadius: 5)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .stroke(isActive ? palette.accent.opacity(0.5) : palette.border, lineWidth: 1)
-                                )
-                                .contentShape(Rectangle())
+                                .paletteTile(isActive: isActive)
                         }
                         .buttonStyle(PressableStyle())
                     }
@@ -105,11 +95,11 @@ struct PlaybookEditorView: View {
 
     private var stepsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            InstrumentLabel(L10n.t(.playSteps), color: palette.ink40)
+            InstrumentLabel(L10n.t(.playSteps), color: Palette.ink40)
             if draft.steps.isEmpty {
                 Text(L10n.t(.playNoSteps))
                     .font(Theme.subFont)
-                    .foregroundStyle(palette.ink40)
+                    .foregroundStyle(Palette.ink40)
                     .padding(.vertical, 6)
             }
             ForEach($draft.steps) { $step in
@@ -119,7 +109,6 @@ struct PlaybookEditorView: View {
                     apps: apps,
                     shortcuts: shortcuts,
                     accessibilityTrusted: accessibilityTrusted,
-                    palette: palette,
                     canMoveUp: index > 0,
                     canMoveDown: index < draft.steps.count - 1,
                     onMoveUp: { move(step.id, by: -1) },
@@ -159,10 +148,10 @@ struct PlaybookEditorView: View {
                 Text(L10n.t(.playAddStep))
                     .font(Theme.subFont)
             }
-            .foregroundStyle(palette.accent)
+            .foregroundStyle(Palette.accent)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(Palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .contentShape(Rectangle())
         }
         .menuStyle(.button)
@@ -176,40 +165,19 @@ struct PlaybookEditorView: View {
     private var actionRow: some View {
         HStack(spacing: 10) {
             if let existing {
-                Button {
+                PaletteButton(L10n.t(.calDelete), color: Theme.critical.opacity(0.9)) {
                     store.remove(existing)
                     onDone()
-                } label: {
-                    Text(L10n.t(.calDelete))
-                        .font(Theme.subFont)
-                        .foregroundStyle(Theme.critical.opacity(0.9))
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(PressableStyle())
             }
             Spacer(minLength: 0)
-            Button {
+            PaletteButton(L10n.t(.mailCancel), color: Palette.ink60) {
                 onDone()
-            } label: {
-                Text(L10n.t(.mailCancel))
-                    .font(Theme.subFont)
-                    .foregroundStyle(palette.ink60)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
             .keyboardShortcut(.cancelAction)
-            Button {
+            PaletteButton(L10n.t(.calSave), filled: true) {
                 save()
-            } label: {
-                Text(L10n.t(.calSave))
-                    .font(Theme.subFont)
-                    .foregroundStyle(palette.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
             .keyboardShortcut(.defaultAction)
             .disabled(!canSave)
             .opacity(canSave ? 1 : 0.4)
@@ -259,7 +227,6 @@ private struct PlaybookStepCard: View {
     let apps: [InstalledApp]
     let shortcuts: [String]
     let accessibilityTrusted: Bool
-    let palette: WindowPalette
     let canMoveUp: Bool
     let canMoveDown: Bool
     let onMoveUp: () -> Void
@@ -272,12 +239,12 @@ private struct PlaybookStepCard: View {
             HStack(spacing: 8) {
                 Image(systemName: step.kind.icon)
                     .font(Theme.iconSmallFont)
-                    .foregroundStyle(palette.accent)
+                    .foregroundStyle(Palette.accent)
                     .frame(width: 18)
                 Text(step.kind.title)
                     .font(Theme.bodyFont)
                     .fontWeight(.medium)
-                    .foregroundStyle(palette.ink)
+                    .foregroundStyle(Palette.ink)
                 Spacer(minLength: 0)
                 control("chevron.up", enabled: canMoveUp, action: onMoveUp)
                 control("chevron.down", enabled: canMoveDown, action: onMoveDown)
@@ -286,10 +253,10 @@ private struct PlaybookStepCard: View {
             fields
         }
         .padding(12)
-        .background(palette.desk, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(Palette.desk, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(palette.hairline, lineWidth: 1)
+                .stroke(Palette.hairline, lineWidth: 1)
         )
     }
 
@@ -297,9 +264,9 @@ private struct PlaybookStepCard: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(palette.ink60)
+                .foregroundStyle(Palette.ink60)
                 .frame(width: 22, height: 22)
-                .background(palette.raised, in: RoundedRectangle(cornerRadius: 5))
+                .background(Palette.raised, in: RoundedRectangle(cornerRadius: 5))
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
@@ -311,7 +278,7 @@ private struct PlaybookStepCard: View {
     private var fields: some View {
         switch step {
         case .openApps:
-            AppPickerView(apps: apps, selected: bundleIDs, palette: palette)
+            AppPickerView(apps: apps, selected: bundleIDs)
             layoutPicker
         case .closeOtherApps:
             EmptyView()
@@ -321,11 +288,11 @@ private struct PlaybookStepCard: View {
             shortcutPicker(focusShortcutName)
         case .startTimer:
             HStack(spacing: 8) {
-                PaletteTextField(placeholder: L10n.t(.playMinutes), text: minutesText, palette: palette)
+                PaletteTextField(placeholder: L10n.t(.playMinutes), text: minutesText)
                     .frame(width: 90)
                 Text(L10n.t(.playMinutes).lowercased())
                     .font(Theme.subFont)
-                    .foregroundStyle(palette.ink40)
+                    .foregroundStyle(Palette.ink40)
             }
         case .openURLs:
             urlsEditor
@@ -339,11 +306,11 @@ private struct PlaybookStepCard: View {
             HStack(spacing: 10) {
                 Text(L10n.t(.playLayout))
                     .font(Theme.subFont)
-                    .foregroundStyle(palette.ink60)
+                    .foregroundStyle(Palette.ink60)
                 Spacer(minLength: 0)
                 Text(layout.wrappedValue.title)
                     .font(Theme.subFont)
-                    .foregroundStyle(palette.ink40)
+                    .foregroundStyle(Palette.ink40)
                     .lineLimit(1)
                 HStack(spacing: 4) {
                     ForEach(WindowLayout.allCases) { option in
@@ -353,17 +320,9 @@ private struct PlaybookStepCard: View {
                         } label: {
                             Image(systemName: option.icon)
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(isActive ? palette.accent : palette.ink60)
+                                .foregroundStyle(isActive ? Palette.accent : Palette.ink60)
                                 .frame(width: 28, height: 24)
-                                .background(
-                                    isActive ? palette.raised : palette.panel,
-                                    in: RoundedRectangle(cornerRadius: 5)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .stroke(isActive ? palette.accent.opacity(0.5) : palette.border, lineWidth: 1)
-                                )
-                                .contentShape(Rectangle())
+                                .paletteTile(isActive: isActive)
                         }
                         .buttonStyle(PressableStyle())
                         .help(option.title)
@@ -377,17 +336,11 @@ private struct PlaybookStepCard: View {
                         .foregroundStyle(Theme.selection)
                     Text(L10n.t(.playLayoutHint))
                         .font(Theme.subFont)
-                        .foregroundStyle(palette.ink60)
+                        .foregroundStyle(Palette.ink60)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Spacer(minLength: 0)
-                    Button(action: onGrantAccess) {
-                        Text(L10n.t(.playGrantAccess))
-                            .font(Theme.subFont)
-                            .foregroundStyle(palette.accent)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PressableStyle())
+                    PaletteButton(L10n.t(.playGrantAccess), action: onGrantAccess)
                 }
             }
         }
@@ -412,23 +365,23 @@ private struct PlaybookStepCard: View {
                 HStack(spacing: 6) {
                     Text(name.wrappedValue.isEmpty ? L10n.t(.playChooseShortcut) : name.wrappedValue)
                         .font(Theme.bodyFont)
-                        .foregroundStyle(name.wrappedValue.isEmpty ? palette.ink40 : palette.ink)
+                        .foregroundStyle(name.wrappedValue.isEmpty ? Palette.ink40 : Palette.ink)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(palette.ink40)
+                        .foregroundStyle(Palette.ink40)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(Palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .contentShape(Rectangle())
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
-            PaletteTextField(placeholder: L10n.t(.playShortcutName), text: name, palette: palette)
+            PaletteTextField(placeholder: L10n.t(.playShortcutName), text: name)
         }
     }
 
@@ -438,16 +391,16 @@ private struct PlaybookStepCard: View {
         ZStack(alignment: .topLeading) {
             TextEditor(text: urlsText)
                 .font(Theme.bodyFont)
-                .foregroundStyle(palette.ink)
+                .foregroundStyle(Palette.ink)
                 .scrollContentBackground(.hidden)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 4)
                 .frame(height: 84)
-                .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(Palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             if urlsText.wrappedValue.isEmpty {
                 Text(L10n.t(.playURLsHint))
                     .font(Theme.bodyFont)
-                    .foregroundStyle(palette.ink40)
+                    .foregroundStyle(Palette.ink40)
                     .padding(.horizontal, 11)
                     .padding(.vertical, 5)
                     .allowsHitTesting(false)
@@ -457,90 +410,64 @@ private struct PlaybookStepCard: View {
 
     // MARK: Payload bindings
 
+    /// Binding into one case's payload: `get` reads it (nil for another
+    /// case), `set` rebuilds the step around the new value.
+    private func payload<T>(
+        _ fallback: T,
+        get: @escaping (PlaybookStep) -> T?,
+        set: @escaping (PlaybookStep, T) -> PlaybookStep?
+    ) -> Binding<T> {
+        Binding(get: { get(step) ?? fallback }, set: { if let next = set(step, $0) { step = next } })
+    }
+
     private var bundleIDs: Binding<[String]> {
-        Binding(
-            get: {
-                if case .openApps(_, let ids, _) = step { return ids }
-                return []
-            },
-            set: { newValue in
-                if case .openApps(let id, _, let layout) = step {
-                    step = .openApps(id: id, bundleIDs: newValue, layout: layout)
-                }
-            }
-        )
+        payload([]) {
+            if case .openApps(_, let ids, _) = $0 { ids } else { nil }
+        } set: {
+            if case .openApps(let id, _, let layout) = $0 { .openApps(id: id, bundleIDs: $1, layout: layout) } else { nil }
+        }
     }
 
     private var layout: Binding<WindowLayout> {
-        Binding(
-            get: {
-                if case .openApps(_, _, let layout) = step { return layout }
-                return .none
-            },
-            set: { newValue in
-                if case .openApps(let id, let ids, _) = step {
-                    step = .openApps(id: id, bundleIDs: ids, layout: newValue)
-                }
-            }
-        )
+        payload(.none) {
+            if case .openApps(_, _, let layout) = $0 { layout } else { nil }
+        } set: {
+            if case .openApps(let id, let ids, _) = $0 { .openApps(id: id, bundleIDs: ids, layout: $1) } else { nil }
+        }
     }
 
     private var shortcutName: Binding<String> {
-        Binding(
-            get: {
-                if case .runShortcut(_, let name) = step { return name }
-                return ""
-            },
-            set: { newValue in
-                if case .runShortcut(let id, _) = step {
-                    step = .runShortcut(id: id, name: newValue)
-                }
-            }
-        )
+        payload("") {
+            if case .runShortcut(_, let name) = $0 { name } else { nil }
+        } set: {
+            if case .runShortcut(let id, _) = $0 { .runShortcut(id: id, name: $1) } else { nil }
+        }
     }
 
     private var focusShortcutName: Binding<String> {
-        Binding(
-            get: {
-                if case .setFocus(_, let name) = step { return name }
-                return ""
-            },
-            set: { newValue in
-                if case .setFocus(let id, _) = step {
-                    step = .setFocus(id: id, shortcutName: newValue)
-                }
-            }
-        )
+        payload("") {
+            if case .setFocus(_, let name) = $0 { name } else { nil }
+        } set: {
+            if case .setFocus(let id, _) = $0 { .setFocus(id: id, shortcutName: $1) } else { nil }
+        }
     }
 
     private var minutesText: Binding<String> {
-        Binding(
-            get: {
-                if case .startTimer(_, let minutes) = step, minutes > 0 { return String(minutes) }
-                return ""
-            },
-            set: { newValue in
-                if case .startTimer(let id, _) = step {
-                    step = .startTimer(id: id, minutes: Int(newValue.filter(\.isNumber)) ?? 0)
-                }
-            }
-        )
+        payload("") {
+            if case .startTimer(_, let minutes) = $0, minutes > 0 { String(minutes) } else { nil }
+        } set: {
+            if case .startTimer(let id, _) = $0 { .startTimer(id: id, minutes: Int($1.filter(\.isNumber)) ?? 0) } else { nil }
+        }
     }
 
     /// Lines map straight to entries; empties survive while typing and
     /// are dropped on save.
     private var urlsText: Binding<String> {
-        Binding(
-            get: {
-                if case .openURLs(_, let urls) = step { return urls.joined(separator: "\n") }
-                return ""
-            },
-            set: { newValue in
-                if case .openURLs(let id, _) = step {
-                    step = .openURLs(id: id, urls: newValue.components(separatedBy: "\n"))
-                }
-            }
-        )
+        payload("") {
+            if case .openURLs(_, let urls) = $0 { urls.joined(separator: "\n") } else { nil }
+        } set: {
+            if case .openURLs(let id, _) = $0 { .openURLs(id: id, urls: $1.components(separatedBy: "\n")) } else { nil }
+        }
     }
 }
 
@@ -550,16 +477,15 @@ private struct PlaybookStepCard: View {
 private struct PaletteTextField: View {
     let placeholder: String
     @Binding var text: String
-    let palette: WindowPalette
 
     var body: some View {
         TextField(placeholder, text: $text)
             .textFieldStyle(.plain)
             .font(Theme.bodyFont)
-            .foregroundStyle(palette.ink)
+            .foregroundStyle(Palette.ink)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(Palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 }
 
@@ -569,7 +495,6 @@ private struct PaletteTextField: View {
 private struct AppPickerView: View {
     let apps: [InstalledApp]
     @Binding var selected: [String]
-    let palette: WindowPalette
 
     @State private var filter = ""
     @State private var manualBundleID = ""
@@ -581,22 +506,22 @@ private struct AppPickerView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
-                    .foregroundStyle(palette.ink40)
+                    .foregroundStyle(Palette.ink40)
                 TextField(L10n.t(.playSearchApps), text: $filter)
                     .textFieldStyle(.plain)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(palette.ink)
+                    .foregroundStyle(Palette.ink)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(Palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             sourceChips
             if apps.isEmpty {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text("…")
                         .font(Theme.subFont)
-                        .foregroundStyle(palette.ink40)
+                        .foregroundStyle(Palette.ink40)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 20)
@@ -610,26 +535,20 @@ private struct AppPickerView: View {
                     .padding(4)
                 }
                 .frame(height: 150)
-                .background(palette.raised.opacity(0.5), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(Palette.raised.opacity(0.5), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 Text("\(filtered.count) / \(apps.count) · " + L10n.f(.playSelectedCount, selected.count))
                     .font(Theme.subFont)
-                    .foregroundStyle(palette.ink40)
+                    .foregroundStyle(Palette.ink40)
             }
             HStack(spacing: 8) {
-                TextField(L10n.t(.playAddBundleID), text: $manualBundleID)
-                    .textFieldStyle(.plain)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(palette.ink)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                PaletteTextField(placeholder: L10n.t(.playAddBundleID), text: $manualBundleID)
                     .onSubmit(addManual)
                 Button(action: addManual) {
                     Image(systemName: "plus")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(palette.accent)
+                        .foregroundStyle(Palette.accent)
                         .frame(width: 26, height: 26)
-                        .background(palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .background(Palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
@@ -651,11 +570,11 @@ private struct AppPickerView: View {
                 } label: {
                     Text(source.title)
                         .font(Theme.captionFont)
-                        .foregroundStyle(isOn ? palette.accent : palette.ink60)
+                        .foregroundStyle(isOn ? Palette.accent : Palette.ink60)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(isOn ? palette.accentWash : palette.raised, in: Capsule())
-                        .overlay(Capsule().stroke(isOn ? palette.accent.opacity(0.5) : Color.clear, lineWidth: 1))
+                        .background(isOn ? Palette.accentWash : Palette.raised, in: Capsule())
+                        .overlay(Capsule().stroke(isOn ? Palette.accent.opacity(0.5) : Color.clear, lineWidth: 1))
                         .contentShape(Capsule())
                 }
                 .buttonStyle(PressableStyle())
@@ -691,7 +610,7 @@ private struct AppPickerView: View {
             HStack(spacing: 8) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 12))
-                    .foregroundStyle(isSelected ? palette.accent : palette.ink40)
+                    .foregroundStyle(isSelected ? Palette.accent : Palette.ink40)
                 if let icon = AppVisuals.icon(for: app.id) {
                     Image(nsImage: icon)
                         .resizable()
@@ -699,7 +618,7 @@ private struct AppPickerView: View {
                 }
                 Text(app.name)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(palette.ink)
+                    .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -798,28 +717,7 @@ enum AppCatalog {
     }
 
     private static func spotlightPaths() async -> [String] {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
-                process.arguments = ["kMDItemContentTypeTree == 'com.apple.application-bundle'"]
-                let stdout = Pipe()
-                process.standardOutput = stdout
-                process.standardError = Pipe()
-                do {
-                    try process.run()
-                } catch {
-                    continuation.resume(returning: [])
-                    return
-                }
-                let data = stdout.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                let paths = String(data: data, encoding: .utf8)?
-                    .components(separatedBy: "\n")
-                    .filter { !$0.isEmpty } ?? []
-                continuation.resume(returning: paths)
-            }
-        }
+        await Process.outputLines("/usr/bin/mdfind", ["kMDItemContentTypeTree == 'com.apple.application-bundle'"])
     }
 
     /// One level deep over the standard locations — enough to catch

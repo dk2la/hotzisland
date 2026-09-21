@@ -1,7 +1,7 @@
 import AppKit
 
 /// Screen edge the widget strip is docked to.
-enum WidgetEdge: String, CaseIterable {
+enum WidgetEdge: String {
     case left
     case right
     case top

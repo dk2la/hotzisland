@@ -17,8 +17,6 @@ final class SystemStatsService {
     /// Bytes per second.
     private(set) var downloadRate: Double = 0
     private(set) var uploadRate: Double = 0
-    /// Last 16 CPU samples for the Sys history strip.
-    private(set) var cpuHistory: [Double] = []
 
     /// Demo mode: readings are a gentle random walk instead of Mach calls,
     /// so the strip looks alive without depending on what the Mac is doing.
@@ -76,12 +74,6 @@ final class SystemStatsService {
         pollTask = nil
     }
 
-    /// One synchronous refresh, for callers that need a reading without
-    /// keeping the loop alive (e.g. a one-shot tool).
-    func sampleNow() {
-        sample()
-    }
-
     private func sample() {
         if isDemo {
             sampleDemo()
@@ -109,15 +101,12 @@ final class SystemStatsService {
         demoCPU = 0.28
         demoDownload = 2_600_000
         demoTick = 0
-        // A full history strip from the first frame.
-        cpuHistory = (0..<16).map { _ in Double.random(in: 0.18...0.40) }
         sampleDemo()
     }
 
     func exitDemo() {
         guard isDemo else { return }
         isDemo = false
-        cpuHistory = []
         previousTicks = nil
         previousTraffic = nil
         sample()
@@ -127,10 +116,6 @@ final class SystemStatsService {
         demoTick += 1
         demoCPU = min(max(demoCPU + Double.random(in: -0.07...0.07), 0.14), 0.62)
         cpuUsage = demoCPU
-        cpuHistory.append(demoCPU)
-        if cpuHistory.count > 16 {
-            cpuHistory.removeFirst(cpuHistory.count - 16)
-        }
         let breath = 0.54 + 0.02 * sin(Double(demoTick) / 5)
         memoryUsed = UInt64(Double(memoryTotal) * breath)
         demoDownload = min(max(demoDownload + Double.random(in: -900_000...900_000), 400_000), 9_500_000)
@@ -171,10 +156,6 @@ final class SystemStatsService {
             let busyDelta = Double(busy - previous.busy)
             let totalDelta = Double(total - previous.total)
             cpuUsage = totalDelta > 0 ? min(1, busyDelta / totalDelta) : 0
-            cpuHistory.append(cpuUsage)
-            if cpuHistory.count > 16 {
-                cpuHistory.removeFirst(cpuHistory.count - 16)
-            }
         }
         previousTicks = (busy, total)
     }

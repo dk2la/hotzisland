@@ -69,6 +69,15 @@ final class L10n {
     static func f(_ key: L10nKey, _ args: CVarArg...) -> String {
         String(format: t(key), arguments: args)
     }
+
+    /// "now" / "5 min" / "3 h"; past a day the formatter takes over, when given.
+    static func age(since date: Date, olderThanADay formatter: DateFormatter? = nil) -> String {
+        let minutes = Int(Date().timeIntervalSince(date) / 60)
+        if minutes < 1 { return t(.ageNow) }
+        if minutes < 60 { return f(.ageMin, minutes) }
+        if let formatter, minutes >= 60 * 24 { return formatter.string(from: date) }
+        return f(.ageHour, minutes / 60)
+    }
 }
 
 /// String table. Order per row: en, ru, fr, es, zh, pt, de, it, ja, ko.
@@ -76,7 +85,7 @@ enum L10nKey {
     // Module titles
     case modPlaybooks, modCalendar, modEmail, modClipboard, modNotes, modChats
     case modMusic, modTimer, modShelf, modSystem, modAssistant
-    case comingSoon, comingSoonSub
+    case comingSoonSub
 
     // Widget chrome
     case menuSettings, menuQuit
@@ -97,14 +106,13 @@ enum L10nKey {
     // Calendar
     case calAllDay, calJoin, calNow, calNoEvents, calToday, calTomorrow
     case calStartsInMinutes, calStartsInHours
-    case calNewEvent, calEditEvent, calTitleField, calCalendarField, calStarts, calEnds
-    case calMyStatus, calStatusAccepted, calStatusDeclined, calStatusTentative, calStatusPending
+    case calNewEvent, calEditEvent, calTitleField, calStarts, calEnds
     case calLocationField, calURLField, calNotesField, calAttendees, calOrganizer
     case calOpenInCalendar, calInviteesHint, calDelete, calConfirmDelete, calSave, calEdit
     case timerCustomPlaceholder
 
     // Notes
-    case notesEmptyTitle, notesEmptySub, notesQuickPlaceholder, notesNew, notesDone
+    case notesEmptyTitle, notesEmptySub, notesQuickPlaceholder, notesNew
     case notesFolder, notesChange
 
     // Speech
@@ -116,7 +124,7 @@ enum L10nKey {
     case mailInboxEmpty, mailOpenInApp, mailNoBody, mailNoSubject
     case mailProvider, mailAddress, mailPassword, mailPasswordHint, mailOutlookWarning
     case mailImapHost, mailSmtpHost
-    case mailCheck, mailChecking, mailCheckOk, mailSave, mailRemove
+    case mailCheck, mailChecking, mailCheckOk, mailRemove
     case mailReply, mailReplyPlaceholder, mailSend, mailSending, mailSent, mailCancel, mailShowImages, mailHideImages
     case mailReplyAll, mailForward, mailCc, mailForwardedHeader
     case mailSearchPlaceholder, mailNoResults, mailArchive, mailRefresh, mailSearch
@@ -128,22 +136,22 @@ enum L10nKey {
     case asstBaseURL, asstModel, asstKey, asstKeyHint
     case asstProviderClaude, asstProviderCodex, asstProviderAPI
     case asstPreset, asstModelOptional, asstCLIMissing, asstVoiceHint, asstEmptyTitle
-    case asstPlaybookConfirm, asstPlaybookRun, asstPlaybookCancel
+    case asstPlaybookConfirm, asstPlaybookRun
 
     // Playbooks
-    case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playEdit, playAdd
-    case playApps, playCloseRest, playFocus, playLaunch
+    case playNew, playEmpty, playDone, playClosed, playOpened, playErrors, playAdd
+    case playApps, playCloseRest, playFocus
     case playStepOpenApps, playStepCloseOthers, playStepShortcut, playStepFocus, playStepTimer, playStepURLs
     case playAddStep, playLayout, playGrantAccess, playLayoutHint
     case playLayoutNone, playLayoutLeftRight, playLayoutThirds, playLayoutGrid2x2, playLayoutMainSide, playLayoutFullscreen
     case playName, playIcon, playSteps, playNoSteps, playSearchApps, playAddBundleID, playSelectedCount
-    case playChooseShortcut, playShortcutName, playMinutes, playMinutesShort, playURLsHint, playLinks
+    case playChooseShortcut, playShortcutName, playMinutes, playURLsHint, playLinks
 
     // Metrics
     case sysMemory, sysNetwork, sysBattery, sysCharging, sysVolume
 
     // Settings
-    case setTitle, setGeneral, setAppearance, setModules, setPlaybooks, setHotkeys
+    case setTitle, setGeneral, setAppearance, setModules, setHotkeys
     case setBehavior, setLaunch, setLaunchSub
     case setIdle, setIdleSub, setIdleInvisible, setIdleCompact
     case setLanguage, setLanguageSub
@@ -169,7 +177,6 @@ enum L10nKey {
         case .modShelf: return ["Shelf", "Полка", "Étagère", "Estante", "暂存架", "Prateleira", "Ablage", "Mensola", "シェルフ", "선반"]
         case .modSystem: return ["System", "Система", "Système", "Sistema", "系统", "Sistema", "System", "Sistema", "システム", "시스템"]
         case .modAssistant: return ["Assistant", "Ассистент", "Assistant", "Asistente", "助手", "Assistente", "Assistent", "Assistente", "アシスタント", "어시스턴트"]
-        case .comingSoon: return ["Coming soon", "Скоро", "Bientôt", "Próximamente", "即将推出", "Em breve", "Bald verfügbar", "In arrivo", "近日公開", "곧 제공"]
         case .comingSoonSub: return ["Connects in a later build.", "Подключится в следующих версиях.", "Disponible dans une prochaine version.", "Se conecta en una versión futura.", "将在后续版本中接入。", "Chega numa versão futura.", "Kommt in einer späteren Version.", "Arriva in una versione futura.", "今後のバージョンで対応します。", "이후 버전에서 연결됩니다."]
 
         case .menuSettings: return ["Settings…", "Настройки…", "Réglages…", "Ajustes…", "设置…", "Ajustes…", "Einstellungen…", "Impostazioni…", "設定…", "설정…"]
@@ -209,14 +216,8 @@ enum L10nKey {
         case .calToday: return ["Today", "Сегодня", "Aujourd'hui", "Hoy", "今天", "Hoje", "Heute", "Oggi", "今日", "오늘"]
         case .calTomorrow: return ["Tomorrow", "Завтра", "Demain", "Mañana", "明天", "Amanhã", "Morgen", "Domani", "明日", "내일"]
         case .calNewEvent: return ["New event", "Новое событие", "Nouvel événement", "Nuevo evento", "新建日程", "Novo evento", "Neuer Termin", "Nuovo evento", "新規イベント", "새 일정"]
-        case .calMyStatus: return ["My status", "Мой статус", "Mon statut", "Mi estado", "我的状态", "Meu status", "Mein Status", "Il mio stato", "自分のステータス", "내 상태"]
-        case .calStatusAccepted: return ["Accepted", "Принято", "Accepté", "Aceptado", "已接受", "Aceito", "Zugesagt", "Accettato", "承諾", "수락됨"]
-        case .calStatusDeclined: return ["Declined", "Отклонено", "Refusé", "Rechazado", "已拒绝", "Recusado", "Abgelehnt", "Rifiutato", "辞退", "거절됨"]
-        case .calStatusTentative: return ["Maybe", "Возможно", "Peut-être", "Quizás", "待定", "Talvez", "Vielleicht", "Forse", "仮承諾", "미정"]
-        case .calStatusPending: return ["No reply", "Нет ответа", "Sans réponse", "Sin respuesta", "未回复", "Sem resposta", "Keine Antwort", "Nessuna risposta", "未返信", "응답 없음"]
         case .calEditEvent: return ["Edit event", "Изменить событие", "Modifier l'événement", "Editar evento", "编辑日程", "Editar evento", "Termin bearbeiten", "Modifica evento", "イベントを編集", "일정 편집"]
         case .calTitleField: return ["Title", "Название", "Titre", "Título", "标题", "Título", "Titel", "Titolo", "タイトル", "제목"]
-        case .calCalendarField: return ["Calendar", "Календарь", "Calendrier", "Calendario", "日历", "Calendário", "Kalender", "Calendario", "カレンダー", "캘린더"]
         case .calStarts: return ["Starts", "Начало", "Début", "Inicio", "开始", "Início", "Beginn", "Inizio", "開始", "시작"]
         case .calEnds: return ["Ends", "Конец", "Fin", "Fin", "结束", "Fim", "Ende", "Fine", "終了", "종료"]
         case .calLocationField: return ["Location", "Место", "Lieu", "Ubicación", "地点", "Local", "Ort", "Luogo", "場所", "위치"]
@@ -236,7 +237,6 @@ enum L10nKey {
         case .notesEmptySub: return ["Type below — Enter saves a note", "Напишите ниже — Enter сохранит заметку", "Écrivez ci-dessous — Entrée enregistre", "Escribe abajo — Enter guarda la nota", "在下方输入 — 回车保存", "Escreva abaixo — Enter guarda a nota", "Unten tippen — Enter speichert", "Scrivi sotto — Invio salva la nota", "下に入力 — Enterで保存", "아래에 입력 — Enter로 저장"]
         case .notesQuickPlaceholder: return ["Quick note…", "Быстрая заметка…", "Note rapide…", "Nota rápida…", "快速记录…", "Nota rápida…", "Schnellnotiz…", "Nota rapida…", "クイックメモ…", "빠른 메모…"]
         case .notesNew: return ["New", "Новая", "Nouvelle", "Nueva", "新建", "Nova", "Neu", "Nuova", "新規", "새로 만들기"]
-        case .notesDone: return ["Done", "Готово", "Terminé", "Listo", "完成", "Concluído", "Fertig", "Fatto", "完了", "완료"]
         case .notesFolder: return ["Notes folder", "Папка заметок", "Dossier des notes", "Carpeta de notas", "备忘录文件夹", "Pasta de notas", "Notizen-Ordner", "Cartella note", "メモフォルダ", "메모 폴더"]
         case .notesChange: return ["Change…", "Изменить…", "Modifier…", "Cambiar…", "更改…", "Alterar…", "Ändern…", "Cambia…", "変更…", "변경…"]
 
@@ -296,7 +296,6 @@ enum L10nKey {
         case .asstCLIMissing: return ["%@ CLI not found. Install it and sign in, then press Check.", "%@ CLI не найден. Установите его, войдите в аккаунт и нажмите «Проверить».", "CLI %@ introuvable. Installez-le, connectez-vous, puis cliquez sur Vérifier.", "No se encontró el CLI %@. Instálalo, inicia sesión y pulsa Comprobar.", "未找到 %@ CLI。请安装并登录后点击检查。", "CLI %@ não encontrado. Instale, inicie sessão e prima Verificar.", "%@-CLI nicht gefunden. Installieren, anmelden, dann auf Prüfen klicken.", "CLI %@ non trovata. Installala, accedi e premi Verifica.", "%@ CLI が見つかりません。インストールしてサインイン後、チェックを押してください。", "%@ CLI를 찾을 수 없습니다. 설치 후 로그인하고 확인을 누르세요."]
         case .asstPlaybookConfirm: return ["Run playbook “%@”?", "Запустить плейбук «%@»?", "Lancer le playbook « %@ » ?", "¿Iniciar el playbook «%@»?", "运行行动手册“%@”？", "Iniciar o playbook “%@”?", "Playbook „%@“ starten?", "Avviare il playbook “%@”?", "プレイブック「%@」を実行しますか？", "플레이북 “%@”을(를) 실행할까요?"]
         case .asstPlaybookRun: return ["Run", "Запустить", "Lancer", "Iniciar", "运行", "Iniciar", "Starten", "Avvia", "実行", "실행"]
-        case .asstPlaybookCancel: return ["Cancel", "Отмена", "Annuler", "Cancelar", "取消", "Cancelar", "Abbrechen", "Annulla", "キャンセル", "취소"]
         case .asstKeyHint: return ["Stored in the Keychain; leave empty for a local Ollama", "Хранится в Keychain; для локальной Ollama оставьте пустым", "Stockée dans le trousseau ; vide pour Ollama local", "Se guarda en el llavero; vacía para Ollama local", "保存在钥匙串；本地 Ollama 可留空", "Guardada nas Chaves; vazia para Ollama local", "Im Schlüsselbund gespeichert; für lokales Ollama leer lassen", "Salvata nel portachiavi; vuota per Ollama locale", "キーチェーンに保存。ローカルのOllamaは空欄でOK", "키체인에 저장. 로컬 Ollama는 비워 두세요"]
         case .mailProvider: return ["Provider", "Провайдер", "Fournisseur", "Proveedor", "服务商", "Fornecedor", "Anbieter", "Provider", "プロバイダ", "제공업체"]
         case .mailAddress: return ["Email address", "Адрес почты", "Adresse e-mail", "Dirección de correo", "邮箱地址", "Endereço de e-mail", "E-Mail-Adresse", "Indirizzo e-mail", "メールアドレス", "이메일 주소"]
@@ -308,7 +307,6 @@ enum L10nKey {
         case .mailCheck: return ["Check", "Проверить", "Vérifier", "Comprobar", "检查", "Verificar", "Prüfen", "Verifica", "確認", "확인"]
         case .mailChecking: return ["Checking…", "Проверяю…", "Vérification…", "Comprobando…", "检查中…", "A verificar…", "Prüfe…", "Verifica…", "確認中…", "확인 중…"]
         case .mailCheckOk: return ["Connected", "Подключено", "Connecté", "Conectado", "已连接", "Ligado", "Verbunden", "Connesso", "接続済み", "연결됨"]
-        case .mailSave: return ["Save", "Сохранить", "Enregistrer", "Guardar", "保存", "Guardar", "Sichern", "Salva", "保存", "저장"]
         case .mailRemove: return ["Remove account", "Удалить аккаунт", "Supprimer le compte", "Eliminar cuenta", "移除账户", "Remover conta", "Konto entfernen", "Rimuovi account", "アカウントを削除", "계정 제거"]
 
         case .playNew: return ["+ new", "+ новый", "+ nouveau", "+ nuevo", "+ 新建", "+ novo", "+ neu", "+ nuovo", "+ 新規", "+ 새로 만들기"]
@@ -316,12 +314,10 @@ enum L10nKey {
         case .playApps: return ["%d apps", "%d прил.", "%d apps", "%d apps", "%d 个应用", "%d apps", "%d Apps", "%d app", "%d個のApp", "앱 %d개"]
         case .playCloseRest: return ["closes others", "закрывает прочие", "ferme le reste", "cierra el resto", "关闭其他", "fecha o resto", "schließt andere", "chiude il resto", "他を閉じる", "다른 앱 닫기"]
         case .playFocus: return ["focus", "фокус", "focus", "enfoque", "专注", "foco", "Fokus", "focus", "集中", "집중"]
-        case .playLaunch: return ["Launch", "Запустить", "Lancer", "Iniciar", "启动", "Iniciar", "Starten", "Avvia", "起動", "실행"]
         case .playDone: return ["done", "выполнен", "terminé", "hecho", "已完成", "concluído", "fertig", "fatto", "完了", "완료"]
         case .playClosed: return ["closed %d", "закрыто %d", "fermé %d", "cerradas %d", "已关闭 %d", "fechadas %d", "geschlossen %d", "chiuse %d", "終了 %d", "닫음 %d"]
         case .playOpened: return ["opened %d", "открыто %d", "ouvert %d", "abiertas %d", "已打开 %d", "abertas %d", "geöffnet %d", "aperte %d", "起動 %d", "열림 %d"]
         case .playErrors: return ["errors %d", "ошибок %d", "erreurs %d", "errores %d", "错误 %d", "erros %d", "Fehler %d", "errori %d", "エラー %d", "오류 %d"]
-        case .playEdit: return ["Edit", "Изменить", "Modifier", "Editar", "编辑", "Editar", "Bearbeiten", "Modifica", "編集", "편집"]
         case .playStepOpenApps: return ["Open apps", "Открыть приложения", "Ouvrir des apps", "Abrir apps", "打开应用", "Abrir apps", "Apps öffnen", "Apri app", "Appを開く", "앱 열기"]
         case .playStepCloseOthers: return ["Close other apps", "Закрыть остальные приложения", "Fermer les autres apps", "Cerrar las demás apps", "关闭其他应用", "Fechar as outras apps", "Andere Apps schließen", "Chiudi le altre app", "他のAppを閉じる", "다른 앱 닫기"]
         case .playStepShortcut: return ["Run shortcut", "Запустить быструю команду", "Lancer un raccourci", "Ejecutar atajo", "运行快捷指令", "Executar atalho", "Kurzbefehl ausführen", "Esegui comando rapido", "ショートカットを実行", "단축어 실행"]
@@ -348,7 +344,6 @@ enum L10nKey {
         case .playChooseShortcut: return ["Choose a shortcut…", "Выберите команду…", "Choisir un raccourci…", "Elegir un atajo…", "选择快捷指令…", "Escolher um atalho…", "Kurzbefehl wählen…", "Scegli un comando…", "ショートカットを選択…", "단축어 선택…"]
         case .playShortcutName: return ["Or type a shortcut name", "Или введите название команды", "Ou saisir un nom de raccourci", "O escribe el nombre del atajo", "或输入快捷指令名称", "Ou escreva o nome do atalho", "Oder Kurzbefehl-Namen eingeben", "O digita il nome del comando", "またはショートカット名を入力", "또는 단축어 이름 입력"]
         case .playMinutes: return ["Minutes", "Минуты", "Minutes", "Minutos", "分钟", "Minutos", "Minuten", "Minuti", "分", "분"]
-        case .playMinutesShort: return ["%d min", "%d мин", "%d min", "%d min", "%d 分钟", "%d min", "%d Min.", "%d min", "%d分", "%d분"]
         case .playURLsHint: return ["One link per line", "По одной ссылке на строку", "Un lien par ligne", "Un enlace por línea", "每行一个链接", "Um link por linha", "Ein Link pro Zeile", "Un link per riga", "1行に1リンク", "한 줄에 링크 하나"]
         case .playLinks: return ["%d links", "%d ссыл.", "%d liens", "%d enlaces", "%d 个链接", "%d links", "%d Links", "%d link", "%d件のリンク", "링크 %d개"]
         case .playAdd: return ["Add playbook…", "Добавить плейбук…", "Ajouter un playbook…", "Añadir playbook…", "添加行动手册…", "Adicionar playbook…", "Playbook hinzufügen…", "Aggiungi playbook…", "プレイブックを追加…", "플레이북 추가…"]
@@ -363,7 +358,6 @@ enum L10nKey {
         case .setGeneral: return ["General", "Общие", "Général", "General", "通用", "Geral", "Allgemein", "Generali", "一般", "일반"]
         case .setAppearance: return ["Appearance", "Вид", "Apparence", "Apariencia", "外观", "Aparência", "Aussehen", "Aspetto", "外観", "모양"]
         case .setModules: return ["Modules", "Модули", "Modules", "Módulos", "模块", "Módulos", "Module", "Moduli", "モジュール", "모듈"]
-        case .setPlaybooks: return ["Playbooks", "Плейбуки", "Playbooks", "Playbooks", "行动手册", "Playbooks", "Playbooks", "Playbook", "プレイブック", "플레이북"]
         case .setHotkeys: return ["Hotkeys", "Хоткеи", "Raccourcis", "Atajos", "快捷键", "Atalhos", "Kurzbefehle", "Scorciatoie", "ショートカット", "단축키"]
         case .setBehavior: return ["Behavior", "Поведение", "Comportement", "Comportamiento", "行为", "Comportamento", "Verhalten", "Comportamento", "動作", "동작"]
         case .setLaunch: return ["Launch at login", "Запускать при входе", "Lancer à l'ouverture de session", "Abrir al iniciar sesión", "登录时启动", "Abrir ao iniciar sessão", "Beim Anmelden starten", "Avvia all'accesso", "ログイン時に起動", "로그인 시 실행"]
@@ -402,5 +396,19 @@ enum L10nKey {
         case .setDemoEvents: return ["Island events", "События острова", "Événements de l'îlot", "Eventos de la isla", "灵动岛事件", "Eventos da ilha", "Insel-Ereignisse", "Eventi dell'isola", "アイランドのイベント", "아일랜드 이벤트"]
         case .setDemoEventsSub: return ["Closes the settings and flashes a sample event on the notch", "Закрывает настройки и показывает пример события на вырезе", "Ferme les réglages et affiche un événement d'exemple sur le notch", "Cierra los ajustes y muestra un evento de ejemplo en el notch", "关闭设置并在刘海处闪现示例事件", "Fecha os ajustes e mostra um evento de exemplo no notch", "Schließt die Einstellungen und zeigt ein Beispiel-Ereignis am Notch", "Chiude le impostazioni e mostra un evento di esempio sul notch", "設定を閉じてノッチにサンプルイベントを表示", "설정을 닫고 노치에 샘플 이벤트를 표시"]
         }
+    }
+}
+
+extension DateFormatter {
+    /// Localized from a template ("EEE d MMM") — field order follows the locale.
+    convenience init(template: String) {
+        self.init()
+        setLocalizedDateFormatFromTemplate(template)
+    }
+
+    /// Fixed format, the same in every locale.
+    convenience init(format: String) {
+        self.init()
+        dateFormat = format
     }
 }

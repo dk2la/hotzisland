@@ -226,20 +226,20 @@ struct EventDetailView: View {
     /// "Tue 15 Sep · 15:00 – 15:30"; a multi-day event names both ends.
     private var whenLine: String {
         let calendar = service.calendar
-        let day = Self.dayFormatter.string(from: event.start)
+        let day = CalendarService.dayFormatter.string(from: event.start)
         if event.isAllDay {
             let lastDay = calendar.startOfDay(for: max(event.start, event.end - 1))
             if calendar.isDate(lastDay, inSameDayAs: event.start) {
                 return "\(day) · \(L10n.t(.calAllDay))"
             }
-            return "\(day) – \(Self.dayFormatter.string(from: lastDay)) · \(L10n.t(.calAllDay))"
+            return "\(day) – \(CalendarService.dayFormatter.string(from: lastDay)) · \(L10n.t(.calAllDay))"
         }
         let start = Self.timeFormatter.string(from: event.start)
         let end = Self.timeFormatter.string(from: event.end)
         if calendar.isDate(event.start, inSameDayAs: event.end) {
             return "\(day) · \(start) – \(end)"
         }
-        return "\(day) \(start) – \(Self.dayFormatter.string(from: event.end)) \(end)"
+        return "\(day) \(start) – \(CalendarService.dayFormatter.string(from: event.end)) \(end)"
     }
 
     private func openInMaps(_ location: String) {
@@ -268,15 +268,5 @@ struct EventDetailView: View {
         }
     }
 
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
-        return formatter
-    }()
-
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("jmm")
-        return formatter
-    }()
+    private static let timeFormatter = DateFormatter(template: "jmm")
 }

@@ -1,5 +1,3 @@
-import Foundation
-
 /// Single shared instances of every module service. Both the notch island
 /// and the edge widget render from these — separate copies would diverge
 /// (two clipboard histories) or double the work (two media pollers).
@@ -27,7 +25,7 @@ final class ModuleServices {
     init() {
         playbookRunner = PlaybookRunner(timer: timerService)
         // The toolbox needs the fully built container, so it attaches last.
-        assistantService.attachToolbox(services: self, playbooks: playbookStore)
+        assistantService.attachToolbox(services: self)
         demo.attach(services: self)
     }
 }

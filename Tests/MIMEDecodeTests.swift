@@ -89,7 +89,7 @@ final class MIMEDecodeTests: XCTestCase {
         let single = MIMEDecode.splitParts(Data("--XyZ\r\nContent-Type: text/plain\r\n\r\nonly".utf8), boundary: "XyZ")
         XCTAssertEqual(single.count, 1)
         XCTAssertEqual(
-            MIMEDecode.extractText(rawBody: Data(body.utf8), contentType: "multipart/mixed; boundary=XyZ", transferEncoding: "7bit"),
+            MIMEDecode.extractReadable(rawBody: Data(body.utf8), contentType: "multipart/mixed; boundary=XyZ", transferEncoding: "7bit").text,
             "first"
         )
     }
@@ -103,7 +103,7 @@ final class MIMEDecodeTests: XCTestCase {
         XCTAssertEqual(outerParts.count, 1)
         XCTAssertEqual(MIMEDecode.splitParts(outerParts[0], boundary: "abcd").count, 1)
         XCTAssertEqual(
-            MIMEDecode.extractText(rawBody: Data(outer.utf8), contentType: "multipart/mixed; boundary=abc", transferEncoding: "7bit"),
+            MIMEDecode.extractReadable(rawBody: Data(outer.utf8), contentType: "multipart/mixed; boundary=abc", transferEncoding: "7bit").text,
             "inner text"
         )
         // "--abc" in the middle of a line is body text, not a delimiter.
@@ -143,14 +143,14 @@ final class MIMEDecodeTests: XCTestCase {
     func testHTMLOnlyBodyIsFlattened() {
         let html = Data("<html><body><p>Привет</p><p>мир</p></body></html>".utf8).base64EncodedString()
         XCTAssertEqual(
-            MIMEDecode.extractText(rawBody: Data(html.utf8), contentType: "text/html; charset=utf-8", transferEncoding: "base64"),
+            MIMEDecode.extractReadable(rawBody: Data(html.utf8), contentType: "text/html; charset=utf-8", transferEncoding: "base64").text,
             "Привет\nмир"
         )
     }
 
     func testAttachmentOnlyBodyYieldsNothing() {
         XCTAssertEqual(
-            MIMEDecode.extractText(rawBody: Data("%PDF-1.4".utf8), contentType: "application/pdf", transferEncoding: "base64"),
+            MIMEDecode.extractReadable(rawBody: Data("%PDF-1.4".utf8), contentType: "application/pdf", transferEncoding: "base64").text,
             ""
         )
     }

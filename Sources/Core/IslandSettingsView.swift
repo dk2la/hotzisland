@@ -7,7 +7,6 @@ struct IslandSettingsView: View {
     var viewModel: NotchViewModel
     var services: ModuleServices
     var settings: AppSettings
-    var playbooks: PlaybookStore
     let notchHeight: CGFloat
 
     @State private var resizeStartSize: CGSize?
@@ -16,12 +15,7 @@ struct IslandSettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: notchHeight)
-            SettingsView(
-                settings: settings,
-                playbooks: playbooks,
-                services: services,
-                pageSelection: viewModel.pageSelection
-            )
+            SettingsView(settings: settings, services: services, pageSelection: viewModel.pageSelection)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .overlay(alignment: .topTrailing) {

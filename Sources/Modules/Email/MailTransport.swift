@@ -28,7 +28,7 @@ actor TLSTransport: MailLineTransport {
         self.port = port
     }
 
-    func connect(timeout: Duration = .seconds(15)) async throws {
+    func connect() async throws {
         let options = NWProtocolTLS.Options()
         let parameters = NWParameters(tls: options)
         let connection = NWConnection(
@@ -38,7 +38,7 @@ actor TLSTransport: MailLineTransport {
         )
         self.connection = connection
 
-        try await withTimeout(timeout) {
+        try await withTimeout(.seconds(15)) {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 let resumed = ResumeGuard()
                 connection.stateUpdateHandler = { @Sendable state in
@@ -56,15 +56,6 @@ actor TLSTransport: MailLineTransport {
                 connection.start(queue: .global(qos: .userInitiated))
             }
         }
-    }
-
-    // Protocol witnesses: requirements carry no default arguments.
-    func connect() async throws {
-        try await connect(timeout: .seconds(15))
-    }
-
-    func read(exactly count: Int) async throws -> Data {
-        try await read(exactly: count, timeout: .seconds(30))
     }
 
     func close() {
@@ -92,8 +83,8 @@ actor TLSTransport: MailLineTransport {
         try await withTimeout(timeout) { try await self.readLineLoop() }
     }
 
-    func read(exactly count: Int, timeout: Duration = .seconds(30)) async throws -> Data {
-        try await withTimeout(timeout) { try await self.readExactLoop(count) }
+    func read(exactly count: Int) async throws -> Data {
+        try await withTimeout(.seconds(30)) { try await self.readExactLoop(count) }
     }
 
     private func readLineLoop() async throws -> Data {

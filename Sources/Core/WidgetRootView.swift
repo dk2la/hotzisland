@@ -10,7 +10,6 @@ struct WidgetRootView: View {
     var settings: AppSettings
 
     @Environment(\.colorScheme) private var colorScheme
-    var playbooks: PlaybookStore
 
     private var stripShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: WidgetMetrics.radius, style: .continuous)
@@ -79,7 +78,7 @@ struct WidgetRootView: View {
             .help(viewModel.isMinimized ? L10n.t(.setHideWidget) : "")
             .contextMenu {
                 Button(L10n.t(.menuSettings)) {
-                    NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
+                    requestSettings()
                 }
                 Divider()
                 Button(L10n.t(.menuQuit)) {
@@ -151,7 +150,7 @@ struct WidgetRootView: View {
                     PanelHeaderView(tab: tab, services: services) {
                         viewModel.onClose?()
                     }
-                    ModuleContentView(tab: tab, services: services, playbooks: playbooks)
+                    ModuleContentView(tab: tab, services: services)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.horizontal, Theme.panelInset)
                         .padding(.top, Theme.panelInset)
@@ -174,20 +173,34 @@ struct WidgetRootView: View {
     }
 
     private var widthGrip: some View {
+        resizeGrip(vertical: true) { viewModel.onResizeChanged?() } ended: { viewModel.onResizeEnded?() }
+    }
+
+    private var heightGrip: some View {
+        resizeGrip(vertical: false) { viewModel.onHeightResizeChanged?() } ended: { viewModel.onHeightResizeEnded?() }
+    }
+
+    /// A 3×34 bar in a 14pt hit strip along one panel edge; `vertical` is
+    /// the width grip on a side edge.
+    private func resizeGrip(
+        vertical: Bool,
+        changed: @escaping () -> Void,
+        ended: @escaping () -> Void
+    ) -> some View {
         RoundedRectangle(cornerRadius: 1.5, style: .continuous)
             .fill(Theme.textPrimary.opacity(0.22))
-            .frame(width: 3, height: 34)
-            .frame(width: 14)
-            .frame(maxHeight: .infinity)
+            .frame(width: vertical ? 3 : 34, height: vertical ? 34 : 3)
+            .frame(width: vertical ? 14 : nil, height: vertical ? nil : 14)
+            .frame(maxWidth: vertical ? nil : .infinity, maxHeight: vertical ? .infinity : nil)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 2)
-                    .onChanged { _ in viewModel.onResizeChanged?() }
-                    .onEnded { _ in viewModel.onResizeEnded?() }
+                    .onChanged { _ in changed() }
+                    .onEnded { _ in ended() }
             )
             .onHover { inside in
                 if inside {
-                    NSCursor.resizeLeftRight.push()
+                    (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
                 } else {
                     NSCursor.pop()
                 }
@@ -231,26 +244,4 @@ struct WidgetRootView: View {
             .help(tab.title)
         }
     }
-
-    private var heightGrip: some View {
-        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-            .fill(Theme.textPrimary.opacity(0.22))
-            .frame(width: 34, height: 3)
-            .frame(height: 14)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 2)
-                    .onChanged { _ in viewModel.onHeightResizeChanged?() }
-                    .onEnded { _ in viewModel.onHeightResizeEnded?() }
-            )
-            .onHover { inside in
-                if inside {
-                    NSCursor.resizeUpDown.push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
-    }
-
 }

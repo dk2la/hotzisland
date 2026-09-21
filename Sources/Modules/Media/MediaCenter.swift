@@ -106,25 +106,17 @@ final class MediaCenter {
     }
 
     private func observeWorkspace() {
-        let center = NSWorkspace.shared.notificationCenter
-        center.addObserver(
-            forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main
-        ) { [weak self] note in
-            // Extract the plain value before hopping: the notification itself
-            // is not Sendable.
-            let bundleID = Self.playerBundleID(in: note)
-            MainActor.assumeIsolated {
-                guard let self, let bundleID else { return }
-                self.playerDidLaunch(bundleID)
-            }
-        }
-        center.addObserver(
-            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
-        ) { [weak self] note in
-            let bundleID = Self.playerBundleID(in: note)
-            MainActor.assumeIsolated {
-                guard let self, let bundleID else { return }
-                self.playerDidTerminate(bundleID)
+        let names = [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification]
+        for name in names {
+            NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                // Extract the plain values before hopping: the notification
+                // itself is not Sendable.
+                let bundleID = Self.playerBundleID(in: note)
+                let launched = note.name == NSWorkspace.didLaunchApplicationNotification
+                MainActor.assumeIsolated {
+                    guard let self, let bundleID else { return }
+                    if launched { self.playerDidLaunch(bundleID) } else { self.playerDidTerminate(bundleID) }
+                }
             }
         }
     }
@@ -186,12 +178,6 @@ final class MediaCenter {
 
     var supportsLike: Bool {
         activeSource == .appleMusic
-    }
-
-    /// Current playback position derived from the last timing sample —
-    /// pass the date of a `TimelineView` tick to animate progress.
-    func position(at date: Date) -> TimeInterval {
-        track?.position(at: date) ?? 0
     }
 
     // MARK: - Commands
@@ -372,16 +358,9 @@ final class MediaCenter {
         if runningPlayers.contains(MusicSource.bundleID), !sources.contains(.appleMusic) {
             sources.append(.appleMusic)
         }
-        return sources.filter { kind in
-            switch kind {
-            case .spotify:
-                permissionCache[SpotifySource.bundleID, default: .undetermined] != .denied
-            case .appleMusic:
-                permissionCache[MusicSource.bundleID, default: .undetermined] != .denied
-            case .client:
-                true
-            }
-        }
+        // Only the dedicated players are ever probed, so a client never
+        // has an entry and always passes.
+        return sources.filter { permissionCache[$0.id] != .denied }
     }
 
     /// Probes a player's Automation permission — on first sight of it

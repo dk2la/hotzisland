@@ -4,7 +4,6 @@ import SwiftUI
 /// hosts, password goes straight to the Keychain on save.
 struct EmailSetupView: View {
     var service: EmailService
-    let palette: WindowPalette
 
     @State private var provider: EmailProvider = .gmail
     @State private var email = ""
@@ -18,14 +17,13 @@ struct EmailSetupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingRow(title: L10n.t(.mailProvider), palette: palette) {
+            SettingRow(title: L10n.t(.mailProvider)) {
                 WindowSegmented(
                     options: EmailProvider.allCases.map { ($0, $0.title) },
                     selection: Binding(
                         get: { provider },
                         set: { applyPreset($0) }
-                    ),
-                    palette: palette
+                    )
                 )
             }
             if provider.isPasswordAuthUnreliable {
@@ -34,34 +32,28 @@ struct EmailSetupView: View {
                     .foregroundStyle(Theme.critical.opacity(0.9))
                     .padding(.bottom, 8)
             }
-            Hairline(color: palette.hairline)
-            SetupFieldRow(title: L10n.t(.mailAddress), palette: palette) {
+            Hairline(color: Palette.hairline)
+            SetupFieldRow(title: L10n.t(.mailAddress)) {
                 TextField("name@example.com", text: $email)
             }
-            Hairline(color: palette.hairline)
-            SetupFieldRow(
-                title: L10n.t(.mailPassword),
-                subtitle: L10n.t(.mailPasswordHint),
-                palette: palette,
-                width: 200
-            ) {
+            Hairline(color: Palette.hairline)
+            SetupFieldRow(title: L10n.t(.mailPassword), subtitle: L10n.t(.mailPasswordHint), width: 200) {
                 SecureField("", text: $password)
             }
             if provider == .custom {
-                Hairline(color: palette.hairline)
-                SetupFieldRow(title: L10n.t(.mailImapHost), palette: palette) {
+                Hairline(color: Palette.hairline)
+                SetupFieldRow(title: L10n.t(.mailImapHost)) {
                     TextField("imap.example.com", text: $imapHost)
                     TextField("993", text: $imapPort).frame(width: 56)
                 }
-                Hairline(color: palette.hairline)
-                SetupFieldRow(title: L10n.t(.mailSmtpHost), palette: palette) {
+                Hairline(color: Palette.hairline)
+                SetupFieldRow(title: L10n.t(.mailSmtpHost)) {
                     TextField("smtp.example.com", text: $smtpHost)
                     TextField("465", text: $smtpPort).frame(width: 56)
                 }
             }
-            Hairline(color: palette.hairline)
+            Hairline(color: Palette.hairline)
             SetupActionRow(
-                palette: palette,
                 checkState: checkState,
                 canCheck: isComplete,
                 canSave: isComplete && !password.isEmpty,
@@ -138,15 +130,6 @@ struct EmailSetupView: View {
     private func runCheck() {
         let config = builtConfig
         let secret = password
-        checkState = .checking
-        Task {
-            let result = await EmailService.testConnection(config, password: secret)
-            switch result {
-            case .success:
-                checkState = .ok
-            case .failure(let error):
-                checkState = .failed(error.localizedDescription)
-            }
-        }
+        probeSetup($checkState) { await EmailService.testConnection(config, password: secret) }
     }
 }

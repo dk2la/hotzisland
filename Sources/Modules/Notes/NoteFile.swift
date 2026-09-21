@@ -10,6 +10,13 @@ struct NoteFile: Identifiable, Equatable, Sendable {
     var id: String { url.path }
 }
 
+extension NoteFile {
+    /// Titled after the filename.
+    init(url: URL, modifiedAt: Date) {
+        self.init(url: url, title: url.deletingPathExtension().lastPathComponent, modifiedAt: modifiedAt)
+    }
+}
+
 /// Pure filename logic, kept separate for testability.
 enum NoteNaming {
     /// A title safe to use as a filename: no path separators, no leading

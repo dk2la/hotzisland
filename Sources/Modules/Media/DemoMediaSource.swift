@@ -77,8 +77,6 @@ final class DemoMediaSource: MediaSource {
 
     // MARK: - MediaSource
 
-    func isAvailable() -> Bool { true }
-
     func fetchTrack() async -> MediaTrack? {
         MediaTrack(
             source: .spotify,

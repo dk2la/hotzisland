@@ -137,15 +137,15 @@ final class AssistantService {
 
     /// Called by ModuleServices at the end of its init — the toolbox needs
     /// the fully built service container, so it cannot exist in our own init.
-    func attachToolbox(services: ModuleServices, playbooks: PlaybookStore) {
-        toolbox = AssistantToolbox(services: services, playbooks: playbooks)
+    func attachToolbox(services: ModuleServices) {
+        toolbox = AssistantToolbox(services: services)
     }
 
     // MARK: - Configuration
 
-    /// The key as stored, for the setup form to show on reopen.
+    /// The key as stored — for requests and for the setup form on reopen.
     func storedKey() -> String {
-        apiKey()
+        vault.secret(account: Self.keyAccount) ?? ""
     }
 
     func saveConfig(_ newConfig: AssistantConfig, key: String) {
@@ -172,9 +172,7 @@ final class AssistantService {
         vault.delete(account: Self.keyAccount)
         config = nil
         defaults.removeObject(forKey: AssistantConfig.defaultsKey)
-        transcript = []
-        apiHistory = []
-        pendingPlaybook = nil
+        clearTranscript()
         log.info("assistant removed")
     }
 
@@ -218,23 +216,17 @@ final class AssistantService {
         trimHistory()
 
         isThinking = true
-        if isDemo {
-            Task { [weak self] in
+        // The Keychain is only touched for the API provider.
+        let key = isDemo || config.provider.isCLI ? "" : storedKey()
+        Task { [weak self, isDemo] in
+            if isDemo {
                 await self?.runDemoTurn(text)
-                self?.isThinking = false
+            } else if config.provider.isCLI {
+                await self?.runCLILoop(client: CLIAssistantClient(provider: config.provider, model: config.model))
+            } else {
+                await self?.runLoop(client: OpenAIClient(baseURL: config.baseURL, apiKey: key, model: config.model))
             }
-        } else if config.provider.isCLI {
-            let client = CLIAssistantClient(provider: config.provider, model: config.model)
-            Task { [weak self] in
-                await self?.runCLILoop(client: client)
-                self?.isThinking = false
-            }
-        } else {
-            let client = OpenAIClient(baseURL: config.baseURL, apiKey: apiKey(), model: config.model)
-            Task { [weak self] in
-                await self?.runLoop(client: client)
-                self?.isThinking = false
-            }
+            self?.isThinking = false
         }
     }
 
@@ -336,10 +328,6 @@ final class AssistantService {
             "content": basePrompt()
                 + " Use the provided tools to act on the user's widget when asked; do not invent tool results.",
         ]
-    }
-
-    private func apiKey() -> String {
-        vault.secret(account: Self.keyAccount) ?? ""
     }
 
     // MARK: - Demo mode

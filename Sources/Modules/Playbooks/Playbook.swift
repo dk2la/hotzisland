@@ -21,28 +21,19 @@ enum PlaybookStep: Codable, Equatable, Sendable, Identifiable {
     enum Kind: String, Codable, CaseIterable, Sendable {
         case openApps, closeOtherApps, runShortcut, setFocus, startTimer, openURLs
 
-        var icon: String {
+        private var spec: (icon: String, title: L10nKey) {
             switch self {
-            case .openApps: "macwindow.on.rectangle"
-            case .closeOtherApps: "xmark.rectangle"
-            case .runShortcut: "square.2.layers.3d"
-            case .setFocus: "moon.fill"
-            case .startTimer: "timer"
-            case .openURLs: "link"
+            case .openApps: ("macwindow.on.rectangle", .playStepOpenApps)
+            case .closeOtherApps: ("xmark.rectangle", .playStepCloseOthers)
+            case .runShortcut: ("square.2.layers.3d", .playStepShortcut)
+            case .setFocus: ("moon.fill", .playStepFocus)
+            case .startTimer: ("timer", .playStepTimer)
+            case .openURLs: ("link", .playStepURLs)
             }
         }
 
-        @MainActor
-        var title: String {
-            switch self {
-            case .openApps: L10n.t(.playStepOpenApps)
-            case .closeOtherApps: L10n.t(.playStepCloseOthers)
-            case .runShortcut: L10n.t(.playStepShortcut)
-            case .setFocus: L10n.t(.playStepFocus)
-            case .startTimer: L10n.t(.playStepTimer)
-            case .openURLs: L10n.t(.playStepURLs)
-            }
-        }
+        var icon: String { spec.icon }
+        @MainActor var title: String { L10n.t(spec.title) }
 
         /// A fresh, empty step of this kind — what "Add step" inserts.
         func makeStep() -> PlaybookStep {
@@ -148,31 +139,6 @@ struct Playbook: Identifiable, Codable, Equatable, Sendable {
         case id, name, icon, steps
     }
 
-    init(id: UUID = UUID(), name: String, icon: String = "bolt.fill", steps: [PlaybookStep] = []) {
-        self.id = id
-        self.name = name
-        self.icon = icon
-        self.steps = steps
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
-        name = try container.decode(String.self, forKey: .name)
-        icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? "bolt.fill"
-        // Required on purpose: a file without `steps` is the legacy shape
-        // and must go through migration, not decode as an empty playbook.
-        steps = try container.decode([PlaybookStep].self, forKey: .steps)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(name, forKey: .name)
-        try container.encode(icon, forKey: .icon)
-        try container.encode(steps, forKey: .steps)
-    }
-
     // MARK: - Derived
 
     /// Every app the playbook opens, across all steps, in order, deduped.
@@ -234,4 +200,16 @@ struct PlaybookRunResult: Equatable, Sendable {
     var closed = 0
     var opened = 0
     var failures: [String] = []
+}
+
+extension Playbook {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decode(String.self, forKey: .name)
+        icon = try container.decodeIfPresent(String.self, forKey: .icon) ?? "bolt.fill"
+        // Required on purpose: a file without `steps` is the legacy shape
+        // and must go through migration, not decode as an empty playbook.
+        steps = try container.decode([PlaybookStep].self, forKey: .steps)
+    }
 }

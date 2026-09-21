@@ -6,13 +6,13 @@ import AppKit
 /// (MediaRemote) whenever Music is the now-playing app and read through one
 /// AppleScript call otherwise — cached until the next notification/command.
 @MainActor
-final class MusicSource: MediaSource {
+final class MusicSource: AppleScriptPlayer {
     nonisolated static let bundleID = "com.apple.Music"
     static let playerInfo = Notification.Name("com.apple.Music.playerInfo")
     /// Older builds still post under the iTunes name.
     static let legacyPlayerInfo = Notification.Name("com.apple.iTunes.playerInfo")
 
-    private(set) var lastCommandFailed = false
+    var lastCommandFailed = false
 
     private struct State {
         var persistentID: String?
@@ -34,26 +34,8 @@ final class MusicSource: MediaSource {
     /// notification or a command may have moved playback.
     private var playbackSample: MediaPlayback?
 
-    func isAvailable() -> Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).isEmpty
-    }
-
-    /// Subscribes to the player-info notifications; `handler` runs on the
-    /// main actor after the payload has been absorbed.
     func startObserving(_ handler: @escaping @MainActor () -> Void) {
-        for name in [Self.playerInfo, Self.legacyPlayerInfo] {
-            DistributedNotificationCenter.default().addObserver(
-                forName: name,
-                object: nil,
-                queue: .main
-            ) { [weak self] note in
-                let payload = PlayerInfoPayload(note.userInfo)
-                MainActor.assumeIsolated {
-                    self?.absorb(payload)
-                    handler()
-                }
-            }
-        }
+        observe([Self.playerInfo, Self.legacyPlayerInfo], handler)
     }
 
     /// Player quit — forget its state so nothing stale is reported.
@@ -66,7 +48,7 @@ final class MusicSource: MediaSource {
 
     /// Payload keys: "Name", "Artist", "Total Time" (ms), "PersistentID",
     /// "Player State" ("Playing"/"Paused"/"Stopped"). No position.
-    private func absorb(_ info: PlayerInfoPayload) {
+    func absorb(_ info: PlayerInfoPayload) {
         playbackSample = nil
         let playerState = info.string("Player State") ?? ""
         guard playerState != "Stopped", let title = info.string("Name") else {
@@ -188,11 +170,6 @@ final class MusicSource: MediaSource {
         return NSImage(data: data)
     }
 
-    func togglePlayPause() async { await command("playpause") }
-    func next() async { await command("next track") }
-    func previous() async { await command("previous track") }
-    func seek(to seconds: Double) async { await command("set player position to \(Int(seconds))") }
-
     func like() async {
         await command("""
         try
@@ -203,21 +180,8 @@ final class MusicSource: MediaSource {
         """)
     }
 
-    /// Transport commands sit behind the same `is running` guard as
-    /// `fetchTrack` — a bare `tell` would launch a quit player. The trailing
-    /// `return "ok"` tells a silent success apart from a failure (osascript
-    /// prints nothing to stdout in either case).
-    private func command(_ body: String) async {
-        let script = """
-        if application id "com.apple.Music" is running then
-        	tell application id "com.apple.Music"
-        		\(body)
-        	end tell
-        	return "ok"
-        end if
-        """
-        lastCommandFailed = await AppleScriptRunner.run(script) != "ok"
-        // Any command may have moved playback — the next read re-samples.
+    /// Any command may have moved playback — the next read re-samples.
+    func commandDidRun() {
         playbackSample = nil
     }
 }

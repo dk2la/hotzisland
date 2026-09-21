@@ -147,11 +147,6 @@ final class CalendarService {
         reload()
     }
 
-    func step(days: Int) {
-        guard let next = calendar.date(byAdding: .day, value: days, to: selectedDay) else { return }
-        select(day: next)
-    }
-
     func select(day: Date) {
         selectedDay = calendar.startOfDay(for: day)
         if !calendar.isDate(selectedDay, equalTo: displayedMonth, toGranularity: .month) {
@@ -166,12 +161,21 @@ final class CalendarService {
         reload()
     }
 
+    static let dayFormatter = DateFormatter(template: "EEE d MMM")
+
+    /// "Today", "Tomorrow" or "Fri 4 Sep".
+    func dayLabel(_ day: Date) -> String {
+        if calendar.isDateInToday(day) { return L10n.t(.calToday) }
+        if calendar.isDateInTomorrow(day) { return L10n.t(.calTomorrow) }
+        return Self.dayFormatter.string(from: day)
+    }
+
     func events(forDay day: Date) -> [CalendarEvent] {
         eventsByDay[calendar.startOfDay(for: day)] ?? []
     }
 
     func hasEvents(on day: Date) -> Bool {
-        !(eventsByDay[calendar.startOfDay(for: day)] ?? []).isEmpty
+        !events(forDay: day).isEmpty
     }
 
     // MARK: - Detail, create, edit
@@ -266,23 +270,10 @@ final class CalendarService {
         }
         event.title = draft.trimmedTitle
         event.isAllDay = draft.isAllDay
-        if draft.isAllDay {
-            // All-day spans whole days: midnight to the last second of the
-            // last day, which is how Calendar.app stores them.
-            let first = calendar.startOfDay(for: draft.start)
-            let last = calendar.startOfDay(for: max(draft.start, draft.end))
-            event.startDate = first
-            event.endDate = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: last) ?? last
-        } else {
-            event.startDate = draft.start
-            event.endDate = draft.end
-        }
-        let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
-        event.location = location.isEmpty ? nil : location
-        let notes = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        event.notes = notes.isEmpty ? nil : notes
-        let urlText = draft.url.trimmingCharacters(in: .whitespacesAndNewlines)
-        event.url = urlText.isEmpty ? nil : URL(string: urlText)
+        (event.startDate, event.endDate) = storedRange(of: draft)
+        event.location = Self.nonEmpty(draft.location)
+        event.notes = Self.nonEmpty(draft.notes)
+        event.url = Self.nonEmpty(draft.url).flatMap(URL.init(string:))
 
         try store.save(event, span: .thisEvent, commit: true)
         log.info("saved event \(event.eventIdentifier ?? "?", privacy: .public) new=\(draft.id == nil, privacy: .public)")
@@ -294,20 +285,28 @@ final class CalendarService {
         reload()
     }
 
+    /// All-day spans whole days: midnight to the last second of the last
+    /// day, which is how Calendar.app stores them.
+    private func storedRange(of draft: EventDraft) -> (start: Date, end: Date) {
+        guard draft.isAllDay else { return (draft.start, draft.end) }
+        let last = calendar.startOfDay(for: max(draft.start, draft.end))
+        return (
+            calendar.startOfDay(for: draft.start),
+            calendar.date(byAdding: DateComponents(day: 1, second: -1), to: last) ?? last
+        )
+    }
+
     /// Removes this occurrence only; the detail card closes with it.
     func delete(_ event: CalendarEvent) throws {
         if isDemo {
             demoEvents.removeAll { $0.id == event.id }
-            lastError = nil
-            if selectedEvent?.id == event.id { closeEvent() }
-            reload()
-            return
+        } else {
+            guard let stored = store.event(withIdentifier: event.eventIdentifier) else {
+                throw CalendarError.eventNotFound
+            }
+            try store.remove(stored, span: .thisEvent, commit: true)
+            log.info("deleted event \(event.eventIdentifier, privacy: .public)")
         }
-        guard let stored = store.event(withIdentifier: event.eventIdentifier) else {
-            throw CalendarError.eventNotFound
-        }
-        try store.remove(stored, span: .thisEvent, commit: true)
-        log.info("deleted event \(event.eventIdentifier, privacy: .public)")
         lastError = nil
         if selectedEvent?.id == event.id { closeEvent() }
         reload()
@@ -332,7 +331,7 @@ final class CalendarService {
         guard access == .granted else { return }
 
         let ekCalendars = store.calendars(for: .event)
-        calendars = ekCalendars.map { calendar in
+        let info = { (calendar: EKCalendar) in
             CalendarInfo(
                 id: calendar.calendarIdentifier,
                 title: calendar.title,
@@ -340,17 +339,11 @@ final class CalendarService {
                 color: Color(nsColor: calendar.color ?? .systemBlue)
             )
         }
-        .sorted { ($0.sourceTitle, $0.title) < ($1.sourceTitle, $1.title) }
+        calendars = ekCalendars.map(info)
+            .sorted { ($0.sourceTitle, $0.title) < ($1.sourceTitle, $1.title) }
         writableCalendars = ekCalendars
             .filter(\.allowsContentModifications)
-            .map { calendar in
-                CalendarInfo(
-                    id: calendar.calendarIdentifier,
-                    title: calendar.title,
-                    sourceTitle: calendar.source?.title ?? "Local",
-                    color: Color(nsColor: calendar.color ?? .systemBlue)
-                )
-            }
+            .map(info)
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
 
         let active = ekCalendars.filter { isEnabled($0.calendarIdentifier) }
@@ -484,21 +477,8 @@ final class CalendarService {
         let info = calendars.first { $0.id == draft.calendarIdentifier } ?? writableCalendars.first
         let existing = draft.id.flatMap { id in demoEvents.first { $0.eventIdentifier == id } }
         let id = existing?.id ?? "demo.event.\(UUID().uuidString)"
-        let start: Date
-        let end: Date
-        if draft.isAllDay {
-            let first = calendar.startOfDay(for: draft.start)
-            let last = calendar.startOfDay(for: max(draft.start, draft.end))
-            start = first
-            end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: last) ?? last
-        } else {
-            start = draft.start
-            end = draft.end
-        }
-        let location = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
-        let notes = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let urlText = draft.url.trimmingCharacters(in: .whitespacesAndNewlines)
-        let url = urlText.isEmpty ? nil : URL(string: urlText)
+        let (start, end) = storedRange(of: draft)
+        let url = Self.nonEmpty(draft.url).flatMap(URL.init(string:))
         let event = CalendarEvent(
             id: id,
             title: draft.trimmedTitle,
@@ -507,13 +487,12 @@ final class CalendarService {
             isAllDay: draft.isAllDay,
             color: info?.color ?? .blue,
             joinURL: url?.scheme?.hasPrefix("http") == true ? url : existing?.joinURL,
-            location: location.isEmpty ? nil : location,
-            notes: notes.isEmpty ? nil : notes,
+            location: Self.nonEmpty(draft.location),
+            notes: Self.nonEmpty(draft.notes),
             url: url,
             calendarTitle: info?.title ?? "",
             calendarIdentifier: info?.id ?? "",
             attendees: existing?.attendees ?? [],
-            organizerName: existing?.organizerName,
             isEditable: true,
             eventIdentifier: id
         )
@@ -551,7 +530,6 @@ final class CalendarService {
             calendarTitle: event.calendar.title,
             calendarIdentifier: event.calendar.calendarIdentifier,
             attendees: attendees,
-            organizerName: organizer.map { Self.participantName($0) },
             isEditable: event.calendar.allowsContentModifications && isOwn,
             eventIdentifier: event.eventIdentifier ?? ""
         )
@@ -588,11 +566,6 @@ final class CalendarService {
         guard url.scheme?.lowercased() == "mailto" else { return nil }
         let address = url.absoluteString.dropFirst("mailto:".count)
         return address.isEmpty ? nil : String(address)
-    }
-
-    private static func participantName(_ participant: EKParticipant) -> String {
-        if let name = participant.name, !name.isEmpty { return name }
-        return email(of: participant) ?? ""
     }
 
     private static func nonEmpty(_ text: String?) -> String? {

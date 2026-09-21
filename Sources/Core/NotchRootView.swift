@@ -4,7 +4,6 @@ struct NotchRootView: View {
     var viewModel: NotchViewModel
     var services: ModuleServices
     var settings: AppSettings
-    var playbooks: PlaybookStore
     let closedSize: CGSize
 
     private var isExpanded: Bool { viewModel.state == .expanded }
@@ -15,17 +14,11 @@ struct NotchRootView: View {
     private var capsuleSize: CGSize {
         if isExpanded { return closedSize }
         if viewModel.activeEvent != nil {
-            return CGSize(
-                width: closedSize.width + NotchMetrics.eventSideWidth * 2,
-                height: closedSize.height
-            )
+            return NotchGeometry.capsule(closedSize, side: NotchMetrics.eventSideWidth)
         }
         if viewModel.state == .compact,
            services.timerService.isRunning || services.mediaCenter.track != nil {
-            return CGSize(
-                width: closedSize.width + NotchMetrics.compactSideWidth * 2,
-                height: closedSize.height
-            )
+            return NotchGeometry.capsule(closedSize, side: NotchMetrics.compactSideWidth)
         }
         return closedSize
     }
@@ -104,7 +97,7 @@ struct NotchRootView: View {
                     CompactTimerView(timer: services.timerService)
                         .transition(.opacity)
                 } else if viewModel.state == .compact, let track = services.mediaCenter.track {
-                    CompactMediaView(track: track, artwork: services.mediaCenter.artwork)
+                    CompactMediaView(track: track)
                         .transition(.opacity)
                 }
             }
@@ -160,7 +153,6 @@ struct NotchRootView: View {
             viewModel: viewModel,
             services: services,
             settings: settings,
-            playbooks: playbooks,
             notchHeight: closedSize.height + Self.fillet
         )
     }

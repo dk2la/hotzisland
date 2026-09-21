@@ -24,12 +24,11 @@ final class AssistantToolbox {
     // The toolbox is owned by AssistantService inside ModuleServices, so a
     // strong back-reference would cycle.
     private unowned let services: ModuleServices
-    private unowned let playbooks: PlaybookStore
+    private var playbooks: PlaybookStore { services.playbookStore }
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "assistant")
 
-    init(services: ModuleServices, playbooks: PlaybookStore) {
+    init(services: ModuleServices) {
         self.services = services
-        self.playbooks = playbooks
     }
 
     // MARK: - Registry
@@ -196,8 +195,7 @@ final class AssistantToolbox {
             return ToolOutcome(text: "Timer started for \(Int(clamped)) minutes.")
 
         case "run_playbook":
-            guard let query = (arguments["name"] as? String)?
-                .trimmingCharacters(in: .whitespaces), !query.isEmpty else {
+            guard let query = Self.text(arguments, "name", trimming: .whitespaces) else {
                 return .failure("'name' is required.")
             }
             let all = playbooks.playbooks
@@ -267,16 +265,11 @@ final class AssistantToolbox {
             let events = services.calendarService.events(forDay: day)
             let dayName = Self.dayFormatter.string(from: day)
             guard !events.isEmpty else { return ToolOutcome(text: "No events on \(dayName).") }
-            let lines = events.map { event in
-                event.isAllDay
-                    ? "all day — \(event.title)"
-                    : "\(Self.eventTimeFormatter.string(from: event.start))–\(Self.eventTimeFormatter.string(from: event.end)) \(event.title)"
-            }
+            let lines = Self.lines(for: events)
             return ToolOutcome(text: "\(dayName):\n" + lines.joined(separator: "\n"))
 
         case "create_event":
-            guard let title = (arguments["title"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {
+            guard let title = Self.text(arguments, "title") else {
                 return .failure("'title' is required.")
             }
             guard let start = Self.parseDateTime(arguments["start"] as? String ?? "") else {
@@ -313,16 +306,11 @@ final class AssistantToolbox {
         case "today_events":
             let events = services.calendarService.events(forDay: Date())
             guard !events.isEmpty else { return ToolOutcome(text: "No events today.") }
-            let lines = events.map { event in
-                event.isAllDay
-                    ? "all day — \(event.title)"
-                    : "\(Self.eventTimeFormatter.string(from: event.start))–\(Self.eventTimeFormatter.string(from: event.end)) \(event.title)"
-            }
+            let lines = Self.lines(for: events)
             return ToolOutcome(text: lines.joined(separator: "\n"))
 
         case "create_note":
-            guard let text = (arguments["text"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            guard let text = Self.text(arguments, "text") else {
                 return .failure("'text' is required.")
             }
             services.notesStore.quickCapture(text)
@@ -338,8 +326,7 @@ final class AssistantToolbox {
         case "search_email":
             let mail = services.emailService
             guard mail.config != nil else { return ToolOutcome(text: "Mail is not set up in the widget.") }
-            guard let query = (arguments["query"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else {
+            guard let query = Self.text(arguments, "query") else {
                 return .failure("'query' is required.")
             }
             let hits = Self.matches(query, in: mail.cachedMessages).prefix(10)
@@ -353,8 +340,7 @@ final class AssistantToolbox {
         case "open_email":
             let mail = services.emailService
             guard mail.config != nil else { return ToolOutcome(text: "Mail is not set up in the widget.") }
-            guard let query = (arguments["query"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else {
+            guard let query = Self.text(arguments, "query") else {
                 return .failure("'query' is required.")
             }
             guard let match = Self.matches(query, in: mail.cachedMessages).first else {
@@ -365,8 +351,7 @@ final class AssistantToolbox {
             return ToolOutcome(text: "Opened: \(Self.describe(match))")
 
         case "open_note":
-            guard let title = (arguments["title"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {
+            guard let title = Self.text(arguments, "title") else {
                 return .failure("'title' is required.")
             }
             let notes = services.notesStore
@@ -381,8 +366,7 @@ final class AssistantToolbox {
             return ToolOutcome(text: "Opened note \"\(match.title)\".")
 
         case "append_note":
-            guard let text = (arguments["text"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            guard let text = Self.text(arguments, "text") else {
                 return .failure("'text' is required.")
             }
             let notes = services.notesStore
@@ -439,17 +423,9 @@ final class AssistantToolbox {
         }
     }
 
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEEE d MMMM")
-        return formatter
-    }()
+    private static let dayFormatter = DateFormatter(template: "EEEE d MMMM")
 
-    private static let dateTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM HH:mm")
-        return formatter
-    }()
+    private static let dateTimeFormatter = DateFormatter(template: "EEE d MMM HH:mm")
 
     /// "today", "tomorrow", "yesterday" or YYYY-MM-DD → local midnight.
     private static func parseDay(_ text: String) -> Date? {
@@ -475,11 +451,25 @@ final class AssistantToolbox {
         return Calendar.current.date(bySettingHour: time[0], minute: time[1], second: 0, of: day)
     }
 
-    private static let eventTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
+    /// A required string argument, trimmed; nil when missing or blank.
+    private static func text(
+        _ arguments: [String: Any],
+        _ key: String,
+        trimming: CharacterSet = .whitespacesAndNewlines
+    ) -> String? {
+        guard let value = (arguments[key] as? String)?.trimmingCharacters(in: trimming), !value.isEmpty else { return nil }
+        return value
+    }
+
+    private static func lines(for events: [CalendarEvent]) -> [String] {
+        events.map { event in
+            event.isAllDay
+                ? "all day — \(event.title)"
+                : "\(eventTimeFormatter.string(from: event.start))–\(eventTimeFormatter.string(from: event.end)) \(event.title)"
+        }
+    }
+
+    private static let eventTimeFormatter = DateFormatter(format: "HH:mm")
 
     private static func decode(_ json: String) -> [String: Any] {
         (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] ?? [:]

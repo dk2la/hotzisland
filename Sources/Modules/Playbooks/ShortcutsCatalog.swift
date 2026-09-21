@@ -30,11 +30,21 @@ enum ShortcutsCatalog {
 
     @Sendable
     private static func fetch() async -> [String] {
+        await Process.outputLines("/usr/bin/shortcuts", ["list"])
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+}
+
+extension Process {
+    /// Runs a command-line tool off the main thread and returns its stdout
+    /// as non-empty lines; empty when it cannot be launched.
+    static func outputLines(_ path: String, _ arguments: [String]) async -> [String] {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
-                process.arguments = ["list"]
+                process.executableURL = URL(fileURLWithPath: path)
+                process.arguments = arguments
                 let stdout = Pipe()
                 process.standardOutput = stdout
                 process.standardError = FileHandle.nullDevice
@@ -46,11 +56,10 @@ enum ShortcutsCatalog {
                 }
                 let data = stdout.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
-                let names = String(data: data, encoding: .utf8)?
+                let lines = String(data: data, encoding: .utf8)?
                     .components(separatedBy: "\n")
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
                     .filter { !$0.isEmpty } ?? []
-                continuation.resume(returning: names)
+                continuation.resume(returning: lines)
             }
         }
     }

@@ -78,7 +78,6 @@ struct SegmentBar: View {
 /// label; active keeps a bright ring on raised glass.
 struct KeyButton: View {
     let label: String
-    var isPrimary = false
     var isActive = false
     var enabled = true
     let action: () -> Void
@@ -87,7 +86,7 @@ struct KeyButton: View {
         Button(action: action) {
             Text(label)
                 .font(Theme.subFont)
-                .fontWeight(isPrimary ? .semibold : .medium)
+                .fontWeight(.medium)
                 .kerning(0.3)
                 .foregroundStyle(foreground)
                 .padding(.horizontal, 13)
@@ -101,23 +100,9 @@ struct KeyButton: View {
         .disabled(!enabled)
     }
 
-    private var foreground: Color {
-        if isPrimary { return Theme.inkOnAccent }
-        if isActive { return Theme.textPrimary }
-        return Theme.textSecondary
-    }
-
-    private var background: Color {
-        if isPrimary { return Theme.accent }
-        if isActive { return Theme.raisedFill }
-        return Theme.raisedFill.opacity(0.75)
-    }
-
-    private var border: Color {
-        if isPrimary { return .clear }
-        if isActive { return Theme.accentBorder }
-        return .clear
-    }
+    private var foreground: Color { isActive ? Theme.textPrimary : Theme.textSecondary }
+    private var background: Color { isActive ? Theme.raisedFill : Theme.raisedFill.opacity(0.75) }
+    private var border: Color { isActive ? Theme.accentBorder : .clear }
 }
 
 /// 1px separator line.
@@ -150,33 +135,6 @@ struct EmptyStateZone: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-/// Data-register row: mono column on the left, prose in the middle, mono
-/// annotation on the right.
-struct DataRow<Trailing: View>: View {
-    let leading: String
-    let title: String
-    var titleColor: Color = Theme.textPrimary
-    var leadingWidth: CGFloat = 44
-    @ViewBuilder var trailing: () -> Trailing
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(leading)
-                .font(Theme.readoutSFont)
-                .foregroundStyle(Theme.textFaint)
-                .frame(width: leadingWidth, alignment: .leading)
-            Text(title)
-                .font(Theme.bodyFont)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .foregroundStyle(titleColor)
-            Spacer(minLength: 0)
-            trailing()
-        }
-        .padding(.vertical, 10)
     }
 }
 
@@ -215,11 +173,7 @@ struct ModuleSetupPrompt: View {
             EmptyStateZone(label: title, sublabel: sublabel)
                 .frame(maxHeight: 110)
             GlassCapsuleButton(label: L10n.t(.mailSetupAction), isPrimary: true) {
-                NotificationCenter.default.post(
-                    name: .hotzOpenSettings,
-                    object: nil,
-                    userInfo: ["page": SettingsView.Page.accounts.rawValue]
-                )
+                requestSettings(page: .accounts)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -13,19 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         registerHotkeys()
-        notchController = NotchWindowController(
-            settings: settings,
-            services: services,
-            playbooks: services.playbookStore
-        )
+        notchController = NotchWindowController(settings: settings, services: services)
 
         // Modules live in the edge widget; the notch island shows live
         // events and, when opened, the settings.
-        widgetController = WidgetWindowController(
-            settings: settings,
-            services: services,
-            playbooks: services.playbookStore
-        )
+        widgetController = WidgetWindowController(settings: settings, services: services)
         settings.addChangeHandler { [weak self] in
             self?.widgetController?.settingsDidChange()
         }

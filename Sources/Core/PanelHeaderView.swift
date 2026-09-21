@@ -117,7 +117,7 @@ struct ModuleAccessoriesView: View {
             }
         case .playbooks:
             HeaderIconButton("plus", help: L10n.t(.playAdd)) {
-                NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
+                requestSettings()
             }
         default:
             EmptyView()

@@ -80,12 +80,7 @@ actor IMAPClient {
             throw error
         }
         selectedMailbox = isInbox ? "INBOX" : mailbox
-        for unit in units {
-            if let exists = IMAPParser.parseExists(unit) {
-                return exists
-            }
-        }
-        return 0
+        return units.compactMap(IMAPParser.parseExists).first ?? 0
     }
 
     // MARK: - Mailbox roles
@@ -95,11 +90,7 @@ actor IMAPClient {
     struct SpecialFolders: Equatable, Sendable {
         var junk: String?
         var sent: String?
-        var flagged: String?
         var important: String?
-        var all: String?
-        var trash: String?
-        var drafts: String?
     }
 
     /// Asks the server which folder plays which role. SPECIAL-USE (RFC
@@ -125,20 +116,8 @@ actor IMAPClient {
             if entry.has("\\Sent") {
                 folders.sent = folders.sent ?? entry.name
             }
-            if entry.has("\\Flagged") || entry.has("\\Starred") {
-                folders.flagged = folders.flagged ?? entry.name
-            }
             if entry.has("\\Important") {
                 folders.important = folders.important ?? entry.name
-            }
-            if entry.has("\\All") || entry.has("\\AllMail") {
-                folders.all = folders.all ?? entry.name
-            }
-            if entry.has("\\Trash") {
-                folders.trash = folders.trash ?? entry.name
-            }
-            if entry.has("\\Drafts") {
-                folders.drafts = folders.drafts ?? entry.name
             }
         }
         // No attributes (or none for a role): fall back to the names the
@@ -154,12 +133,6 @@ actor IMAPClient {
             if folders.important == nil, name == "[gmail]/important" {
                 folders.important = entry.name
             }
-            if folders.flagged == nil, name == "[gmail]/starred" {
-                folders.flagged = entry.name
-            }
-            if folders.all == nil, name == "[gmail]/all mail" {
-                folders.all = entry.name
-            }
         }
         log.info("folders junk=\(folders.junk ?? "-", privacy: .public) sent=\(folders.sent ?? "-", privacy: .public) important=\(folders.important ?? "-", privacy: .public)")
         return folders
@@ -172,20 +145,12 @@ actor IMAPClient {
     /// stream back every unread UID — on a neglected inbox that is a
     /// six-figure line of digits every poll.
     func searchUnseenCount() async throws -> Int {
-        if let units = try? await command("STATUS INBOX (UNSEEN)") {
-            for unit in units {
-                if let count = IMAPParser.parseStatusUnseen(unit) {
-                    return count
-                }
-            }
+        if let units = try? await command("STATUS INBOX (UNSEEN)"),
+           let count = units.compactMap(IMAPParser.parseStatusUnseen).first {
+            return count
         }
         let units = try await command("UID SEARCH UNSEEN")
-        for unit in units {
-            if let uids = IMAPParser.parseSearch(unit) {
-                return uids.count
-            }
-        }
-        return 0
+        return units.compactMap(IMAPParser.parseSearch).first?.count ?? 0
     }
 
     /// Fetches ENVELOPE + FLAGS + BODYSTRUCTURE for the newest `limit`
@@ -252,13 +217,11 @@ actor IMAPClient {
     /// Newest `limit` UIDs matching a raw UID SEARCH key in the selected
     /// mailbox.
     func searchUIDs(criteria: String, limit: Int) async throws -> [UInt32] {
-        let units = try await command("UID SEARCH \(criteria)")
-        for unit in units {
-            if let uids = IMAPParser.parseSearch(unit) {
-                return Array(uids.sorted(by: >).prefix(limit))
-            }
-        }
-        return []
+        Self.newestUIDs(in: try await command("UID SEARCH \(criteria)"), limit: limit)
+    }
+
+    private static func newestUIDs(in units: [Data], limit: Int) -> [UInt32] {
+        Array((units.compactMap(IMAPParser.parseSearch).first ?? []).sorted(by: >).prefix(limit))
     }
 
     /// Server-side full-text search over the selected mailbox; newest
@@ -274,17 +237,9 @@ actor IMAPClient {
             // Non-ASCII (Cyrillic…) cannot ride in a quoted string — RFC
             // requires a literal. The non-synchronizing `{n+}` form goes out
             // in one write; Gmail/Yandex/iCloud all speak LITERAL+.
-            units = try await command(
-                "UID SEARCH CHARSET UTF-8 TEXT ",
-                literal: bytes
-            )
+            units = try await command("UID SEARCH CHARSET UTF-8 TEXT ", literal: bytes)
         }
-        for unit in units {
-            if let uids = IMAPParser.parseSearch(unit) {
-                return Array(uids.sorted(by: >).prefix(limit))
-            }
-        }
-        return []
+        return Self.newestUIDs(in: units, limit: limit)
     }
 
     /// RFC 6851 UID MOVE — archive is "move out of INBOX" everywhere; on
@@ -530,25 +485,17 @@ actor IMAPClient {
 
     /// Sends one tagged command and gathers complete response units (each a
     /// line with any `{n}` literals inlined) until the tagged completion.
-    private func command(_ text: String, timeout: Duration = .seconds(15)) async throws -> [Data] {
+    /// A `literal` rides as the last argument in its non-synchronizing form
+    /// (LITERAL+, RFC 7888): `{n+}` needs no continuation round trip, so the
+    /// whole command still goes out in one write.
+    private func command(_ text: String, literal: Data? = nil, timeout: Duration = .seconds(15)) async throws -> [Data] {
         tagCounter += 1
         let tag = "A\(tagCounter)"
-        try await transport.send(Data("\(tag) \(text)\r\n".utf8))
-        return try await readResponse(tag: tag, timeout: timeout)
-    }
-
-    /// Command whose last argument is a non-synchronizing literal (LITERAL+,
-    /// RFC 7888): `{n+}` needs no continuation round trip, so the whole
-    /// command goes out in one write.
-    private func command(
-        _ prefix: String,
-        literal: Data,
-        timeout: Duration = .seconds(15)
-    ) async throws -> [Data] {
-        tagCounter += 1
-        let tag = "A\(tagCounter)"
-        var payload = Data("\(tag) \(prefix){\(literal.count)+}\r\n".utf8)
-        payload.append(literal)
+        var payload = Data("\(tag) \(text)".utf8)
+        if let literal {
+            payload.append(Data("{\(literal.count)+}\r\n".utf8))
+            payload.append(literal)
+        }
         payload.append(Data("\r\n".utf8))
         try await transport.send(payload)
         return try await readResponse(tag: tag, timeout: timeout)
@@ -565,10 +512,7 @@ actor IMAPClient {
                 if upper.hasPrefix("\(tag) OK") {
                     return units
                 }
-                let message = line
-                    .dropFirst(tag.count + 1)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                throw MailError.badResponse(message)
+                throw MailError.badResponse(Self.taggedMessage(line, tag: tag))
             }
             units.append(unit)
         }

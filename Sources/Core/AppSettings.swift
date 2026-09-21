@@ -4,22 +4,18 @@ import OSLog
 import ServiceManagement
 
 /// Island shell appearance.
-enum IslandTheme: String, CaseIterable, Identifiable {
+enum IslandTheme: String {
     case stealth
     case glass
     case glow
-
-    var id: String { rawValue }
 }
 
 /// What the island does when nothing demands attention.
-enum IdleMode: String, CaseIterable, Identifiable {
+enum IdleMode: String {
     /// Always shrink to the bare notch.
     case invisible
     /// Show compact indicators (playing track, running timer).
     case compact
-
-    var id: String { rawValue }
 }
 
 extension Notification.Name {
@@ -32,120 +28,89 @@ extension Notification.Name {
     static let hotzShowModule = Notification.Name("hotzShowModule")
 }
 
+/// Asks the AppDelegate for the settings island, optionally on a page.
+@MainActor
+func requestSettings(page: SettingsView.Page? = nil) {
+    NotificationCenter.default.post(
+        name: .hotzOpenSettings,
+        object: nil,
+        userInfo: page.map { ["page": $0.rawValue] }
+    )
+}
+
 /// User preferences, persisted to UserDefaults.
 @MainActor
 @Observable
 final class AppSettings {
     var theme: IslandTheme {
-        didSet {
-            defaults.set(theme.rawValue, forKey: Self.themeKey)
-            log.info("theme -> \(self.theme.rawValue, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(theme.rawValue, Self.themeKey, log: "theme") }
     }
 
     var idleMode: IdleMode {
-        didSet {
-            defaults.set(idleMode.rawValue, forKey: Self.idleKey)
-            log.info("idleMode -> \(self.idleMode.rawValue, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(idleMode.rawValue, Self.idleKey, log: "idleMode") }
     }
 
     /// Widget glass appearance (the island is always dark glass).
     var glassAppearance: GlassAppearance {
-        didSet {
-            defaults.set(glassAppearance.rawValue, forKey: Self.glassAppearanceKey)
-            log.info("glassAppearance -> \(self.glassAppearance.rawValue, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(glassAppearance.rawValue, Self.glassAppearanceKey, log: "glassAppearance") }
     }
 
     /// Interface language — translates the widget, island and settings.
     var language: AppLanguage {
         didSet {
-            defaults.set(language.rawValue, forKey: Self.languageKey)
             L10n.shared.language = language
-            log.info("language -> \(self.language.rawValue, privacy: .public)")
-            notifyChange()
+            persist(language.rawValue, Self.languageKey, log: "language")
         }
     }
 
     /// Edge the widget strip is docked to.
     private(set) var widgetEdge: WidgetEdge {
-        didSet {
-            defaults.set(widgetEdge.rawValue, forKey: Self.widgetEdgeKey)
-            notifyChange()
-        }
+        didSet { persist(widgetEdge.rawValue, Self.widgetEdgeKey) }
     }
 
     /// Normalized 0…1 position of the strip's center along its edge.
     private(set) var widgetOffset: Double {
-        didSet {
-            defaults.set(widgetOffset, forKey: Self.widgetOffsetKey)
-            notifyChange()
-        }
+        didSet { persist(widgetOffset, Self.widgetOffsetKey) }
     }
 
     /// Clicking anywhere outside the widget closes the open panel. Off =
     /// the panel stays pinned until closed explicitly. ⌃⌥P flips it.
     var closeOnOutsideClick: Bool {
-        didSet {
-            defaults.set(closeOnOutsideClick, forKey: Self.outsideClickKey)
-            log.info("closeOnOutsideClick -> \(self.closeOnOutsideClick, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(closeOnOutsideClick, Self.outsideClickKey, log: "closeOnOutsideClick") }
     }
 
     /// Widget rolled up to its grip plus the first module button (⌃⌥H).
     /// Persisted so a restart brings the widget back the way it was left.
     var widgetMinimized: Bool {
-        didSet {
-            defaults.set(widgetMinimized, forKey: Self.widgetMinimizedKey)
-            log.info("widgetMinimized -> \(self.widgetMinimized, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(widgetMinimized, Self.widgetMinimizedKey, log: "widgetMinimized") }
     }
 
     /// Size of the widget-mode panel, each axis dragged by its own grip.
     /// Separate from the island's `expandedPanelSize` — the two surfaces
     /// have different geometry.
     private(set) var widgetPanelWidth: CGFloat {
-        didSet {
-            defaults.set(Double(widgetPanelWidth), forKey: Self.widgetPanelWidthKey)
-            notifyChange()
-        }
+        didSet { persist(Double(widgetPanelWidth), Self.widgetPanelWidthKey) }
     }
 
     private(set) var widgetPanelHeight: CGFloat {
-        didSet {
-            defaults.set(Double(widgetPanelHeight), forKey: Self.widgetPanelHeightKey)
-            notifyChange()
-        }
+        didSet { persist(Double(widgetPanelHeight), Self.widgetPanelHeightKey) }
     }
 
     /// User-chosen size of the expanded panel (dragged by the corner grip).
     private(set) var expandedPanelSize: CGSize {
         didSet {
             defaults.set(Double(expandedPanelSize.width), forKey: Self.panelWidthKey)
-            defaults.set(Double(expandedPanelSize.height), forKey: Self.panelHeightKey)
-            notifyChange()
+            persist(Double(expandedPanelSize.height), Self.panelHeightKey)
         }
     }
 
     private(set) var enabledTabs: Set<NotchTab> {
-        didSet {
-            defaults.set(enabledTabs.map(\.rawValue).sorted(), forKey: Self.tabsKey)
-            notifyChange()
-        }
+        didSet { persist(enabledTabs.map(\.rawValue).sorted(), Self.tabsKey) }
     }
 
     /// User-arranged channel order (onboarding step 3 / settings → Модули).
     private(set) var tabOrder: [NotchTab] {
-        didSet {
-            defaults.set(tabOrder.map(\.rawValue), forKey: Self.tabOrderKey)
-            notifyChange()
-        }
+        didSet { persist(tabOrder.map(\.rawValue), Self.tabOrderKey) }
     }
 
     /// Launch-at-login through SMAppService; mirrored here for observation.
@@ -164,7 +129,12 @@ final class AppSettings {
         changeHandlers.append(handler)
     }
 
-    private func notifyChange() {
+    /// The one write path of every persisted property.
+    private func persist(_ value: Any, _ key: String, log name: String? = nil) {
+        defaults.set(value, forKey: key)
+        if let name {
+            log.info("\(name, privacy: .public) -> \(String(describing: value), privacy: .public)")
+        }
         for handler in changeHandlers {
             handler()
         }

@@ -1,5 +1,3 @@
-import AppKit
-import Foundation
 import SwiftUI
 
 /// Scripted content for demo mode: one week in the life of Alex Rivera,
@@ -30,11 +28,7 @@ enum DemoFixtures {
     static let mailFolders = IMAPClient.SpecialFolders(
         junk: spamFolder,
         sent: sentFolder,
-        flagged: "[Gmail]/Starred",
-        important: importantFolder,
-        all: "[Gmail]/All Mail",
-        trash: "[Gmail]/Trash",
-        drafts: "[Gmail]/Drafts"
+        important: importantFolder
     )
 
     // MARK: - Mail
@@ -287,7 +281,6 @@ enum DemoFixtures {
             location: String? = nil,
             notes: String? = nil,
             attendees: [CalendarEvent.Attendee] = [],
-            organizer: String? = nil,
             editable: Bool = true
         ) {
             let id = "demo.event.\(events.count + 1)"
@@ -305,14 +298,13 @@ enum DemoFixtures {
                 calendarTitle: info.title,
                 calendarIdentifier: info.id,
                 attendees: attendees,
-                organizerName: organizer,
                 isEditable: editable,
                 eventIdentifier: id
             ))
         }
 
         add("Q4 planning", at(-3, 11), minutes: 90, in: workCalendar,
-            link: "https://meet.google.com/q4p-lann-ing", attendees: [daniel, jess, sam, me], organizer: "Daniel Cho", editable: false)
+            link: "https://meet.google.com/q4p-lann-ing", attendees: [daniel, jess, sam, me], editable: false)
         add("Dentist", at(-1, 9, 30), minutes: 60, in: personalCalendar, location: "Bright Smile, 4th Ave")
         add("Podcast recording: Marketing Weekly", at(-1, 16), minutes: 45, in: workCalendar,
             link: "https://zoom.us/j/91234567890", notes: "Topic: killing the brand book.")
@@ -321,12 +313,12 @@ enum DemoFixtures {
         add("Campaign review: Fall Launch", at(0, 13), minutes: 60, in: workCalendar,
             link: "https://meet.google.com/fall-laun-ch", location: "Room 2A",
             notes: "Pick the hero direction. Priya walks through all three; check them on a phone.",
-            attendees: [priya, jess, sofia, me], organizer: "Priya Nair", editable: false)
+            attendees: [priya, jess, sofia, me], editable: false)
         add("1:1 with Jess", at(0, 15, 30), minutes: 30, in: workCalendar,
             link: "https://meet.google.com/one-on-one", attendees: [jess, me])
         add("Yoga", at(0, 19), minutes: 60, in: personalCalendar, location: "Flow Studio, Alameda")
         add("Board deck working session", at(1, 11), minutes: 60, in: workCalendar,
-            link: "https://meet.google.com/boa-rdde-ck", attendees: [daniel, me], organizer: "Daniel Cho", editable: false)
+            link: "https://meet.google.com/boa-rdde-ck", attendees: [daniel, me], editable: false)
         add("Call with Marcus (North Peak)", at(1, 15), minutes: 30, in: workCalendar,
             link: "https://zoom.us/j/98765432100", attendees: [marcus, me])
         add("Dinner with Nina", at(1, 19, 30), minutes: 120, in: personalCalendar, location: "Osteria Nove")
@@ -336,7 +328,7 @@ enum DemoFixtures {
         let (summitStart, summitEnd) = allDay(4, 6)
         add("Web Summit", summitStart, minutes: 0, in: workCalendar, allDayEnd: summitEnd,
             location: "Lisbon", notes: "Talk on Thursday 14:30, Marketing stage.")
-        let (birthdayStart, birthdayEnd) = allDay(5, 5)
+        let (birthdayStart, _) = allDay(5, 5)
         add("Mom's birthday", birthdayStart, minutes: 0, in: familyCalendar)
         add("Launch day", at(8, 9), minutes: 30, in: workCalendar, notes: "Embargo lifts 9am ET.")
         add("Flight SFO → LIS", at(3, 18, 45), minutes: 660, in: personalCalendar, location: "SFO, Terminal 2")

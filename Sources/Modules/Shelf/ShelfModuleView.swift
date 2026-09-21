@@ -68,17 +68,7 @@ struct ShelfModuleView: View {
                     .foregroundStyle(Theme.textQuaternary)
             }
             Spacer(minLength: 0)
-            Button {
-                shelf.remove(item)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Theme.textTertiary)
-                    .frame(width: 24, height: 24)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.raisedFill))
-                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            }
-            .buttonStyle(PressableStyle())
+            RowRemoveButton { shelf.remove(item) }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)

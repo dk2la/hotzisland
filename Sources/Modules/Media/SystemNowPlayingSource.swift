@@ -6,8 +6,7 @@ import AppKit
 /// reports nothing and the dedicated AppleScript sources keep working.
 @MainActor
 final class SystemNowPlayingSource: MediaSource {
-    /// App currently publishing now-playing state (e.g. "Chrome").
-    private(set) var nowPlayingAppName: String?
+    /// App currently publishing now-playing state.
     private(set) var nowPlayingBundleID: String?
 
     private typealias GetInfoFn = @convention(c) (DispatchQueue, @escaping (CFDictionary?) -> Void) -> Void
@@ -56,8 +55,6 @@ final class SystemNowPlayingSource: MediaSource {
         setElapsed = symbol("MRMediaRemoteSetElapsedTime", as: SetElapsedFn.self)
         register = symbol("MRMediaRemoteRegisterForNowPlayingNotifications", as: RegisterFn.self)
     }
-
-    func isAvailable() -> Bool { getInfo != nil }
 
     /// Subscribes to the now-playing change notifications and forwards each
     /// one to `handler` on the main actor. Returns `false` when the register
@@ -131,7 +128,6 @@ final class SystemNowPlayingSource: MediaSource {
         guard let raw else {
             lastArtworkData = nil
             lastTitle = nil
-            nowPlayingAppName = nil
             nowPlayingBundleID = nil
             return nil
         }
@@ -164,7 +160,6 @@ final class SystemNowPlayingSource: MediaSource {
             getPID(DispatchQueue.main) { resume($0) }
         }
         guard let pid, pid > 0, let app = NSRunningApplication(processIdentifier: pid) else { return }
-        nowPlayingAppName = app.localizedName
         nowPlayingBundleID = app.bundleIdentifier
     }
 

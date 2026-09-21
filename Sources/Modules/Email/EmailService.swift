@@ -301,6 +301,11 @@ final class EmailService {
         // even if the refresh below only covers the one on screen.
         refreshedAt[.primary] = nil
         refreshedAt[.starred] = nil
+        refreshSoon()
+    }
+
+    /// Refreshes now, or once more after the refresh already in flight.
+    private func refreshSoon() {
         if refreshTask != nil {
             refreshAgain = true
         } else {
@@ -492,11 +497,7 @@ final class EmailService {
             clearSearch()
         }
         guard !isDemo, isStale(mailbox) else { return }
-        if refreshTask != nil {
-            refreshAgain = true
-        } else {
-            refresh()
-        }
+        refreshSoon()
     }
 
     private func isStale(_ mailbox: Mailbox) -> Bool {
@@ -549,9 +550,8 @@ final class EmailService {
     private func saveCachedLists() {
         // Demo lists must never land in the cache the real account reads.
         guard !isDemo else { return }
-        var headersOnly = messagesByMailbox
-        for mailbox in headersOnly.keys {
-            headersOnly[mailbox] = headersOnly[mailbox]?.map { message in
+        let headersOnly = messagesByMailbox.mapValues { list in
+            list.map { message in
                 var copy = message
                 copy.bodyPlain = nil
                 copy.bodyHTML = nil
@@ -875,15 +875,9 @@ final class EmailService {
             composeQuote = nil
         }
         switch mode {
-        case .reply:
+        case .reply, .replyAll:
             composeTo = message.replyTo ?? message.fromAddress
-            composeCc = ""
-            composeSubject = MailComposer.replySubject(message.subject)
-            composeInReplyTo = message.messageID
-            composeReferences = message.references
-        case .replyAll:
-            composeTo = message.replyTo ?? message.fromAddress
-            composeCc = replyAllRecipients(for: message).joined(separator: ", ")
+            composeCc = mode == .reply ? "" : replyAllRecipients(for: message).joined(separator: ", ")
             composeSubject = MailComposer.replySubject(message.subject)
             composeInReplyTo = message.messageID
             composeReferences = message.references
@@ -965,6 +959,19 @@ final class EmailService {
             .filter { $0.contains("@") }
     }
 
+    /// The compose form as a message, fields trimmed.
+    private func composedMail(from sender: String) -> OutgoingMail {
+        OutgoingMail(
+            from: sender,
+            to: composeTo.trimmingCharacters(in: .whitespaces),
+            cc: Self.addressList(composeCc),
+            subject: composeSubject.trimmingCharacters(in: .whitespacesAndNewlines),
+            body: draft.trimmingCharacters(in: .whitespacesAndNewlines),
+            inReplyTo: composeInReplyTo,
+            references: composeReferences
+        )
+    }
+
     func sendCompose() {
         guard let config, canSendCompose else { return }
         if isDemo {
@@ -975,15 +982,7 @@ final class EmailService {
             sendError = "No password in Keychain"
             return
         }
-        let mail = OutgoingMail(
-            from: config.email,
-            to: composeTo.trimmingCharacters(in: .whitespaces),
-            cc: Self.addressList(composeCc),
-            subject: composeSubject.trimmingCharacters(in: .whitespacesAndNewlines),
-            body: draft.trimmingCharacters(in: .whitespacesAndNewlines),
-            inReplyTo: composeInReplyTo,
-            references: composeReferences
-        )
+        let mail = composedMail(from: config.email)
         isSending = true
         sendError = nil
         Task { [weak self] in
@@ -1061,12 +1060,9 @@ final class EmailService {
         selectedMailbox = .primary
         unreadCount = (lists[.primary] ?? []).filter(\.isUnread).count
         openMessage = nil
-        searchResults = nil
         isSearchOpen = false
-        searchQuery = ""
-        clearDraft()
-        isComposeOpen = false
-        sendError = nil
+        clearSearch()
+        discardCompose()
         didSend = false
         connection = .online
         log.info("demo on")
@@ -1086,11 +1082,10 @@ final class EmailService {
         selectedMailbox = parked.selectedMailbox
         unreadCount = parked.unreadCount
         openMessage = parked.openMessage
-        searchResults = nil
         isSearchOpen = false
-        searchQuery = ""
-        clearDraft()
-        isComposeOpen = false
+        clearSearch()
+        // `sendError` is always nil here: a demo send cannot fail.
+        discardCompose()
         connection = parked.connection
         log.info("demo off")
         if config != nil {
@@ -1119,11 +1114,7 @@ final class EmailService {
 
     /// "Sends" the draft: a moment of spinner, then it appears in Sent.
     private func sendDemoCompose(from sender: String) {
-        let subject = composeSubject.trimmingCharacters(in: .whitespacesAndNewlines)
-        let to = composeTo.trimmingCharacters(in: .whitespaces)
-        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cc = Self.addressList(composeCc)
-        let inReplyTo = composeInReplyTo
+        let mail = composedMail(from: sender)
         isSending = true
         sendError = nil
         Task { [weak self] in
@@ -1133,16 +1124,16 @@ final class EmailService {
             let sent = EmailMessage(
                 uid: nextUID,
                 mailbox: self.specialFolders?.sent ?? "Sent",
-                subject: subject,
+                subject: mail.subject,
                 fromName: DemoFixtures.userName,
                 fromAddress: sender,
-                to: [to],
-                cc: cc,
+                to: [mail.to],
+                cc: mail.cc,
                 date: Date(),
                 isUnread: false,
                 messageID: "<demo-sent-\(nextUID)@hotzisland.app>",
-                references: inReplyTo.map { [$0] } ?? [],
-                bodyPlain: body
+                references: mail.inReplyTo.map { [$0] } ?? [],
+                bodyPlain: mail.body
             )
             self.messagesByMailbox[.sent, default: []].insert(sent, at: 0)
             self.isSending = false

@@ -249,12 +249,8 @@ enum MIMEDecode {
 
     /// Extracts readable text from a raw MIME body, walking multipart
     /// containers and preferring text/plain over text/html. Used as the
-    /// fallback when BODYSTRUCTURE gave us no usable text part.
-    static func extractText(rawBody: Data, contentType: String, transferEncoding: String) -> String {
-        extractReadable(rawBody: rawBody, contentType: contentType, transferEncoding: transferEncoding).text
-    }
-
-    /// Same walk, but the chosen part's HTML source rides along.
+    /// fallback when BODYSTRUCTURE gave us no usable text part. The chosen
+    /// part's HTML source rides along.
     static func extractReadable(
         rawBody: Data,
         contentType: String,

@@ -53,12 +53,4 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     override func mouseExited(with event: NSEvent) {
         onMouseExited?()
     }
-
-    @MainActor @preconcurrency required init(rootView: Content) {
-        super.init(rootView: rootView)
-    }
-
-    @MainActor @preconcurrency required dynamic init?(coder: NSCoder) {
-        super.init(coder: coder)
-    }
 }

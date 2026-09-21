@@ -227,13 +227,7 @@ struct EmailModuleView: View {
                     .font(Theme.readoutSFont)
                     .foregroundStyle(Theme.textQuaternary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                message.isUnread ? Theme.raisedFill.opacity(0.7) : Theme.cardFill,
-                in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            .cardRow(raised: message.isUnread)
         }
         .buttonStyle(PressableStyle())
     }
@@ -415,56 +409,12 @@ struct EmailComposeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(spacing: 0) {
-                fieldRow(
-                    label: L10n.t(.mailToField),
-                    text: Bindable(service).composeTo,
-                    focus: $toFocused
-                )
+                MailFieldRow(label: L10n.t(.mailToField), text: Bindable(service).composeTo, focus: $toFocused)
                 Hairline()
-                fieldRow(label: L10n.t(.mailSubjectField), text: Bindable(service).composeSubject)
+                MailFieldRow(label: L10n.t(.mailSubjectField), text: Bindable(service).composeSubject)
             }
             .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-            TextEditor(text: Bindable(service).draft)
-                .scrollContentBackground(.hidden)
-                .font(Theme.bodyFont)
-                .foregroundStyle(Theme.textPrimary)
-                .focused($bodyFocused)
-                .padding(8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    if service.draft.isEmpty {
-                        Text(L10n.t(.mailBodyPlaceholder))
-                            .font(Theme.bodyFont)
-                            .foregroundStyle(Theme.textQuaternary)
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 16)
-                            .allowsHitTesting(false)
-                    }
-                }
-            if let error = service.sendError {
-                Text(error)
-                    .font(Theme.subFont)
-                    .lineLimit(2)
-                    .foregroundStyle(Theme.critical)
-            }
-            SpeechStatusRow(speech: speech)
-            HStack(spacing: 8) {
-                SpeechMicControl(speech: speech) { text in
-                    service.draft = service.draft.isEmpty ? text : service.draft + " " + text
-                }
-                Spacer(minLength: 0)
-                GlassCapsuleButton(label: L10n.t(.mailCancel)) {
-                    service.discardCompose()
-                }
-                GlassCapsuleButton(
-                    label: service.isSending ? L10n.t(.mailSending) : L10n.t(.mailSend),
-                    isPrimary: true,
-                    enabled: service.canSendCompose
-                ) {
-                    service.sendCompose()
-                }
-            }
+            MailDraftBody(service: service, speech: speech, focus: $bodyFocused, inset: 8, placeholder: .mailBodyPlaceholder)
         }
         .animation(Theme.stateSpring, value: speech.isRecording)
         .onAppear {
@@ -474,31 +424,6 @@ struct EmailComposeView: View {
                 bodyFocused = true
             }
         }
-    }
-
-    private func fieldRow(
-        label: String,
-        text: Binding<String>,
-        focus: FocusState<Bool>.Binding? = nil
-    ) -> some View {
-        HStack(spacing: 10) {
-            Text(label)
-                .font(Theme.captionFont)
-                .foregroundStyle(Theme.textQuaternary)
-                .frame(width: 52, alignment: .leading)
-            Group {
-                if let focus {
-                    TextField("", text: text).focused(focus)
-                } else {
-                    TextField("", text: text)
-                }
-            }
-            .textFieldStyle(.plain)
-            .font(Theme.bodyFont)
-            .foregroundStyle(Theme.textPrimary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
     }
 }
 
@@ -550,7 +475,7 @@ struct EmailReplySheet: View {
             }
             VStack(spacing: 0) {
                 HStack(spacing: 6) {
-                    fieldRow(label: L10n.t(.mailToField), text: Bindable(service).composeTo, focus: $toFocused)
+                    MailFieldRow(label: L10n.t(.mailToField), text: Bindable(service).composeTo, focus: $toFocused, compact: true)
                     if !ccVisible {
                         Button {
                             showCc = true
@@ -569,53 +494,13 @@ struct EmailReplySheet: View {
                 }
                 if ccVisible {
                     Hairline()
-                    fieldRow(label: L10n.t(.mailCc), text: Bindable(service).composeCc)
+                    MailFieldRow(label: L10n.t(.mailCc), text: Bindable(service).composeCc, compact: true)
                 }
                 Hairline()
-                fieldRow(label: L10n.t(.mailSubjectField), text: Bindable(service).composeSubject)
+                MailFieldRow(label: L10n.t(.mailSubjectField), text: Bindable(service).composeSubject, compact: true)
             }
             .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-            TextEditor(text: Bindable(service).draft)
-                .scrollContentBackground(.hidden)
-                .font(Theme.bodyFont)
-                .foregroundStyle(Theme.textPrimary)
-                .focused($bodyFocused)
-                .padding(6)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-                .overlay(alignment: .topLeading) {
-                    if service.draft.isEmpty {
-                        Text(L10n.t(.mailReplyPlaceholder))
-                            .font(Theme.bodyFont)
-                            .foregroundStyle(Theme.textQuaternary)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 14)
-                            .allowsHitTesting(false)
-                    }
-                }
-            if let error = service.sendError {
-                Text(error)
-                    .font(Theme.subFont)
-                    .lineLimit(2)
-                    .foregroundStyle(Theme.critical)
-            }
-            SpeechStatusRow(speech: speech)
-            HStack(spacing: 8) {
-                SpeechMicControl(speech: speech) { text in
-                    service.draft = service.draft.isEmpty ? text : service.draft + " " + text
-                }
-                Spacer(minLength: 0)
-                GlassCapsuleButton(label: L10n.t(.mailCancel)) {
-                    service.discardCompose()
-                }
-                GlassCapsuleButton(
-                    label: service.isSending ? L10n.t(.mailSending) : L10n.t(.mailSend),
-                    isPrimary: true,
-                    enabled: service.canSendCompose
-                ) {
-                    service.sendCompose()
-                }
-            }
+            MailDraftBody(service: service, speech: speech, focus: $bodyFocused, inset: 6, placeholder: .mailReplyPlaceholder)
         }
         .padding(10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -644,17 +529,22 @@ struct EmailReplySheet: View {
     private var ccVisible: Bool {
         showCc || !service.composeCc.isEmpty
     }
+}
 
-    private func fieldRow(
-        label: String,
-        text: Binding<String>,
-        focus: FocusState<Bool>.Binding? = nil
-    ) -> some View {
-        HStack(spacing: 8) {
+/// One labelled line of the mail forms; `compact` is the reply sheet's
+/// tighter metrics.
+private struct MailFieldRow: View {
+    let label: String
+    let text: Binding<String>
+    var focus: FocusState<Bool>.Binding?
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: compact ? 8 : 10) {
             Text(label)
                 .font(Theme.captionFont)
                 .foregroundStyle(Theme.textQuaternary)
-                .frame(width: 44, alignment: .leading)
+                .frame(width: compact ? 44 : 52, alignment: .leading)
             Group {
                 if let focus {
                     TextField("", text: text).focused(focus)
@@ -666,7 +556,62 @@ struct EmailReplySheet: View {
             .font(Theme.bodyFont)
             .foregroundStyle(Theme.textPrimary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
+        .padding(.horizontal, compact ? 10 : 12)
+        .padding(.vertical, compact ? 7 : 9)
+    }
+}
+
+/// Shared lower half of the mail forms: body editor with its placeholder,
+/// the send error, dictation, Cancel / Send. A multi-child view, so the
+/// parent stack's spacing still applies between the pieces.
+private struct MailDraftBody: View {
+    var service: EmailService
+    var speech: SpeechCaptureService
+    let focus: FocusState<Bool>.Binding
+    let inset: CGFloat
+    let placeholder: L10nKey
+
+    var body: some View {
+        TextEditor(text: Bindable(service).draft)
+            .scrollContentBackground(.hidden)
+            .font(Theme.bodyFont)
+            .foregroundStyle(Theme.textPrimary)
+            .focused(focus)
+            .padding(inset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+            .overlay(alignment: .topLeading) {
+                if service.draft.isEmpty {
+                    Text(L10n.t(placeholder))
+                        .font(Theme.bodyFont)
+                        .foregroundStyle(Theme.textQuaternary)
+                        .padding(.horizontal, inset + 5)
+                        .padding(.vertical, inset + 8)
+                        .allowsHitTesting(false)
+                }
+            }
+        if let error = service.sendError {
+            Text(error)
+                .font(Theme.subFont)
+                .lineLimit(2)
+                .foregroundStyle(Theme.critical)
+        }
+        SpeechStatusRow(speech: speech)
+        HStack(spacing: 8) {
+            SpeechMicControl(speech: speech) { text in
+                service.draft = service.draft.isEmpty ? text : service.draft + " " + text
+            }
+            Spacer(minLength: 0)
+            GlassCapsuleButton(label: L10n.t(.mailCancel)) {
+                service.discardCompose()
+            }
+            GlassCapsuleButton(
+                label: service.isSending ? L10n.t(.mailSending) : L10n.t(.mailSend),
+                isPrimary: true,
+                enabled: service.canSendCompose
+            ) {
+                service.sendCompose()
+            }
+        }
     }
 }

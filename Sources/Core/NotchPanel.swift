@@ -59,3 +59,29 @@ final class NotchPanel: NSPanel {
         frameRect
     }
 }
+
+/// Global + local mouse-down monitors that report clicks outside a panel.
+/// Global = clicks in other apps; local = clicks in our own windows, where
+/// `isOutside` decides. Mouse monitors need no permissions.
+@MainActor
+final class OutsideClickMonitors {
+    private var monitors: [Any] = []
+
+    func install(isOutside: @escaping (NSEvent) -> Bool, onClick: @escaping () -> Void) {
+        remove()
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { _ in onClick() }) {
+            monitors.append(global)
+        }
+        let local = NSEvent.addLocalMonitorForEvents(matching: mask) { event in
+            if isOutside(event) { onClick() }
+            return event
+        }
+        if let local { monitors.append(local) }
+    }
+
+    func remove() {
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors.removeAll()
+    }
+}

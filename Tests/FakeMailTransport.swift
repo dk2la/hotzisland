@@ -141,3 +141,11 @@ actor FakeMailTransport: MailLineTransport {
         wake()
     }
 }
+
+/// Polls `condition` for up to two seconds.
+func waitUntil(_ condition: @escaping @Sendable () async -> Bool) async {
+    for _ in 0..<400 {
+        if await condition() { return }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+}
