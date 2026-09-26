@@ -3,10 +3,8 @@ import Foundation
 /// Builds the RFC 5322 message an SMTP DATA command carries. Pure — the
 /// message id and date are injected so the output is testable.
 enum MailComposer {
-    static let domain = "hotzisland"
-
-    static func messageID(_ uuid: UUID = UUID()) -> String {
-        "<\(uuid.uuidString.lowercased())@\(domain)>"
+    private static func messageID() -> String {
+        "<\(UUID().uuidString.lowercased())@hotzisland>"
     }
 
     /// The body goes out base64: it keeps UTF-8 intact and no encoded line

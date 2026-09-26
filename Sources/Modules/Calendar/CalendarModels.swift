@@ -16,8 +16,6 @@ enum CalendarDisplayMode: String, CaseIterable, Identifiable {
         case .listOnly: "list.bullet"
         }
     }
-
-    var showsGrid: Bool { self != .listOnly }
 }
 
 /// A calendar available in the system (iCloud, Google, Exchange, …).
@@ -62,7 +60,6 @@ struct CalendarEvent: Identifiable, Equatable, Sendable {
     let calendarTitle: String
     let calendarIdentifier: String
     let attendees: [Attendee]
-    let organizerName: String?
     /// The calendar accepts changes and the event is ours — an invite from
     /// someone else can only be answered, not rewritten.
     let isEditable: Bool
@@ -100,28 +97,17 @@ struct EventDraft: Equatable, Sendable {
         )
     }
 
-    init(
-        id: String? = nil,
-        title: String = "",
-        calendarIdentifier: String,
-        start: Date,
-        end: Date,
-        isAllDay: Bool = false,
-        location: String = "",
-        notes: String = "",
-        url: String = ""
-    ) {
-        self.id = id
-        self.title = title
-        self.calendarIdentifier = calendarIdentifier
-        self.start = start
-        self.end = end
-        self.isAllDay = isAllDay
-        self.location = location
-        self.notes = notes
-        self.url = url
-    }
+    var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    /// Title present and the range makes sense; an all-day event may start
+    /// and end on the same day.
+    var isValid: Bool {
+        guard !trimmedTitle.isEmpty else { return false }
+        return isAllDay ? end >= start : end > start
+    }
+}
+
+extension EventDraft {
     /// Prefilled from an existing event. An all-day event's end is shown
     /// as its last day, not the midnight EventKit stores.
     init(event: CalendarEvent, calendar: Calendar) {
@@ -138,14 +124,5 @@ struct EventDraft: Equatable, Sendable {
             notes: event.notes ?? "",
             url: event.url?.absoluteString ?? ""
         )
-    }
-
-    var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-    /// Title present and the range makes sense; an all-day event may start
-    /// and end on the same day.
-    var isValid: Bool {
-        guard !trimmedTitle.isEmpty else { return false }
-        return isAllDay ? end >= start : end > start
     }
 }

@@ -94,29 +94,11 @@ struct AssistantModuleView: View {
         case .user:
             HStack {
                 Spacer(minLength: 40)
-                Text(message.text)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(
-                        Theme.raisedFill.opacity(0.8),
-                        in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-                    )
+                bubble(message.text, color: Theme.textPrimary, fill: Theme.raisedFill.opacity(0.8))
             }
         case .assistant:
             HStack {
-                Text(message.text)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(message.isError ? Theme.critical : Theme.textSecondary)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(
-                        Theme.cardFill,
-                        in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-                    )
+                bubble(message.text, color: message.isError ? Theme.critical : Theme.textSecondary, fill: Theme.cardFill)
                 Spacer(minLength: 40)
             }
         case .tool:
@@ -132,6 +114,16 @@ struct AssistantModuleView: View {
         }
     }
 
+    private func bubble(_ text: String, color: Color, fill: Color) -> some View {
+        Text(text)
+            .font(Theme.bodyFont)
+            .foregroundStyle(color)
+            .textSelection(.enabled)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(fill, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+    }
+
     private func playbookConfirmation(_ playbook: Playbook) -> some View {
         HStack(spacing: 8) {
             Text(L10n.f(.asstPlaybookConfirm, playbook.name))
@@ -140,7 +132,7 @@ struct AssistantModuleView: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer(minLength: 0)
-            GlassCapsuleButton(label: L10n.t(.asstPlaybookCancel)) {
+            GlassCapsuleButton(label: L10n.t(.mailCancel)) {
                 assistant.cancelPendingPlaybook()
             }
             GlassCapsuleButton(label: L10n.t(.asstPlaybookRun), isPrimary: true) {

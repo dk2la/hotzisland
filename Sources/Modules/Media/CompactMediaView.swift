@@ -8,7 +8,6 @@ import SwiftUI
 /// screen and never touches the model.
 struct CompactMediaView: View {
     let track: MediaTrack
-    let artwork: NSImage?
 
     var body: some View {
         HStack {

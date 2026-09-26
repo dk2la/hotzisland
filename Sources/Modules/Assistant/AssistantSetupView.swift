@@ -5,7 +5,6 @@ import SwiftUI
 /// subscription; the third is any OpenAI-compatible HTTP endpoint.
 struct AssistantSetupView: View {
     var assistant: AssistantService
-    let palette: WindowPalette
 
     @State private var provider: AssistantProvider = .claudeCode
     @State private var baseURL = AssistantConfig.defaultBaseURL
@@ -19,11 +18,10 @@ struct AssistantSetupView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SettingRow(title: L10n.t(.mailProvider), subtitle: providerHint, palette: palette) {
+            SettingRow(title: L10n.t(.mailProvider), subtitle: providerHint) {
                 WindowSegmented(
                     options: AssistantProvider.allCases.map { ($0, $0.title) },
-                    selection: Binding(get: { provider }, set: { switchProvider($0) }),
-                    palette: palette
+                    selection: Binding(get: { provider }, set: { switchProvider($0) })
                 )
             }
             if provider.isCLI {
@@ -31,9 +29,8 @@ struct AssistantSetupView: View {
             } else {
                 apiSection
             }
-            Hairline(color: palette.hairline)
+            Hairline(color: Palette.hairline)
             SetupActionRow(
-                palette: palette,
                 checkState: checkState,
                 canCheck: isComplete,
                 canSave: isComplete,
@@ -60,16 +57,16 @@ struct AssistantSetupView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 8)
         }
-        Hairline(color: palette.hairline)
-        SetupFieldRow(title: L10n.t(.asstModel), subtitle: L10n.t(.asstModelOptional), palette: palette) {
+        Hairline(color: Palette.hairline)
+        SetupFieldRow(title: L10n.t(.asstModel), subtitle: L10n.t(.asstModelOptional)) {
             TextField(provider == .claudeCode ? "opus" : "gpt-5", text: $model)
         }
     }
 
     @ViewBuilder
     private var apiSection: some View {
-        Hairline(color: palette.hairline)
-        SettingRow(title: L10n.t(.asstPreset), palette: palette) {
+        Hairline(color: Palette.hairline)
+        SettingRow(title: L10n.t(.asstPreset)) {
             HStack(spacing: 6) {
                 ForEach(AssistantAPIPreset.allCases) { preset in
                     Button {
@@ -77,11 +74,11 @@ struct AssistantSetupView: View {
                     } label: {
                         Text(preset.title)
                             .font(Theme.labelFont)
-                            .foregroundStyle(isActivePreset(preset) ? palette.accent : palette.ink60)
+                            .foregroundStyle(isActivePreset(preset) ? Palette.accent : Palette.ink60)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(
-                                isActivePreset(preset) ? palette.accentWash : palette.raised,
+                                isActivePreset(preset) ? Palette.accentWash : Palette.raised,
                                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                             )
                             .contentShape(Rectangle())
@@ -90,16 +87,16 @@ struct AssistantSetupView: View {
                 }
             }
         }
-        Hairline(color: palette.hairline)
-        SetupFieldRow(title: L10n.t(.asstBaseURL), palette: palette) {
+        Hairline(color: Palette.hairline)
+        SetupFieldRow(title: L10n.t(.asstBaseURL)) {
             TextField(AssistantConfig.defaultBaseURL, text: $baseURL)
         }
-        Hairline(color: palette.hairline)
-        SetupFieldRow(title: L10n.t(.asstModel), palette: palette) {
+        Hairline(color: Palette.hairline)
+        SetupFieldRow(title: L10n.t(.asstModel)) {
             TextField(AssistantAPIPreset.matching(baseURL)?.sampleModel ?? "gpt-5-mini", text: $model)
         }
-        Hairline(color: palette.hairline)
-        SetupFieldRow(title: L10n.t(.asstKey), subtitle: L10n.t(.asstKeyHint), palette: palette, width: 200) {
+        Hairline(color: Palette.hairline)
+        SetupFieldRow(title: L10n.t(.asstKey), subtitle: L10n.t(.asstKeyHint), width: 200) {
             SecureField("", text: $key)
         }
     }
@@ -172,15 +169,6 @@ struct AssistantSetupView: View {
     private func runCheck() {
         let config = builtConfig
         let secret = key
-        checkState = .checking
-        Task {
-            let result = await AssistantService.testConnection(config, key: secret)
-            switch result {
-            case .success:
-                checkState = .ok
-            case .failure(let error):
-                checkState = .failed(error.localizedDescription)
-            }
-        }
+        probeSetup($checkState) { await AssistantService.testConnection(config, key: secret) }
     }
 }

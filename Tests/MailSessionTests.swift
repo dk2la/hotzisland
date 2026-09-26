@@ -72,13 +72,6 @@ final class MailSessionTests: XCTestCase {
         }
     }
 
-    private func waitUntil(_ condition: @escaping @Sendable () async -> Bool) async {
-        for _ in 0..<400 {
-            if await condition() { return }
-            try? await Task.sleep(for: .milliseconds(5))
-        }
-    }
-
     // MARK: - Ordering
 
     func testConcurrentRunsExecuteStrictlyOneAfterAnother() async throws {

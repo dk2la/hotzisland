@@ -93,13 +93,13 @@ struct EventEditorView: View {
                     .focused($titleFocused)
             }
             Hairline()
-            fieldRow(L10n.t(.calCalendarField)) {
+            fieldRow(L10n.t(.modCalendar)) {
                 calendarPicker
                 Spacer(minLength: 0)
             }
             Hairline()
             fieldRow(L10n.t(.calAllDay)) {
-                InstrumentToggle(isOn: $draft.isAllDay, palette: .rack)
+                InstrumentToggle(isOn: $draft.isAllDay)
                 Spacer(minLength: 0)
             }
             Hairline()

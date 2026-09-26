@@ -131,7 +131,7 @@ struct PlaybooksModuleView: View {
             case .setFocus:
                 parts.append(L10n.t(.playFocus))
             case .startTimer(_, let minutes):
-                parts.append(L10n.f(.playMinutesShort, minutes))
+                parts.append(L10n.f(.ageMin, minutes))
             case .openURLs(_, let urls):
                 parts.append(L10n.f(.playLinks, urls.count))
             }
@@ -143,11 +143,7 @@ struct PlaybooksModuleView: View {
     /// widget — deep-links to Settings → Playbooks.
     private var newCard: some View {
         Button {
-            NotificationCenter.default.post(
-                name: .hotzOpenSettings,
-                object: nil,
-                userInfo: ["page": SettingsView.Page.playbooks.rawValue]
-            )
+            requestSettings(page: .playbooks)
         } label: {
             Text(L10n.t(.playNew))
                 .font(Theme.subFont)

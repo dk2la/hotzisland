@@ -189,14 +189,7 @@ enum IMAPParser {
     }
 
     private static func decodedText(_ value: IMAPValue) -> String {
-        switch value {
-        case .atom(let s): MIMEDecode.decodeEncodedWords(s)
-        case .string(let d):
-            MIMEDecode.decodeEncodedWords(
-                String(data: d, encoding: .utf8) ?? String(data: d, encoding: .isoLatin1) ?? ""
-            )
-        case .list, .nilValue: ""
-        }
+        MIMEDecode.decodeEncodedWords(value.text ?? "")
     }
 
     private static func parseEnvelope(_ value: IMAPValue) -> Envelope? {
@@ -228,29 +221,26 @@ enum IMAPParser {
     /// markers (RFC 3501: a NIL host) carry no deliverable address and are
     /// dropped; so is a NIL list.
     private static func addresses(_ value: IMAPValue) -> [String] {
-        guard let list = value.items else { return [] }
-        return list.compactMap { entry -> String? in
+        deliverable(in: value).map(\.address)
+    }
+
+    /// (name, "mailbox@host") of every entry with both a mailbox and a host.
+    private static func deliverable(in value: IMAPValue) -> [(name: IMAPValue, address: String)] {
+        (value.items ?? []).compactMap { entry in
             guard let parts = entry.items, parts.count >= 4,
                   let mailbox = parts[2].text, !mailbox.isEmpty,
                   let host = parts[3].text, !host.isEmpty
             else { return nil }
-            return "\(mailbox)@\(host)"
+            return (parts[0], "\(mailbox)@\(host)")
         }
     }
 
     /// The display name of the first deliverable address in a list; nil
     /// when the sender gave only the bare address.
     private static func firstName(in value: IMAPValue) -> String? {
-        guard let list = value.items else { return nil }
-        for entry in list {
-            guard let parts = entry.items, parts.count >= 4,
-                  let mailbox = parts[2].text, !mailbox.isEmpty,
-                  let host = parts[3].text, !host.isEmpty
-            else { continue }
-            let name = decodedText(parts[0]).trimmingCharacters(in: .whitespaces)
-            return name.isEmpty ? nil : name
-        }
-        return nil
+        guard let first = deliverable(in: value).first else { return nil }
+        let name = decodedText(first.name).trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? nil : name
     }
 
     /// Picks the part to show. HTML wins over the plain alternative: the
@@ -359,14 +349,7 @@ enum IMAPParser {
     /// anything else.
     static func parseList(_ unit: Data) -> ListEntry? {
         let head = String(decoding: unit.prefix(12), as: UTF8.self).uppercased()
-        let prefix: String
-        if head.hasPrefix("* LIST ") {
-            prefix = "* LIST "
-        } else if head.hasPrefix("* XLIST ") {
-            prefix = "* XLIST "
-        } else {
-            return nil
-        }
+        guard let prefix = ["* LIST ", "* XLIST "].first(where: head.hasPrefix) else { return nil }
         var index = unit.index(unit.startIndex, offsetBy: prefix.utf8.count)
         guard let attributes = parseValue(unit, &index)?.items,
               let delimiter = parseValue(unit, &index),

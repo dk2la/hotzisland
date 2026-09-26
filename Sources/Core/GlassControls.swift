@@ -2,20 +2,10 @@ import SwiftUI
 
 /// Widget material appearance. The island is always dark glass — this only
 /// affects the edge widget; `.auto` follows the system appearance.
-enum GlassAppearance: String, CaseIterable, Identifiable {
+enum GlassAppearance: String {
     case light
     case dark
     case auto
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .light: "Light"
-        case .dark: "Dark"
-        case .auto: "Auto"
-        }
-    }
 
     func resolvedDark(for colorScheme: ColorScheme) -> Bool {
         switch self {
@@ -101,12 +91,40 @@ struct GlassCapsuleButton: View {
     }
 }
 
+/// Small ✕ on a list row (notes, shelf).
+struct RowRemoveButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Theme.textTertiary)
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.raisedFill))
+                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(PressableStyle())
+    }
+}
+
+extension View {
+    /// The mail-row frame every module list shares: 12/8 padding on card
+    /// fill; `raised` lifts the highlighted row.
+    func cardRow(raised: Bool = false) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+        return padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(raised ? Theme.raisedFill.opacity(0.7) : Theme.cardFill, in: shape)
+            .contentShape(shape)
+    }
+}
+
 /// Interactive continuous track: drag or click anywhere to jump. The knob
 /// follows the pointer live; `onSeek` fires once with the target fraction
 /// on release.
 struct ScrubberBar: View {
     let fraction: Double
-    var fillColor: Color = Theme.accent
     let onSeek: (Double) -> Void
 
     @State private var dragFraction: Double?
@@ -118,7 +136,7 @@ struct ScrubberBar: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.18))
                     .frame(height: 4)
-                Capsule().fill(fillColor)
+                Capsule().fill(Theme.accent)
                     .frame(width: max(4, x), height: 4)
                 Circle().fill(Color.white)
                     .frame(width: 11, height: 11)
@@ -145,11 +163,10 @@ struct ScrubberBar: View {
     }
 }
 
-/// Thin continuous progress track (V3): 4px, white 18% track, white fill,
-/// optional knob. Values jump — no animation by design.
+/// Thin continuous progress track (V3): 4px, white 18% track, white fill.
+/// Values jump — no animation by design.
 struct GlassProgressBar: View {
     let fraction: Double
-    var showsKnob = false
     var fillColor: Color = Color.white.opacity(0.9)
 
     var body: some View {
@@ -161,15 +178,10 @@ struct GlassProgressBar: View {
                     .frame(height: 4)
                 Capsule().fill(fillColor)
                     .frame(width: max(4, x), height: 4)
-                if showsKnob {
-                    Circle().fill(Color.white)
-                        .frame(width: 11, height: 11)
-                        .offset(x: min(max(0, x - 5.5), proxy.size.width - 11))
-                }
             }
             .frame(maxHeight: .infinity, alignment: .center)
         }
-        .frame(height: showsKnob ? 12 : 4)
+        .frame(height: 4)
     }
 }
 

@@ -130,7 +130,6 @@ struct MediaModuleView: View {
     private func transport(for track: MediaTrack) -> some View {
         HStack(spacing: 8) {
             CircleGlassButton(systemName: "backward.fill", size: 30) { media.previous() }
-                .disabled(!media.canControlActive)
             CircleGlassButton(
                 systemName: track.isPlaying ? "pause.fill" : "play.fill",
                 size: 36,
@@ -138,15 +137,13 @@ struct MediaModuleView: View {
             ) {
                 media.togglePlayPause()
             }
-            .disabled(!media.canControlActive)
             CircleGlassButton(systemName: "forward.fill", size: 30) { media.next() }
-                .disabled(!media.canControlActive)
             Spacer(minLength: 0)
             if media.supportsLike {
                 CircleGlassButton(systemName: "heart", size: 30) { media.like() }
-                    .disabled(!media.canControlActive)
             }
         }
+        .disabled(!media.canControlActive)
         .opacity(media.canControlActive ? 1 : 0.4)
     }
 

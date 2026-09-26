@@ -19,7 +19,6 @@ final class PlaybookRunner {
     private(set) var isRunning = false
     /// The playbook currently executing, for the module's per-row state.
     private(set) var runningPlaybookID: UUID?
-    private(set) var lastResult: PlaybookRunResult?
     /// Latest completed run — shown as the amber "run" register in the tab.
     private(set) var lastRun: RunRecord?
 
@@ -60,7 +59,6 @@ final class PlaybookRunner {
         opened=\(result.opened, privacy: .public) \
         failures=\(result.failures.joined(separator: ","), privacy: .public)
         """)
-        lastResult = result
         lastRun = RunRecord(playbook: playbook, result: result, finishedAt: Date())
         isRunning = false
         runningPlaybookID = nil

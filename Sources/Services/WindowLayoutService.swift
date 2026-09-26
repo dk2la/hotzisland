@@ -8,27 +8,19 @@ enum WindowLayout: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var icon: String {
+    private var spec: (icon: String, title: L10nKey) {
         switch self {
-        case .none: "rectangle"
-        case .leftRight: "rectangle.split.2x1"
-        case .thirds: "rectangle.split.3x1"
-        case .grid2x2: "rectangle.split.2x2"
-        case .mainAndSide: "sidebar.left"
-        case .fullscreen: "rectangle.inset.filled"
+        case .none: ("rectangle", .playLayoutNone)
+        case .leftRight: ("rectangle.split.2x1", .playLayoutLeftRight)
+        case .thirds: ("rectangle.split.3x1", .playLayoutThirds)
+        case .grid2x2: ("rectangle.split.2x2", .playLayoutGrid2x2)
+        case .mainAndSide: ("sidebar.left", .playLayoutMainSide)
+        case .fullscreen: ("rectangle.inset.filled", .playLayoutFullscreen)
         }
     }
 
-    @MainActor var title: String {
-        switch self {
-        case .none: L10n.t(.playLayoutNone)
-        case .leftRight: L10n.t(.playLayoutLeftRight)
-        case .thirds: L10n.t(.playLayoutThirds)
-        case .grid2x2: L10n.t(.playLayoutGrid2x2)
-        case .mainAndSide: L10n.t(.playLayoutMainSide)
-        case .fullscreen: L10n.t(.playLayoutFullscreen)
-        }
-    }
+    var icon: String { spec.icon }
+    @MainActor var title: String { L10n.t(spec.title) }
 
     /// Slots as fractions of the screen's visible frame, in the unit square
     /// with a top-left origin and y growing downwards — the orientation
@@ -62,6 +54,14 @@ enum WindowLayout: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+extension NSWorkspace {
+    /// System Settings ▸ Privacy & Security ▸ `pane` ("Calendars", "Automation"…).
+    func openPrivacyPane(_ pane: String) {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_\(pane)") else { return }
+        open(url)
+    }
+}
+
 /// Moves other apps' windows through the Accessibility API — the only
 /// sanctioned way to position a window that is not ours. Needs the user to
 /// tick the app under Privacy & Security ▸ Accessibility; without that every
@@ -90,9 +90,7 @@ final class WindowLayoutService {
         // The literal is the documented key behind that constant.
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
+        NSWorkspace.shared.openPrivacyPane("Accessibility")
     }
 
     /// Places the main window of each app (by bundle id, in order) into the

@@ -11,7 +11,6 @@ final class WidgetWindowController: NSObject {
     private let viewModel = WidgetViewModel()
     private let settings: AppSettings
     private let services: ModuleServices
-    private let playbookStore: PlaybookStore
     private var collapseTask: Task<Void, Never>?
     private var openTask: Task<Void, Never>?
     private var dragStartMouse: CGPoint?
@@ -23,7 +22,7 @@ final class WidgetWindowController: NSObject {
     private var resizeStartHeight: CGFloat?
     /// Mouse monitors active only while the panel is open and the
     /// close-on-outside-click setting is on.
-    private var outsideClickMonitors: [Any] = []
+    private let outsideClickMonitors = OutsideClickMonitors()
     /// Set while a minimize/restore is mid-flight: the settings write it
     /// makes would otherwise bounce back through settingsDidChange and
     /// stomp the running animation.
@@ -33,10 +32,9 @@ final class WidgetWindowController: NSObject {
     private var screen: NSScreen?
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "widget")
 
-    init(settings: AppSettings, services: ModuleServices, playbooks: PlaybookStore) {
+    init(settings: AppSettings, services: ModuleServices) {
         self.settings = settings
         self.services = services
-        self.playbookStore = playbooks
         super.init()
 
         viewModel.onTabTapped = { [weak self] tab in self?.toggleTab(tab) }
@@ -81,15 +79,6 @@ final class WidgetWindowController: NSObject {
         }
     }
 
-    func tearDown() {
-        openTask?.cancel()
-        collapseTask?.cancel()
-        removeOutsideClickMonitors()
-        NotificationCenter.default.removeObserver(self)
-        panel.orderOut(nil)
-        log.info("torn down")
-    }
-
     // MARK: - Minimize (⌃⌥H)
 
     /// Rolls the strip up into its first button (or back down). The window
@@ -106,7 +95,7 @@ final class WidgetWindowController: NSObject {
         openTask?.cancel()
         collapseTask?.cancel()
         collapseTask = nil
-        removeOutsideClickMonitors()
+        outsideClickMonitors.remove()
         panel.allowsKeyFocus = false
 
         let full = stripFrame(minimized: false, on: screen)
@@ -145,37 +134,12 @@ final class WidgetWindowController: NSObject {
     // MARK: - Outside click (close-on-click-away)
 
     private func installOutsideClickMonitors() {
-        removeOutsideClickMonitors()
+        outsideClickMonitors.remove()
         guard settings.closeOnOutsideClick else { return }
-        // Global = clicks in other apps; local = clicks in our own windows
-        // (settings, onboarding) that are not the widget panel. Mouse
-        // monitors need no permissions, unlike keyboard ones.
-        if let global = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown],
-            handler: { [weak self] _ in
-                self?.closePanel()
-            }
-        ) {
-            outsideClickMonitors.append(global)
-        }
-        if let local = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown],
-            handler: { [weak self] event in
-                if let self, event.window !== self.panel {
-                    self.closePanel()
-                }
-                return event
-            }
-        ) {
-            outsideClickMonitors.append(local)
-        }
-    }
-
-    private func removeOutsideClickMonitors() {
-        for monitor in outsideClickMonitors {
-            NSEvent.removeMonitor(monitor)
-        }
-        outsideClickMonitors.removeAll()
+        outsideClickMonitors.install(
+            isOutside: { [weak self] event in self.map { event.window !== $0.panel } ?? false },
+            onClick: { [weak self] in self?.closePanel() }
+        )
     }
 
     /// Settings changed (tabs, panel size, placement, theme) — re-derive the
@@ -215,8 +179,7 @@ final class WidgetWindowController: NSObject {
         let rootView = WidgetRootView(
             viewModel: viewModel,
             services: services,
-            settings: settings,
-            playbooks: playbookStore
+            settings: settings
         )
         let hostingView = NotchHostingView(rootView: rootView)
         hostingView.wantsLayer = true
@@ -260,7 +223,7 @@ final class WidgetWindowController: NSObject {
     }
 
     private func openPanel(_ tab: NotchTab) {
-        guard let screen = currentScreen, !viewModel.isMinimized else { return }
+        guard currentScreen != nil, !viewModel.isMinimized else { return }
         collapseTask?.cancel()
         collapseTask = nil
         // Module panels host text input — let the panel take key status
@@ -270,13 +233,7 @@ final class WidgetWindowController: NSObject {
         // strip's local frame shifts in the same tick, so it does not move
         // on screen), animate the panel in on the next tick once the
         // window's coordinate space is stable.
-        applyLayout(WidgetGeometry.expandedLayout(
-            edge: settings.widgetEdge,
-            offset: settings.widgetOffset,
-            iconCount: iconCount,
-            panelSize: widgetPanelSize(on: screen),
-            on: screen
-        ))
+        applyExpandedFrame()
         openTask = Task { [weak self] in
             guard !Task.isCancelled else { return }
             self?.viewModel.setSelectedTab(tab)
@@ -286,7 +243,7 @@ final class WidgetWindowController: NSObject {
 
     private func closePanel() {
         guard viewModel.selectedTab != nil else { return }
-        removeOutsideClickMonitors()
+        outsideClickMonitors.remove()
         openTask?.cancel()
         panel.allowsKeyFocus = false
         if panel.isKeyWindow {
@@ -314,7 +271,7 @@ final class WidgetWindowController: NSObject {
             openTask?.cancel()
             collapseTask?.cancel()
             collapseTask = nil
-            removeOutsideClickMonitors()
+            outsideClickMonitors.remove()
             withInstantTransaction {
                 viewModel.setSelectedTab(nil)
             }

@@ -23,13 +23,6 @@ final class IMAPClientTests: XCTestCase {
         func add(_ event: IMAPClient.IdleEvent) { lock.withLock { storage.append(event) } }
     }
 
-    private func waitUntil(_ condition: @escaping @Sendable () async -> Bool) async {
-        for _ in 0..<400 {
-            if await condition() { return }
-            try? await Task.sleep(for: .milliseconds(5))
-        }
-    }
-
     func testLoginAndSelectSendExpectedCommandsAndParseExists() async throws {
         let transport = FakeMailTransport()
         let client = try await connectedClient(transport)
@@ -185,11 +178,7 @@ final class IMAPClientTests: XCTestCase {
         XCTAssertEqual(written, ["A1 LIST \"\" \"*\" RETURN (SPECIAL-USE)"])
         XCTAssertEqual(folders.junk, "Junk Mail")
         XCTAssertEqual(folders.sent, "Sent Messages")
-        XCTAssertEqual(folders.trash, "Trash")
-        XCTAssertEqual(folders.drafts, "Drafts")
-        XCTAssertNil(folders.flagged)
         XCTAssertNil(folders.important)
-        XCTAssertNil(folders.all)
         let isGmail = await client.isGmail
         XCTAssertFalse(isGmail)
     }
@@ -214,10 +203,7 @@ final class IMAPClientTests: XCTestCase {
         XCTAssertEqual(written, ["A1 XLIST \"\" \"*\""])
         XCTAssertEqual(folders.junk, "[Gmail]/Spam")
         XCTAssertEqual(folders.sent, "[Gmail]/Sent Mail")
-        XCTAssertEqual(folders.flagged, "[Gmail]/Starred")
         XCTAssertEqual(folders.important, "[Gmail]/Important")
-        XCTAssertEqual(folders.all, "[Gmail]/All Mail")
-        XCTAssertEqual(folders.trash, "[Gmail]/Trash")
         let isGmail = await client.isGmail
         XCTAssertTrue(isGmail)
     }
@@ -279,6 +265,19 @@ final class IMAPClientTests: XCTestCase {
         }
         let selected = await client.selectedMailbox
         XCTAssertNil(selected)
+    }
+
+    /// A non-ASCII query rides as a LITERAL+ literal, all in one write.
+    func testNonASCIISearchGoesOutAsOneLiteralWrite() async throws {
+        let transport = FakeMailTransport()
+        let client = try await connectedClient(transport)
+        await transport.enqueueResponse(tag: "A1", untagged: ["* SEARCH 7 9"], status: "OK SEARCH completed")
+
+        let uids = try await client.searchUIDs(query: "счёт", limit: 5)
+
+        let written = await transport.written
+        XCTAssertEqual(written, ["A1 UID SEARCH CHARSET UTF-8 TEXT {8+}\r\nсчёт"])
+        XCTAssertEqual(uids, [9, 7])
     }
 
     /// The UIDs a search returns are what the header fetch asks for —

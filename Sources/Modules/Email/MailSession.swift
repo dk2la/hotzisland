@@ -165,11 +165,6 @@ actor MailSession {
         return fresh
     }
 
-    /// Fresh EXISTS count for the selected mailbox.
-    func reselectInbox() async throws -> Int {
-        try await run { try await $0.selectInbox() }
-    }
-
     // MARK: - IDLE
 
     /// The side task reading idle updates; nil when not idling.

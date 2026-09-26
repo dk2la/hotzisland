@@ -13,19 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         registerHotkeys()
-        notchController = NotchWindowController(
-            settings: settings,
-            services: services,
-            playbooks: services.playbookStore
-        )
+        notchController = NotchWindowController(settings: settings, services: services)
 
         // Modules live in the edge widget; the notch island shows live
         // events and, when opened, the settings.
-        widgetController = WidgetWindowController(
-            settings: settings,
-            services: services,
-            playbooks: services.playbookStore
-        )
+        widgetController = WidgetWindowController(settings: settings, services: services)
         settings.addChangeHandler { [weak self] in
             self?.widgetController?.settingsDidChange()
         }
@@ -39,9 +31,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
+        // A demo event is asked for from the settings island, which sits
+        // where the event would show — close it first, then flash the event.
+        services.demo.presentEvent = { [weak self] event in
+            guard let notch = self?.notchController else { return }
+            notch.closeSettings()
+            Task {
+                try? await Task.sleep(for: .milliseconds(700))
+                notch.present(event)
+            }
+        }
+
         // Developer convenience: `open HotzIsland.app --args --settings`.
         if CommandLine.arguments.contains("--settings") {
             showSettings(page: nil)
+        }
+        // `--demo`: scripted data in every module from the first frame.
+        if CommandLine.arguments.contains("--demo") {
+            services.demo.activate()
         }
 
         let defaults = UserDefaults.standard

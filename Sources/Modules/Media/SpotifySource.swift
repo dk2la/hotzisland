@@ -5,11 +5,11 @@ import AppKit
 /// what the notification lacks (the artwork URL, cached per track) and for
 /// the initial read when the player was already running before we subscribed.
 @MainActor
-final class SpotifySource: MediaSource {
+final class SpotifySource: AppleScriptPlayer {
     nonisolated static let bundleID = "com.spotify.client"
     static let playbackStateChanged = Notification.Name("com.spotify.client.PlaybackStateChanged")
 
-    private(set) var lastCommandFailed = false
+    var lastCommandFailed = false
 
     /// Latest known state (notification payload or the fallback script).
     private struct State {
@@ -33,24 +33,8 @@ final class SpotifySource: MediaSource {
     private var artworkURLs: [String: String] = [:]
     private static let artworkCacheLimit = 64
 
-    func isAvailable() -> Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).isEmpty
-    }
-
-    /// Subscribes to `com.spotify.client.PlaybackStateChanged`; `handler`
-    /// runs on the main actor after the payload has been absorbed.
     func startObserving(_ handler: @escaping @MainActor () -> Void) {
-        DistributedNotificationCenter.default().addObserver(
-            forName: Self.playbackStateChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] note in
-            let payload = PlayerInfoPayload(note.userInfo)
-            MainActor.assumeIsolated {
-                self?.absorb(payload)
-                handler()
-            }
-        }
+        observe([Self.playbackStateChanged], handler)
     }
 
     /// Player quit — forget its state so nothing stale is reported.
@@ -62,7 +46,7 @@ final class SpotifySource: MediaSource {
 
     /// Payload keys: "Track ID", "Name", "Artist", "Duration" (ms),
     /// "Playback Position" (s), "Player State" ("Playing"/"Paused"/"Stopped").
-    private func absorb(_ info: PlayerInfoPayload) {
+    func absorb(_ info: PlayerInfoPayload) {
         let playerState = info.string("Player State") ?? ""
         guard playerState != "Stopped", let title = info.string("Name") else {
             state = nil
@@ -173,10 +157,6 @@ final class SpotifySource: MediaSource {
         return NSImage(data: data)
     }
 
-    func togglePlayPause() async { await command("playpause") }
-    func next() async { await command("next track") }
-    func previous() async { await command("previous track") }
-
     func seek(to seconds: Double) async {
         await command("set player position to \(Int(seconds))")
         // Spotify does not announce seeks — move the cached sample so the
@@ -185,21 +165,5 @@ final class SpotifySource: MediaSource {
             state?.position = seconds
             state?.sampledAt = Date()
         }
-    }
-
-    /// Transport commands sit behind the same `is running` guard as
-    /// `fetchTrack` — a bare `tell` would launch a quit player. The trailing
-    /// `return "ok"` tells a silent success apart from a failure (osascript
-    /// prints nothing to stdout in either case).
-    private func command(_ body: String) async {
-        let script = """
-        if application id "com.spotify.client" is running then
-        	tell application id "com.spotify.client"
-        		\(body)
-        	end tell
-        	return "ok"
-        end if
-        """
-        lastCommandFailed = await AppleScriptRunner.run(script) != "ok"
     }
 }

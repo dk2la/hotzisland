@@ -59,22 +59,9 @@ struct NotesModuleView: View {
                         .foregroundStyle(Theme.textQuaternary)
                 }
                 Spacer(minLength: 0)
-                Button {
-                    store.delete(note)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Theme.textTertiary)
-                        .frame(width: 24, height: 24)
-                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.raisedFill))
-                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                }
-                .buttonStyle(PressableStyle())
+                RowRemoveButton { store.delete(note) }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            .cardRow()
         }
         .buttonStyle(PressableStyle())
     }
@@ -107,7 +94,7 @@ struct NotesModuleView: View {
                 captureText = captureText.isEmpty ? text : captureText + " " + text
             }
             CircleGlassButton(systemName: "folder", size: Theme.inputHeight) {
-                pickFolder()
+                store.pickFolder(activating: true)
             }
         }
     }
@@ -117,24 +104,8 @@ struct NotesModuleView: View {
         captureText = ""
     }
 
-    private func pickFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = store.folderURL
-        NSApp.activate(ignoringOtherApps: true)
-        if panel.runModal() == .OK, let url = panel.url {
-            store.setFolder(url)
-        }
-    }
-
     private static func age(of note: NoteFile) -> String {
-        let minutes = Int(Date().timeIntervalSince(note.modifiedAt) / 60)
-        if minutes < 1 { return L10n.t(.ageNow) }
-        if minutes < 60 { return L10n.f(.ageMin, minutes) }
-        if minutes < 60 * 24 { return L10n.f(.ageHour, minutes / 60) }
-        return Self.dateFormatter.string(from: note.modifiedAt)
+        L10n.age(since: note.modifiedAt, olderThanADay: dateFormatter)
     }
 
     private static let dateFormatter: DateFormatter = {

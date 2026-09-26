@@ -9,10 +9,6 @@ import SwiftUI
 struct EventListView: View {
     var service: CalendarService
     let day: Date
-    /// Embedded in a parent scroll view (the split layout): render the
-    /// cards only, no scroll view of its own — nested scrolling would
-    /// trap the wheel.
-    var embedded = false
 
     private var events: [CalendarEvent] { service.events(forDay: day) }
 
@@ -30,14 +26,9 @@ struct EventListView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             TimelineView(.periodic(from: .now, by: 30)) { context in
-                let nextEvent = nextEvent(at: context.date)
-                if embedded {
-                    cards(nextEvent: nextEvent, now: context.date)
-                } else {
-                    ScrollView(.vertical, showsIndicators: false) {
-                        cards(nextEvent: nextEvent, now: context.date)
-                    }
-                }
+                // Embedded in the parent's scroll view: cards only — nested
+                // scrolling would trap the wheel.
+                cards(nextEvent: nextEvent(at: context.date), now: context.date)
             }
         }
     }
@@ -90,7 +81,7 @@ struct AgendaListView: View {
                             // with a rule running to the edge, and a clear
                             // gap above it.
                             HStack(spacing: 8) {
-                                InstrumentLabel(label(for: day), color: Theme.accent)
+                                InstrumentLabel(service.dayLabel(day), color: Theme.accent)
                                 Hairline()
                             }
                             .padding(.top, day == shown.first?.day ? 0 : 14)
@@ -106,18 +97,6 @@ struct AgendaListView: View {
             }
         }
     }
-
-    private func label(for day: Date) -> String {
-        if service.calendar.isDateInToday(day) { return L10n.t(.calToday) }
-        if service.calendar.isDateInTomorrow(day) { return L10n.t(.calTomorrow) }
-        return Self.dayFormatter.string(from: day)
-    }
-
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
-        return formatter
-    }()
 }
 
 /// One event card, shared by the day list and the agenda — framed like a
@@ -169,13 +148,7 @@ struct EventRow: View {
                 }
             }
             // Same frame as a mail row: two lines, 12/8 padding, card fill.
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                isNext ? Theme.raisedFill.opacity(0.7) : Theme.cardFill,
-                in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            .cardRow(raised: isNext)
         }
         .buttonStyle(PressableStyle())
     }
@@ -215,9 +188,5 @@ struct EventRow: View {
             )
     }
 
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
+    private static let timeFormatter = DateFormatter(format: "HH:mm")
 }

@@ -75,7 +75,6 @@ actor SMTPClient {
 
     // MARK: - Wire protocol
 
-    @discardableResult
     private func command(_ text: String, expecting codes: Set<Int>, redacted: Bool = false) async throws -> String {
         try await transport.send(Data("\(text)\r\n".utf8))
         if !redacted {

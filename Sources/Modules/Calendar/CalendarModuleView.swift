@@ -35,7 +35,7 @@ struct CalendarModuleView: View {
             message(
                 icon: "lock.fill",
                 text: "Calendar access denied",
-                action: ("Open Settings", openPrivacySettings)
+                action: ("Open Settings", { NSWorkspace.shared.openPrivacyPane("Calendars") })
             )
         case .unknown:
             message(icon: "calendar", text: "Requesting access…", action: nil)
@@ -64,11 +64,11 @@ struct CalendarModuleView: View {
                                     .frame(maxWidth: .infinity)
                                     .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                                 HStack(spacing: 8) {
-                                    InstrumentLabel(dayLabel(service.selectedDay), color: Theme.accent)
+                                    InstrumentLabel(service.dayLabel(service.selectedDay), color: Theme.accent)
                                     Hairline()
                                 }
                                 .padding(.top, 4)
-                                EventListView(service: service, day: service.selectedDay, embedded: true)
+                                EventListView(service: service, day: service.selectedDay)
                                     .frame(maxWidth: .infinity, alignment: .top)
                             }
                         }
@@ -77,18 +77,6 @@ struct CalendarModuleView: View {
                     AgendaListView(service: service)
                 }
     }
-
-    private func dayLabel(_ day: Date) -> String {
-        if service.calendar.isDateInToday(day) { return L10n.t(.calToday) }
-        if service.calendar.isDateInTomorrow(day) { return L10n.t(.calTomorrow) }
-        return Self.dayFormatter.string(from: day)
-    }
-
-    private static let dayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("EEE d MMM")
-        return formatter
-    }()
 
     /// Month furniture — arrows and the tappable "back to today" title. It
     /// belongs to the grid, so it only appears with one.
@@ -139,13 +127,6 @@ struct CalendarModuleView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func openPrivacySettings() {
-        guard let url = URL(
-            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
-        ) else { return }
-        NSWorkspace.shared.open(url)
-    }
-
     private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
@@ -157,9 +138,5 @@ struct CalendarModuleView: View {
         .buttonStyle(.plain)
     }
 
-    private static let monthFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-        return formatter
-    }()
+    private static let monthFormatter = DateFormatter(template: "MMMM yyyy")
 }

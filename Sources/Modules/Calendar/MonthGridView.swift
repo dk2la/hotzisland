@@ -52,12 +52,6 @@ struct MonthGridView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Natural height of the grid for a row height: weekday header, six
-    /// rows and the gaps between them.
-    static func height(rowHeight: CGFloat) -> CGFloat {
-        16 + 4 + rowHeight * 6 + 4 * 5
-    }
-
     private func dayCell(_ day: Date) -> some View {
         let isToday = calendar.isDateInToday(day)
         let isSelected = calendar.isDate(day, inSameDayAs: service.selectedDay)

@@ -94,8 +94,6 @@ enum Theme {
 
     /// Instrument captions (CPU · MEM · MEDIA) — use with `.kerning(1.2)`.
     static let labelFont = mono(9.5, .medium)
-    /// Large readout (percent cells).
-    static let readoutLFont = mono(22)
     static let readoutSFont = mono(10.5)
     /// The big countdown — sized to sit inside the timer ring.
     static let timerFont = mono(36)
@@ -114,7 +112,6 @@ enum Theme {
     // Legacy aliases still used by shared chrome.
     static let smallValueFont = mono(12, .medium)
     static let dayFont = mono(11)
-    static let iconFont = Font.system(size: 14, weight: .semibold)
     static let iconSmallFont = Font.system(size: 12, weight: .semibold)
     static let iconLargeFont = Font.system(size: 22, weight: .medium)
 

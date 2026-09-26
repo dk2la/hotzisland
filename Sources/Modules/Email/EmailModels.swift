@@ -64,15 +64,6 @@ enum Mailbox: String, CaseIterable, Sendable, Codable {
     case spam
 
     static let defaultsKey = "email.mailbox.v1"
-
-    /// Sections that show mail still sitting in the inbox, where "archive"
-    /// (move out of INBOX) makes sense.
-    var allowsArchive: Bool {
-        switch self {
-        case .primary, .starred, .important: true
-        case .sent, .spam: false
-        }
-    }
 }
 
 /// UIDs are only unique inside one IMAP folder: the same number names a

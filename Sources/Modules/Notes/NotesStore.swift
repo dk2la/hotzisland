@@ -1,5 +1,5 @@
+import AppKit
 import CoreServices
-import Foundation
 import Observation
 import OSLog
 
@@ -19,8 +19,6 @@ final class NotesStore {
     private(set) var isDirty = false
     private(set) var lastError: String?
 
-    /// Single shell callback: true while a text field owns the keyboard.
-
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "notes")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -34,11 +32,7 @@ final class NotesStore {
     @ObservationIgnored private static let folderKey = "settings.notes.folder"
     /// Folders never worth walking: Obsidian internals, its trash, JS deps.
     @ObservationIgnored nonisolated private static let skippedDirectories: Set<String> = [".obsidian", ".trash", "node_modules"]
-    @ObservationIgnored private static let conflictStamp: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH.mm"
-        return formatter
-    }()
+    @ObservationIgnored private static let conflictStamp = DateFormatter(format: "yyyy-MM-dd HH.mm")
 
     init() {
         if let stored = UserDefaults.standard.string(forKey: Self.folderKey) {
@@ -56,11 +50,57 @@ final class NotesStore {
     // MARK: - Folder
 
     func setFolder(_ url: URL) {
+        // The demo folder is temporary; a choice made now would be lost.
+        guard !isDemo else { return }
         flush()
         closeEditor()
         folderURL = url
         defaults.set(url.path, forKey: Self.folderKey)
         log.info("folder -> \(url.path, privacy: .public)")
+        rescan()
+        startWatcher()
+    }
+
+    /// Folder chooser. The widget is a non-activating panel, so it brings
+    /// the app forward first; the settings island does not need to.
+    func pickFolder(activating: Bool) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = folderURL
+        if activating { NSApp.activate(ignoringOtherApps: true) }
+        if panel.runModal() == .OK, let url = panel.url {
+            setFolder(url)
+        }
+    }
+
+    // MARK: - Demo mode
+
+    /// Points the module at a scripted folder without remembering it; the
+    /// real folder comes back on exit.
+    private(set) var isDemo = false
+    @ObservationIgnored private var parkedFolderURL: URL?
+
+    func enterDemo(folder url: URL) {
+        guard !isDemo else { return }
+        isDemo = true
+        parkedFolderURL = folderURL
+        switchFolder(to: url)
+    }
+
+    func exitDemo() {
+        guard isDemo, let parkedFolderURL else { return }
+        isDemo = false
+        self.parkedFolderURL = nil
+        switchFolder(to: parkedFolderURL)
+    }
+
+    private func switchFolder(to url: URL) {
+        flush()
+        closeEditor()
+        folderURL = url
+        notes = []
         rescan()
         startWatcher()
     }
@@ -150,11 +190,7 @@ final class NotesStore {
                 continue
             }
             guard url.pathExtension.lowercased() == "md" else { continue }
-            scanned.append(NoteFile(
-                url: url,
-                title: url.deletingPathExtension().lastPathComponent,
-                modifiedAt: values?.contentModificationDate ?? .distantPast
-            ))
+            scanned.append(NoteFile(url: url, modifiedAt: values?.contentModificationDate ?? .distantPast))
         }
         scanned.sort { $0.modifiedAt > $1.modifiedAt }
         return scanned
@@ -233,6 +269,10 @@ final class NotesStore {
 
     func closeEditor() {
         flush()
+        resetEditor()
+    }
+
+    private func resetEditor() {
         openNote = nil
         savedText = ""
         editorText = ""
@@ -299,11 +339,7 @@ final class NotesStore {
         let target = NoteNaming.uniqueURL(title: sanitized, in: note.url.deletingLastPathComponent())
         do {
             try FileManager.default.moveItem(at: note.url, to: target)
-            let renamed = NoteFile(
-                url: target,
-                title: target.deletingPathExtension().lastPathComponent,
-                modifiedAt: note.modifiedAt
-            )
+            let renamed = NoteFile(url: target, modifiedAt: note.modifiedAt)
             openNote = renamed
             editorTitle = renamed.title
             log.info("renamed \(note.title, privacy: .public) -> \(renamed.title, privacy: .public)")
@@ -323,11 +359,7 @@ final class NotesStore {
             let url = NoteNaming.uniqueURL(title: "Untitled", in: folderURL)
             try "".write(to: url, atomically: true, encoding: .utf8)
             // The scan is async; open the new note right away.
-            let note = NoteFile(
-                url: url,
-                title: url.deletingPathExtension().lastPathComponent,
-                modifiedAt: Self.mtime(url) ?? Date()
-            )
+            let note = NoteFile(url: url, modifiedAt: Self.mtime(url) ?? Date())
             notes.insert(note, at: 0)
             open(note)
             rescan()
@@ -360,12 +392,7 @@ final class NotesStore {
     func delete(_ note: NoteFile) {
         if openNote?.id == note.id {
             saveTask?.cancel()
-            openNote = nil
-            savedText = ""
-            editorText = ""
-            editorTitle = ""
-            isDirty = false
-            openNoteLoadedMtime = nil
+            resetEditor()
         }
         do {
             try FileManager.default.trashItem(at: note.url, resultingItemURL: nil)
