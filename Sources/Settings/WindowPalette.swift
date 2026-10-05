@@ -1,58 +1,49 @@
 import SwiftUI
 
-/// Window-surface palette (settings, onboarding). The island is always
-/// dark; windows follow the system appearance — rack graphite in dark,
-/// Paper in light, with amber darkened to ink for readability.
-struct WindowPalette {
-    let desk: Color
-    let panel: Color
-    let raised: Color
-    let ink: Color
-    let ink60: Color
-    let ink40: Color
-    let hairline: Color
-    let border: Color
-    let accent: Color
-    let accentWash: Color
+/// Window-surface palette (settings, onboarding). V3: windows match the
+/// widget and the notch — always the dark rack graphite.
+enum Palette {
+    static let desk = Color(red: 0.043, green: 0.043, blue: 0.039)   // #0B0B0A
+    static let panel = Color(red: 0.071, green: 0.071, blue: 0.067)  // #121211
+    static let raised = Color(red: 0.110, green: 0.110, blue: 0.102) // #1C1C1A
+    static let ink = Theme.textPrimary
+    static let ink60 = Theme.textPrimary.opacity(0.6)
+    static let ink40 = Theme.textPrimary.opacity(0.4)
+    static let hairline = Theme.textPrimary.opacity(0.09)
+    static let border = Theme.textPrimary.opacity(0.16)
+    static let accent = Theme.accent
+    static let accentWash = Theme.accent.opacity(0.08)
+}
 
-    static let rack = WindowPalette(
-        desk: Color(red: 0.043, green: 0.043, blue: 0.039),   // #0B0B0A
-        panel: Color(red: 0.071, green: 0.071, blue: 0.067),  // #121211
-        raised: Color(red: 0.110, green: 0.110, blue: 0.102), // #1C1C1A
-        ink: Theme.textPrimary,
-        ink60: Theme.textPrimary.opacity(0.6),
-        ink40: Theme.textPrimary.opacity(0.4),
-        hairline: Theme.textPrimary.opacity(0.09),
-        border: Theme.textPrimary.opacity(0.16),
-        accent: Theme.accent,
-        accentWash: Theme.accent.opacity(0.08)
-    )
+/// Settings text button; `filled` draws the accent-wash pill.
+struct PaletteButton: View {
+    let title: String
+    var color = Palette.accent
+    var filled = false
+    var vPad: CGFloat = 0
+    let action: () -> Void
 
-    /// 10 — Paper: white surfaces, warm desk, amber-ink accent.
-    static let paper = WindowPalette(
-        desk: Color(red: 0.957, green: 0.953, blue: 0.933),   // #F4F3EE
-        panel: .white,
-        raised: Color(red: 0.929, green: 0.925, blue: 0.906),
-        ink: Color(red: 0.102, green: 0.098, blue: 0.09),
-        ink60: Color(red: 0.102, green: 0.098, blue: 0.09).opacity(0.6),
-        ink40: Color(red: 0.102, green: 0.098, blue: 0.09).opacity(0.4),
-        hairline: Color.black.opacity(0.08),
-        border: Color.black.opacity(0.16),
-        // Neon green is unreadable on paper — darkened to green-ink.
-        accent: Color(red: 0.16, green: 0.52, blue: 0.0),
-        accentWash: Color(red: 0.16, green: 0.52, blue: 0.0).opacity(0.08)
-    )
+    init(_ title: String, color: Color = Palette.accent, filled: Bool = false, vPad: CGFloat = 0, action: @escaping () -> Void) {
+        (self.title, self.color, self.filled, self.vPad, self.action) = (title, color, filled, vPad, action)
+    }
 
-    /// V3: windows match the widget and the notch — always the dark rack.
-    static func current(_ scheme: ColorScheme) -> WindowPalette {
-        .rack
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(Theme.subFont)
+                .foregroundStyle(color)
+                .padding(.horizontal, filled ? 12 : 0)
+                .padding(.vertical, filled ? 6 : vPad)
+                .background(filled ? Palette.accentWash : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
     }
 }
 
 /// Instrument toggle: rectangular, amber knob when on.
 struct InstrumentToggle: View {
     @Binding var isOn: Bool
-    let palette: WindowPalette
 
     var body: some View {
         Button {
@@ -60,13 +51,13 @@ struct InstrumentToggle: View {
         } label: {
             ZStack(alignment: isOn ? .trailing : .leading) {
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(palette.raised)
+                    .fill(Palette.raised)
                     .overlay(
                         RoundedRectangle(cornerRadius: 5)
-                            .stroke(palette.border, lineWidth: 1)
+                            .stroke(Palette.border, lineWidth: 1)
                     )
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(isOn ? palette.accent : palette.ink40)
+                    .fill(isOn ? Palette.accent : Palette.ink40)
                     .frame(width: 16, height: 15)
                     .padding(3)
             }
@@ -82,7 +73,6 @@ struct InstrumentToggle: View {
 struct WindowSegmented<T: Hashable>: View {
     let options: [(value: T, label: String)]
     @Binding var selection: T
-    let palette: WindowPalette
 
     var body: some View {
         HStack(spacing: 6) {
@@ -93,21 +83,10 @@ struct WindowSegmented<T: Hashable>: View {
                 } label: {
                     Text(option.label)
                         .font(Theme.subFont)
-                        .foregroundStyle(isActive ? palette.accent : palette.ink60)
+                        .foregroundStyle(isActive ? Palette.accent : Palette.ink60)
                         .padding(.horizontal, 13)
                         .padding(.vertical, 6)
-                        .background(
-                            isActive ? palette.raised : palette.panel,
-                            in: RoundedRectangle(cornerRadius: 5)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 5)
-                                .stroke(
-                                    isActive ? palette.accent.opacity(0.5) : palette.border,
-                                    lineWidth: 1
-                                )
-                        )
-                        .contentShape(Rectangle())
+                        .paletteTile(isActive: isActive)
                 }
                 .buttonStyle(PressableStyle())
             }
@@ -115,11 +94,22 @@ struct WindowSegmented<T: Hashable>: View {
     }
 }
 
+extension View {
+    /// Selectable key-cap chrome: raised fill and an accent ring when active.
+    func paletteTile(isActive: Bool) -> some View {
+        background(isActive ? Palette.raised : Palette.panel, in: RoundedRectangle(cornerRadius: 5))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(isActive ? Palette.accent.opacity(0.5) : Palette.border, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+    }
+}
+
 /// Settings row: title + explanation on the left, control on the right.
 struct SettingRow<Control: View>: View {
     let title: String
     var subtitle: String?
-    let palette: WindowPalette
     @ViewBuilder var control: () -> Control
 
     var body: some View {
@@ -127,11 +117,11 @@ struct SettingRow<Control: View>: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(palette.ink)
+                    .foregroundStyle(Palette.ink)
                 if let subtitle {
                     Text(subtitle)
                         .font(Theme.subFont)
-                        .foregroundStyle(palette.ink40)
+                        .foregroundStyle(Palette.ink40)
                 }
             }
             Spacer(minLength: 0)
@@ -144,22 +134,21 @@ struct SettingRow<Control: View>: View {
 /// Mechanical key cap for hotkey display (⌘ ,).
 struct KeyCap: View {
     let symbol: String
-    let palette: WindowPalette
 
     var body: some View {
         Text(symbol)
             .font(Theme.mono(11))
-            .foregroundStyle(palette.ink)
+            .foregroundStyle(Palette.ink)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 5))
+            .background(Palette.raised, in: RoundedRectangle(cornerRadius: 5))
             .overlay(
                 RoundedRectangle(cornerRadius: 5)
-                    .stroke(palette.border, lineWidth: 1)
+                    .stroke(Palette.border, lineWidth: 1)
             )
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(palette.border)
+                    .fill(Palette.border)
                     .offset(y: 1)
             )
     }

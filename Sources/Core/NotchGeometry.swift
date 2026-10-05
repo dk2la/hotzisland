@@ -23,4 +23,19 @@ enum NotchGeometry {
             height: screen.safeAreaInsets.top
         )
     }
+
+    /// The closed capsule widened by a content area on each side of the notch.
+    static func capsule(_ closed: CGSize, side: CGFloat) -> CGSize {
+        CGSize(width: closed.width + side * 2, height: closed.height)
+    }
+
+    /// `size` hanging from the top center of `screen`.
+    static func topCentered(_ size: CGSize, on screen: NSScreen) -> NSRect {
+        NSRect(
+            x: screen.frame.midX - size.width / 2,
+            y: screen.frame.maxY - size.height,
+            width: size.width,
+            height: size.height
+        )
+    }
 }

@@ -1,23 +1,19 @@
 import AppKit
-import EventKit
 import SwiftUI
 
-/// Settings window, V3: always the dark rack — matches the widget and the
-/// notch. Sidebar of icon rows on the left, pages on the right, acid-green
-/// active states, fully localized.
+/// Settings UI, hosted inside the expanded island (see IslandSettingsView).
+/// Always the dark rack — matches the widget and the notch. Sidebar of icon
+/// rows on the left, pages on the right, fully localized. Sized by its
+/// host, not itself.
 struct SettingsView: View {
     @Bindable var settings: AppSettings
-    var playbooks: PlaybookStore
     var services: ModuleServices
     var pageSelection: SettingsPageSelection
 
+    private var playbooks: PlaybookStore { services.playbookStore }
+
     @State private var editingPlaybook: Playbook?
     @State private var creatingPlaybook = false
-
-    private var page: Page {
-        get { pageSelection.page }
-        nonmutating set { pageSelection.page = newValue }
-    }
 
     enum Page: String, CaseIterable, Identifiable {
         case general
@@ -29,55 +25,34 @@ struct SettingsView: View {
 
         var id: String { rawValue }
 
-        @MainActor
-        var title: String {
+        private var spec: (title: L10nKey, icon: String) {
             switch self {
-            case .general: L10n.t(.setGeneral)
-            case .appearance: L10n.t(.setAppearance)
-            case .modules: L10n.t(.setModules)
-            case .accounts: L10n.t(.setAccounts)
-            case .playbooks: L10n.t(.setPlaybooks)
-            case .hotkeys: L10n.t(.setHotkeys)
+            case .general: (.setGeneral, "gearshape")
+            case .appearance: (.setAppearance, "circle.lefthalf.filled")
+            case .modules: (.setModules, "square.grid.2x2")
+            case .accounts: (.setAccounts, "at")
+            case .playbooks: (.modPlaybooks, "bolt.fill")
+            case .hotkeys: (.setHotkeys, "keyboard")
             }
         }
 
-        var icon: String {
-            switch self {
-            case .general: "gearshape"
-            case .appearance: "circle.lefthalf.filled"
-            case .modules: "square.grid.2x2"
-            case .accounts: "at"
-            case .playbooks: "bolt.fill"
-            case .hotkeys: "keyboard"
-            }
-        }
+        @MainActor var title: String { L10n.t(spec.title) }
+        var icon: String { spec.icon }
     }
-
-    private var palette: WindowPalette { WindowPalette.rack }
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
             Rectangle()
-                .fill(palette.hairline)
+                .fill(Palette.hairline)
                 .frame(width: 1)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(24)
-                .background(palette.panel)
+                .background(Palette.panel)
         }
-        .frame(width: 700, height: 490)
-        .background(palette.desk)
-        .sheet(item: $editingPlaybook) { playbook in
-            PlaybookEditorView(store: playbooks, existing: playbook) {
-                editingPlaybook = nil
-            }
-        }
-        .sheet(isPresented: $creatingPlaybook) {
-            PlaybookEditorView(store: playbooks, existing: nil) {
-                creatingPlaybook = false
-            }
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Palette.desk)
     }
 
     // MARK: - Sidebar
@@ -86,14 +61,14 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text("HotzIsland")
                 .font(Theme.titleFont)
-                .foregroundStyle(palette.ink)
+                .foregroundStyle(Palette.ink)
                 .padding(.horizontal, 14)
                 .padding(.top, 18)
-            InstrumentLabel(L10n.t(.setTitle), color: palette.ink40)
+            InstrumentLabel(L10n.t(.setTitle), color: Palette.ink40)
                 .padding(.horizontal, 14)
                 .padding(.bottom, 12)
             ForEach(Page.allCases) { item in
-                let isActive = page == item
+                let isActive = pageSelection.page == item
                 Button {
                     pageSelection.page = item
                 } label: {
@@ -104,12 +79,12 @@ struct SettingsView: View {
                         Text(item.title)
                             .font(Theme.bodyFont)
                     }
-                    .foregroundStyle(isActive ? palette.accent : palette.ink60)
+                    .foregroundStyle(isActive ? Palette.accent : Palette.ink60)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
-                        isActive ? palette.accentWash : .clear,
+                        isActive ? Palette.accentWash : .clear,
                         in: RoundedRectangle(cornerRadius: 9, style: .continuous)
                     )
                     .contentShape(Rectangle())
@@ -120,19 +95,19 @@ struct SettingsView: View {
             Text("v\(Self.version) · MIT")
                 .font(Theme.labelFont)
                 .kerning(1)
-                .foregroundStyle(palette.ink40)
+                .foregroundStyle(Palette.ink40)
                 .padding(14)
         }
         .padding(.horizontal, 8)
         .frame(width: 180)
-        .background(palette.desk)
+        .background(Palette.desk)
     }
 
     // MARK: - Pages
 
     @ViewBuilder
     private var content: some View {
-        switch page {
+        switch pageSelection.page {
         case .general: generalPage
         case .appearance: appearancePage
         case .modules: modulesPage
@@ -147,10 +122,10 @@ struct SettingsView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     sectionHeader(L10n.t(.modEmail))
-                    EmailSetupView(service: services.emailService, palette: palette)
+                    EmailSetupView(service: services.emailService)
                     sectionHeader(L10n.t(.modAssistant))
                         .padding(.top, 18)
-                    AssistantSetupView(assistant: services.assistantService, palette: palette)
+                    AssistantSetupView(assistant: services.assistantService)
                 }
             }
         }
@@ -159,78 +134,75 @@ struct SettingsView: View {
     private var generalPage: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(L10n.t(.setBehavior))
-            SettingRow(
-                title: L10n.t(.setLanguage),
-                subtitle: L10n.t(.setLanguageSub),
-                palette: palette
-            ) {
+            SettingRow(title: L10n.t(.setLanguage), subtitle: L10n.t(.setLanguageSub)) {
                 languagePicker
             }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setLaunch),
-                subtitle: L10n.t(.setLaunchSub),
-                palette: palette
-            ) {
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setLaunch), subtitle: L10n.t(.setLaunchSub)) {
                 InstrumentToggle(
                     isOn: Binding(
                         get: { settings.launchAtLogin },
                         set: { settings.setLaunchAtLogin($0) }
-                    ),
-                    palette: palette
+                    )
                 )
             }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setOutsideClick),
-                subtitle: L10n.t(.setOutsideClickSub),
-                palette: palette
-            ) {
-                InstrumentToggle(
-                    isOn: Binding(
-                        get: { settings.closeOnOutsideClick },
-                        set: { settings.closeOnOutsideClick = $0 }
-                    ),
-                    palette: palette
-                )
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setOutsideClick), subtitle: L10n.t(.setOutsideClickSub)) {
+                InstrumentToggle(isOn: $settings.closeOnOutsideClick)
             }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setDisplayMode),
-                subtitle: L10n.t(.setDisplayModeSub),
-                palette: palette
-            ) {
-                WindowSegmented(
-                    options: [
-                        (DisplayMode.island, L10n.t(.setIsland)),
-                        (DisplayMode.widget, L10n.t(.setWidget)),
-                    ],
-                    selection: Binding(
-                        get: { settings.displayMode },
-                        set: { settings.displayMode = $0 }
-                    ),
-                    palette: palette
-                )
-            }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setIdle),
-                subtitle: L10n.t(.setIdleSub),
-                palette: palette
-            ) {
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setIdle), subtitle: L10n.t(.setIdleSub)) {
                 WindowSegmented(
                     options: [
                         (IdleMode.invisible, L10n.t(.setIdleInvisible)),
                         (IdleMode.compact, L10n.t(.setIdleCompact)),
                     ],
-                    selection: Binding(
-                        get: { settings.idleMode },
-                        set: { settings.idleMode = $0 }
-                    ),
-                    palette: palette
+                    selection: $settings.idleMode
                 )
             }
+            demoSection
         }
+    }
+
+    /// Demo mode toggle and, while it is on, one button per sample island
+    /// event — everything a promo recording needs from one page.
+    private var demoSection: some View {
+        let demo = services.demo
+        return VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(L10n.t(.setDemoSection))
+                .padding(.top, 18)
+            SettingRow(title: L10n.t(.setDemo), subtitle: L10n.t(.setDemoSub)) {
+                InstrumentToggle(
+                    isOn: Binding(
+                        get: { demo.isActive },
+                        set: { demo.setActive($0) }
+                    )
+                )
+            }
+            if demo.isActive {
+                Hairline(color: Palette.hairline)
+                SettingRow(title: L10n.t(.setDemoEvents), subtitle: L10n.t(.setDemoEventsSub)) {
+                    HStack(spacing: 5) {
+                        ForEach(DemoMode.sampleEvents, id: \.label) { sample in
+                            Button {
+                                demo.fire(sample.event)
+                            } label: {
+                                Text(sample.label)
+                                    .font(Theme.labelFont)
+                                    .kerning(1)
+                                    .foregroundStyle(Palette.ink)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 6)
+                                    .background(Palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(PressableStyle())
+                        }
+                    }
+                }
+            }
+        }
+        .animation(Theme.stateSpring, value: demo.isActive)
     }
 
     private var languagePicker: some View {
@@ -253,10 +225,10 @@ struct SettingsView: View {
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .semibold))
             }
-            .foregroundStyle(palette.ink)
+            .foregroundStyle(Palette.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(Palette.raised, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -265,41 +237,25 @@ struct SettingsView: View {
     private var appearancePage: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(L10n.t(.setShellTheme))
-            SettingRow(
-                title: L10n.t(.setCapsule),
-                subtitle: L10n.t(.setCapsuleSub),
-                palette: palette
-            ) {
+            SettingRow(title: L10n.t(.setCapsule), subtitle: L10n.t(.setCapsuleSub)) {
                 WindowSegmented(
                     options: [
                         (IslandTheme.stealth, "Stealth"),
                         (IslandTheme.glass, "Glass"),
                         (IslandTheme.glow, "Glow"),
                     ],
-                    selection: Binding(
-                        get: { settings.theme },
-                        set: { settings.theme = $0 }
-                    ),
-                    palette: palette
+                    selection: $settings.theme
                 )
             }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setWidgetMaterial),
-                subtitle: L10n.t(.setWidgetMaterialSub),
-                palette: palette
-            ) {
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setWidgetMaterial), subtitle: L10n.t(.setWidgetMaterialSub)) {
                 WindowSegmented(
                     options: [
                         (GlassAppearance.light, L10n.t(.setLight)),
                         (GlassAppearance.dark, L10n.t(.setDark)),
                         (GlassAppearance.auto, L10n.t(.setAuto)),
                     ],
-                    selection: Binding(
-                        get: { settings.glassAppearance },
-                        set: { settings.glassAppearance = $0 }
-                    ),
-                    palette: palette
+                    selection: $settings.glassAppearance
                 )
             }
         }
@@ -310,116 +266,93 @@ struct SettingsView: View {
             sectionHeader(L10n.t(.setModules))
             Text(L10n.t(.setModulesHint))
                 .font(Theme.subFont)
-                .foregroundStyle(palette.ink40)
+                .foregroundStyle(Palette.ink40)
                 .padding(.bottom, 10)
-            ModulesOrderList(settings: settings, palette: palette)
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.notesFolder),
-                subtitle: services.notesStore.folderURL.path,
-                palette: palette
-            ) {
-                Button {
-                    pickNotesFolder()
-                } label: {
-                    Text(L10n.t(.notesChange))
-                        .font(Theme.subFont)
-                        .foregroundStyle(palette.accent)
-                        .contentShape(Rectangle())
+            ModulesOrderList(settings: settings)
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.notesFolder), subtitle: services.notesStore.folderURL.path) {
+                PaletteButton(L10n.t(.notesChange)) {
+                    services.notesStore.pickFolder(activating: false)
                 }
-                .buttonStyle(PressableStyle())
             }
         }
     }
 
-    private func pickNotesFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = services.notesStore.folderURL
-        if panel.runModal() == .OK, let url = panel.url {
-            services.notesStore.setFolder(url)
+    /// The editor replaces the page in place: a sheet would hang out of the
+    /// island and fight its hover tracking.
+    @ViewBuilder
+    private var playbooksPage: some View {
+        if creatingPlaybook {
+            PlaybookEditorView(store: playbooks, existing: nil) {
+                creatingPlaybook = false
+            }
+            .id("new")
+        } else if let playbook = editingPlaybook {
+            PlaybookEditorView(store: playbooks, existing: playbook) {
+                editingPlaybook = nil
+            }
+            .id(playbook.id)
+        } else {
+            playbooksList
         }
     }
 
-    private var playbooksPage: some View {
+    private var playbooksList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionHeader(L10n.t(.setPlaybooks))
+            sectionHeader(L10n.t(.modPlaybooks))
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
                     ForEach(playbooks.playbooks) { playbook in
                         HStack(spacing: 10) {
                             Image(systemName: playbook.icon)
                                 .font(Theme.iconSmallFont)
-                                .foregroundStyle(palette.accent)
+                                .foregroundStyle(Palette.accent)
                                 .frame(width: 20)
                             Text(playbook.name)
                                 .font(Theme.bodyFont)
-                                .foregroundStyle(palette.ink)
+                                .foregroundStyle(Palette.ink)
                             Spacer(minLength: 0)
-                            Button {
+                            PaletteButton(L10n.t(.calEdit)) {
                                 editingPlaybook = playbook
-                            } label: {
-                                Text(L10n.t(.playEdit))
-                                    .font(Theme.subFont)
-                                    .foregroundStyle(palette.accent)
-                                    .contentShape(Rectangle())
                             }
-                            .buttonStyle(PressableStyle())
                         }
                         .padding(.vertical, 10)
                         if playbook.id != playbooks.playbooks.last?.id {
-                            Hairline(color: palette.hairline)
+                            Hairline(color: Palette.hairline)
                         }
                     }
                 }
             }
-            Button {
+            PaletteButton(L10n.t(.playAdd), vPad: 8) {
                 creatingPlaybook = true
-            } label: {
-                Text(L10n.t(.playAdd))
-                    .font(Theme.subFont)
-                    .foregroundStyle(palette.accent)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle())
         }
     }
 
     private var hotkeysPage: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(L10n.t(.setHotkeys))
-            SettingRow(title: L10n.t(.setOpenSettings), palette: palette) {
+            SettingRow(title: L10n.t(.setOpenSettings)) {
                 HStack(spacing: 5) {
-                    KeyCap(symbol: "⌘", palette: palette)
-                    KeyCap(symbol: ",", palette: palette)
+                    KeyCap(symbol: "⌘")
+                    KeyCap(symbol: ",")
                 }
             }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setExpandIsland),
-                subtitle: L10n.t(.setExpandIslandSub),
-                palette: palette
-            ) {
-                KeyCap(symbol: "hover", palette: palette)
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setExpandIsland), subtitle: L10n.t(.setExpandIslandSub)) {
+                KeyCap(symbol: "click")
             }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setHideWidget),
-                subtitle: L10n.t(.setHideWidgetSub),
-                palette: palette
-            ) {
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setHideWidget), subtitle: L10n.t(.setHideWidgetSub)) {
                 keyCaps(HotkeyService.Action.toggleWidgetHidden.keyCaps)
             }
-            Hairline(color: palette.hairline)
-            SettingRow(
-                title: L10n.t(.setPinPanel),
-                subtitle: L10n.t(.setPinPanelSub),
-                palette: palette
-            ) {
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setPinPanel), subtitle: L10n.t(.setPinPanelSub)) {
                 keyCaps(HotkeyService.Action.togglePanelPin.keyCaps)
+            }
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.setModeToggle), subtitle: L10n.t(.setModeToggleSub)) {
+                keyCaps(HotkeyService.Action.toggleSettings.keyCaps)
             }
         }
     }
@@ -427,13 +360,13 @@ struct SettingsView: View {
     private func keyCaps(_ symbols: [String]) -> some View {
         HStack(spacing: 5) {
             ForEach(symbols, id: \.self) { symbol in
-                KeyCap(symbol: symbol, palette: palette)
+                KeyCap(symbol: symbol)
             }
         }
     }
 
     private func sectionHeader(_ title: String) -> some View {
-        InstrumentLabel(title, color: palette.ink40)
+        InstrumentLabel(title, color: Palette.ink40)
             .padding(.bottom, 12)
     }
 
@@ -446,7 +379,6 @@ struct SettingsView: View {
 /// and onboarding step 3.
 struct ModulesOrderList: View {
     @Bindable var settings: AppSettings
-    let palette: WindowPalette
 
     var body: some View {
         List {
@@ -454,34 +386,33 @@ struct ModulesOrderList: View {
                 HStack(spacing: 10) {
                     Image(systemName: "line.3.horizontal")
                         .font(.system(size: 10))
-                        .foregroundStyle(palette.ink40)
+                        .foregroundStyle(Palette.ink40)
                     Image(systemName: tab.icon)
                         .font(Theme.iconSmallFont)
-                        .foregroundStyle(palette.ink60)
+                        .foregroundStyle(Palette.ink60)
                         .frame(width: 20)
                     Text(tab.title)
                         .font(Theme.bodyFont)
-                        .foregroundStyle(palette.ink)
+                        .foregroundStyle(Palette.ink)
                     if tab.isComingSoon {
                         Text(L10n.t(.setSoonTag))
                             .font(Theme.subFont)
-                            .foregroundStyle(palette.ink40)
+                            .foregroundStyle(Palette.ink40)
                     } else if NotchTab.defaultTabs.contains(tab) {
                         Text(L10n.t(.setDefaultTag))
                             .font(Theme.subFont)
-                            .foregroundStyle(palette.ink40)
+                            .foregroundStyle(Palette.ink40)
                     }
                     Spacer(minLength: 0)
                     InstrumentToggle(
                         isOn: Binding(
                             get: { settings.isEnabled(tab) },
                             set: { _ in settings.toggle(tab) }
-                        ),
-                        palette: palette
+                        )
                     )
                     .disabled(settings.isEnabled(tab) && settings.enabledTabs.count == 1)
                 }
-                .listRowSeparatorTint(palette.hairline)
+                .listRowSeparatorTint(Palette.hairline)
                 .listRowBackground(Color.clear)
             }
             .onMove { source, destination in
@@ -492,4 +423,12 @@ struct ModulesOrderList: View {
         .scrollContentBackground(.hidden)
         .background(Color.clear)
     }
+}
+
+/// Shared page selection so module UI can deep-link into a settings page
+/// (e.g. "Set up account" → Accounts).
+@MainActor
+@Observable
+final class SettingsPageSelection {
+    var page: SettingsView.Page = .general
 }

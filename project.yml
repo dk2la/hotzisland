@@ -15,6 +15,8 @@ targets:
       path: Support/Info.plist
       properties:
         CFBundleDisplayName: HotzIsland
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Danila Kozlov"
         NSAppleEventsUsageDescription: "HotzIsland controls your music players (Spotify, Apple Music) to show and manage playback from the island."
@@ -57,6 +59,10 @@ targets:
       - path: Sources/Modules/Assistant/CLIAssistantClient.swift
       - path: Sources/Services/SpeechCaptureService.swift
       - path: Sources/Core/WidgetGeometry.swift
+      - path: Sources/Modules/Email/EmailHTMLSanitizer.swift
+      - path: Sources/Modules/Email/MailTransport.swift
+      - path: Sources/Modules/Email/IMAPClient.swift
+      - path: Sources/Modules/Email/MailSession.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland.tests

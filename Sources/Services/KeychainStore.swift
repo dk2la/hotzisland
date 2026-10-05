@@ -29,33 +29,16 @@ struct KeychainStore {
     /// a different signature — the source of endless access prompts. A fresh
     /// add makes the running build the item's owner, which reads silently.
     func setPassword(_ value: String, account: String) throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        let deleteStatus = SecItemDelete(query as CFDictionary)
-        guard deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound else {
-            Self.log.error("replace-delete failed status=\(deleteStatus, privacy: .public) service=\(self.service, privacy: .public)")
-            throw KeychainError.status(deleteStatus)
-        }
-        var add = query
+        try check(SecItemDelete(query(account) as CFDictionary), "replace-delete", allowingNotFound: true)
+        var add = query(account)
         add[kSecValueData as String] = Data(value.utf8)
-        let status = SecItemAdd(add as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            Self.log.error("set failed status=\(status, privacy: .public) service=\(self.service, privacy: .public)")
-            throw KeychainError.status(status)
-        }
+        try check(SecItemAdd(add as CFDictionary, nil), "set")
     }
 
     func password(account: String) throws -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        var query = query(account)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         if status == errSecItemNotFound { return nil }
@@ -67,14 +50,20 @@ struct KeychainStore {
     }
 
     func deletePassword(account: String) throws {
-        let query: [String: Any] = [
+        try check(SecItemDelete(query(account) as CFDictionary), "delete", allowingNotFound: true)
+    }
+
+    private func query(_ account: String) -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            Self.log.error("delete failed status=\(status, privacy: .public) service=\(self.service, privacy: .public)")
+    }
+
+    private func check(_ status: OSStatus, _ operation: String, allowingNotFound: Bool = false) throws {
+        guard status == errSecSuccess || (allowingNotFound && status == errSecItemNotFound) else {
+            Self.log.error("\(operation, privacy: .public) failed status=\(status, privacy: .public) service=\(self.service, privacy: .public)")
             throw KeychainError.status(status)
         }
     }

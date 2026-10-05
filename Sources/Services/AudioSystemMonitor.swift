@@ -2,6 +2,7 @@ import CoreAudio
 import AudioToolbox
 import Foundation
 import Observation
+import OSLog
 
 /// Watches the default audio output device and its volume. Keeps observable
 /// state for module views, emits events on device/volume changes, and can
@@ -15,6 +16,9 @@ final class AudioSystemMonitor {
     @ObservationIgnored var onEvent: ((LiveEvent) -> Void)?
 
     @ObservationIgnored private var deviceID = AudioObjectID(kAudioObjectUnknown)
+    /// Default level (persisted by the unified log) on purpose: audio
+    /// glitches are diagnosed after the fact from `log show`.
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "audio")
     /// The first device-change callback fires for the device present at
     /// launch — that one should not produce a visible event.
     @ObservationIgnored private var suppressInitialDeviceEvent = true
@@ -67,8 +71,14 @@ final class AudioSystemMonitor {
         }
         deviceID = newID
         AudioObjectAddPropertyListenerBlock(deviceID, &volumeAddress, .main, volumeListener)
+        // Listeners follow the real device even in demo; the readout does not.
+        if isDemo {
+            suppressInitialDeviceEvent = false
+            return
+        }
         currentDeviceName = deviceName(deviceID)
         refreshVolume()
+        log.notice("default output -> \(self.currentDeviceName ?? "?", privacy: .public) id=\(newID, privacy: .public) volume=\(self.volume, privacy: .public)")
 
         if suppressInitialDeviceEvent {
             suppressInitialDeviceEvent = false
@@ -78,8 +88,30 @@ final class AudioSystemMonitor {
     }
 
     private func volumeDidChange() {
+        guard !isDemo else { return }
         refreshVolume()
         onEvent?(.volume(level: volume))
+    }
+
+    // MARK: - Demo mode
+
+    /// Scripted output device and level; the slider moves the scripted
+    /// level only, never the Mac's volume.
+    private(set) var isDemo = false
+
+    func enterDemo(volume: Double, deviceName: String) {
+        guard !isDemo else { return }
+        isDemo = true
+        self.volume = volume
+        currentDeviceName = deviceName
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
+        guard deviceID != AudioObjectID(kAudioObjectUnknown) else { return }
+        currentDeviceName = deviceName(deviceID)
+        refreshVolume()
     }
 
     private func refreshVolume() {
@@ -94,10 +126,15 @@ final class AudioSystemMonitor {
     /// Sets the system output volume (0...1). The property listener fires
     /// afterwards and keeps `volume` in sync.
     func setVolume(_ level: Double) {
+        if isDemo {
+            volume = min(max(level, 0), 1)
+            return
+        }
         guard deviceID != AudioObjectID(kAudioObjectUnknown) else { return }
         var value = Float32(min(max(level, 0), 1))
         let size = UInt32(MemoryLayout<Float32>.size)
         let status = AudioObjectSetPropertyData(deviceID, &volumeAddress, 0, nil, size, &value)
+        log.notice("set volume \(value, privacy: .public) status=\(status, privacy: .public)")
         if status == noErr {
             volume = Double(value)
         }

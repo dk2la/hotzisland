@@ -10,7 +10,8 @@ import Observation
 final class WidgetViewModel {
     /// Open module panel; nil = collapsed to the icon strip.
     private(set) var selectedTab: NotchTab?
-    /// Widget shrunk to a small square (⌃⌥H); no strip, no panel.
+    /// Widget rolled up to its grip plus the first module button (⌃⌥H);
+    /// no panel. See WidgetGeometry.stripLength.
     var isMinimized = false
 
     var edge: WidgetEdge = .right
@@ -24,6 +25,12 @@ final class WidgetViewModel {
     /// window moves mid-drag, so gesture-local coordinates would feed back.
     @ObservationIgnored var onDragChanged: (() -> Void)?
     @ObservationIgnored var onDragEnded: (() -> Void)?
+    /// Resize grips (width on the panel's outer edge, height on the bottom).
+    /// They read the global cursor for the same feedback reason as the drag.
+    @ObservationIgnored var onResizeChanged: (() -> Void)?
+    @ObservationIgnored var onResizeEnded: (() -> Void)?
+    @ObservationIgnored var onHeightResizeChanged: (() -> Void)?
+    @ObservationIgnored var onHeightResizeEnded: (() -> Void)?
 
     func setSelectedTab(_ tab: NotchTab?) {
         guard tab != selectedTab else { return }

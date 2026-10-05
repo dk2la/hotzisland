@@ -21,7 +21,7 @@ struct NotesModuleView: View {
     private var list: some View {
         VStack(alignment: .leading, spacing: 8) {
             if store.notes.isEmpty {
-                DashedZone(
+                EmptyStateZone(
                     label: L10n.t(.notesEmptyTitle),
                     sublabel: L10n.t(.notesEmptySub)
                 )
@@ -39,6 +39,7 @@ struct NotesModuleView: View {
             SpeechStatusRow(speech: speech)
             captureBar
         }
+        .animation(Theme.stateSpring, value: speech.isRecording)
     }
 
     private func row(_ note: NoteFile) -> some View {
@@ -48,31 +49,19 @@ struct NotesModuleView: View {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(note.title)
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(Theme.bodyFont)
+                        .fontWeight(.medium)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .foregroundStyle(Theme.textPrimary.opacity(0.9))
+                        .foregroundStyle(Theme.textPrimary)
                     Text(Self.age(of: note))
-                        .font(.system(size: 10.5))
+                        .font(Theme.captionFont)
                         .foregroundStyle(Theme.textQuaternary)
                 }
                 Spacer(minLength: 0)
-                Button {
-                    store.delete(note)
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Theme.textPrimary.opacity(0.6))
-                        .frame(width: 24, height: 24)
-                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Theme.raisedFill))
-                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                }
-                .buttonStyle(PressableStyle())
+                RowRemoveButton { store.delete(note) }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            .cardRow()
         }
         .buttonStyle(PressableStyle())
     }
@@ -83,7 +72,7 @@ struct NotesModuleView: View {
                 TextField(L10n.t(.notesQuickPlaceholder), text: $captureText)
                     .textFieldStyle(.plain)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.92))
+                    .foregroundStyle(Theme.textPrimary)
                     .focused($captureFocused)
                     .onSubmit(submitCapture)
                 if !captureText.isEmpty {
@@ -98,17 +87,14 @@ struct NotesModuleView: View {
             .padding(.leading, 12)
             .padding(.trailing, 4)
             .padding(.vertical, 4)
-            .frame(minHeight: 36)
+            .frame(minHeight: Theme.inputHeight)
             .background(Theme.raisedFill.opacity(0.7), in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
             .animation(Theme.stateSpring, value: captureText.isEmpty)
             SpeechMicControl(speech: speech) { text in
                 captureText = captureText.isEmpty ? text : captureText + " " + text
             }
-            GlassCapsuleButton(label: L10n.t(.notesNew)) {
-                store.create()
-            }
-            CircleGlassButton(systemName: "folder", size: 30) {
-                pickFolder()
+            CircleGlassButton(systemName: "folder", size: Theme.inputHeight) {
+                store.pickFolder(activating: true)
             }
         }
     }
@@ -118,24 +104,8 @@ struct NotesModuleView: View {
         captureText = ""
     }
 
-    private func pickFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = store.folderURL
-        NSApp.activate(ignoringOtherApps: true)
-        if panel.runModal() == .OK, let url = panel.url {
-            store.setFolder(url)
-        }
-    }
-
     private static func age(of note: NoteFile) -> String {
-        let minutes = Int(Date().timeIntervalSince(note.modifiedAt) / 60)
-        if minutes < 1 { return L10n.t(.ageNow) }
-        if minutes < 60 { return L10n.f(.ageMin, minutes) }
-        if minutes < 60 * 24 { return L10n.f(.ageHour, minutes / 60) }
-        return Self.dateFormatter.string(from: note.modifiedAt)
+        L10n.age(since: note.modifiedAt, olderThanADay: dateFormatter)
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -147,7 +117,8 @@ struct NotesModuleView: View {
 }
 
 /// Inline Markdown editor: editable title (rename on commit), body with
-/// debounced autosave, dictation, Done to flush and return to the list.
+/// debounced autosave, dictation. The way back to the list is the panel
+/// header's chevron — the editor carries no chrome of its own.
 struct NoteEditorView: View {
     var store: NotesStore
     var speech: SpeechCaptureService
@@ -157,37 +128,40 @@ struct NoteEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                CircleGlassButton(systemName: "chevron.left", size: 28) {
-                    store.closeEditor()
-                }
-                TextField("", text: Bindable(store).editorTitle)
-                    .textFieldStyle(.plain)
-                    .font(Theme.titleFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
-                    .focused($titleFocused)
-                    .onSubmit { store.commitTitle() }
-                Spacer(minLength: 0)
-                SpeechMicControl(speech: speech) { text in
-                    appendDictation(text)
-                }
-                GlassCapsuleButton(label: L10n.t(.notesDone), isPrimary: true) {
-                    store.commitTitle()
-                    store.closeEditor()
-                }
-            }
+            TextField("", text: Bindable(store).editorTitle)
+                .textFieldStyle(.plain)
+                .font(Theme.titleFont)
+                .foregroundStyle(Theme.textPrimary)
+                .focused($titleFocused)
+                .onSubmit { store.commitTitle() }
             TextEditor(text: Bindable(store).editorText)
                 .scrollContentBackground(.hidden)
                 .font(Theme.bodyFont)
-                .foregroundStyle(Theme.textPrimary.opacity(0.92))
+                .foregroundStyle(Theme.textPrimary)
                 .focused($bodyFocused)
                 .padding(8)
                 .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                 .onChange(of: store.editorText) { _, _ in
                     store.editorChanged()
                 }
+            if let notice = store.lastError {
+                // Save failures and conflict diversions surface here.
+                Text(notice)
+                    .font(Theme.captionFont)
+                    .foregroundStyle(Theme.textTertiary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+            }
             SpeechStatusRow(speech: speech)
+            HStack {
+                SpeechMicControl(speech: speech) { text in
+                    appendDictation(text)
+                }
+                Spacer(minLength: 0)
+            }
         }
+        .animation(Theme.stateSpring, value: speech.isRecording)
         .onChange(of: titleFocused) { _, focused in
             if !focused {
                 store.commitTitle()
@@ -237,11 +211,11 @@ struct SpeechMicControl: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .frame(height: Theme.inputHeight)
             .background(Theme.cardFill, in: Capsule())
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
         } else {
-            CircleGlassButton(systemName: "mic", size: 30) {
+            CircleGlassButton(systemName: "mic", size: Theme.inputHeight) {
                 Task {
                     await speech.start(locale: L10n.shared.language.speechLocale)
                 }

@@ -1,8 +1,12 @@
 import SwiftUI
 
 /// Month grid: six fixed rows so the layout never jumps between months.
+/// Fills the width it is given; the row height comes from the host.
 struct MonthGridView: View {
     var service: CalendarService
+    /// Height of one week row; the host derives it from the space it can
+    /// give the grid so nothing ever overflows or stretches unevenly.
+    var rowHeight: CGFloat = 26
 
     private var calendar: Calendar { service.calendar }
 
@@ -42,8 +46,10 @@ struct MonthGridView: View {
                         }
                     }
                 }
+                .frame(height: rowHeight)
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func dayCell(_ day: Date) -> some View {
@@ -78,7 +84,6 @@ struct MonthGridView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(height: 26)
     }
 
     private func dayColor(isToday: Bool, inMonth: Bool) -> Color {

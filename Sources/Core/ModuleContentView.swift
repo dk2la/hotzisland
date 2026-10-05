@@ -5,12 +5,11 @@ import SwiftUI
 struct ModuleContentView: View {
     let tab: NotchTab
     var services: ModuleServices
-    var playbooks: PlaybookStore
 
     var body: some View {
         switch tab {
         case .playbooks:
-            PlaybooksModuleView(store: playbooks, runner: services.playbookRunner)
+            PlaybooksModuleView(store: services.playbookStore, runner: services.playbookRunner)
         case .media:
             MediaModuleView(media: services.mediaCenter)
         case .calendar:
@@ -30,7 +29,7 @@ struct ModuleContentView: View {
         case .notes:
             NotesModuleView(store: services.notesStore, speech: services.speechCapture)
         case .email:
-            EmailModuleView(service: services.emailService, speech: services.speechCapture)
+            EmailModuleView(service: services.emailService, speech: services.speechCapture, avatars: services.senderAvatars)
         case .assistant:
             AssistantModuleView(
                 assistant: services.assistantService,

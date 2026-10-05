@@ -4,6 +4,8 @@ import SwiftUI
 
 /// Owns the island panel: positions it on the notch, resizes the window in
 /// step with the state machine, and survives display configuration changes.
+/// Resting, the island shows live events and compact indicators; expanded,
+/// it hosts the app's settings (click the notch, ⌃⌥M, or the menu bar).
 @MainActor
 final class NotchWindowController: NSObject {
     private let panel = NotchPanel()
@@ -20,16 +22,21 @@ final class NotchWindowController: NSObject {
     /// idle-state churn during the one tick before `activeEvent` lands and
     /// for as long as the event is on screen.
     private var eventOwnsWindow = false
-    private var mouseMonitors: [Any] = []
+    private let clickMonitors = OutsideClickMonitors()
+    /// Opened deliberately (hotkey, menu, deep link) rather than by hover:
+    /// the panel then stays until the hotkey again, ✕, or a click outside —
+    /// moving the mouse away must not close what the user asked for.
+    private var settingsPinned = false
+    /// Hover exits are debounced: menus, pickers and quick cursor flicks
+    /// at the panel edge fire exits that do not mean "leave".
+    private var hoverExitTask: Task<Void, Never>?
     private let services: ModuleServices
     private let settings: AppSettings
-    private let playbookStore: PlaybookStore
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
 
-    init(settings: AppSettings, services: ModuleServices, playbooks: PlaybookStore) {
+    init(settings: AppSettings, services: ModuleServices) {
         self.settings = settings
         self.services = services
-        self.playbookStore = playbooks
         super.init()
 
         services.playbookRunner.onFinished = { [weak self] playbook, _ in
@@ -38,12 +45,6 @@ final class NotchWindowController: NSObject {
 
         settings.addChangeHandler { [weak self] in
             guard let self else { return }
-            // Switching to widget mode moves the modules off the notch —
-            // collapse an open panel (refreshIdleState alone won't: it
-            // deliberately never touches the expanded state).
-            if self.settings.displayMode == .widget, self.targetState == .expanded {
-                self.requestState(self.idleState)
-            }
             self.refreshIdleState()
             // Live window resize while the user drags the panel grip.
             if self.targetState == .expanded, let screen = NotchGeometry.targetScreen {
@@ -60,8 +61,82 @@ final class NotchWindowController: NSObject {
         )
 
         attachToScreen()
-        setUpMouseTracking()
         setUpLiveEvents()
+        viewModel.onIslandTapped = { [weak self] in
+            self?.openSettings(page: nil, pinned: true)
+        }
+        viewModel.onClose = { [weak self] in
+            self?.closeSettings()
+        }
+    }
+
+    // MARK: - Settings island
+
+    /// Expands the island onto the settings, optionally on a given page.
+    /// `pinned` keeps it open regardless of the cursor (see `settingsPinned`).
+    func openSettings(page: SettingsView.Page?, pinned: Bool = true) {
+        if let page {
+            viewModel.pageSelection.page = page
+        }
+        settingsPinned = pinned
+        requestState(.expanded)
+    }
+
+    func closeSettings() {
+        settingsPinned = false
+        guard targetState == .expanded else { return }
+        requestState(idleState)
+    }
+
+    /// ⌃⌥M: open pinned, or close if already open.
+    func toggleSettings() {
+        if targetState == .expanded {
+            closeSettings()
+        } else {
+            openSettings(page: nil, pinned: true)
+        }
+    }
+
+    /// While expanded, a click anywhere outside the island closes it — the
+    /// same grammar as the widget panel. Installed on expand, removed on
+    /// collapse so the monitors never outlive the panel.
+    private func installOutsideClickMonitors() {
+        clickMonitors.install(isOutside: { [weak self] event in
+            // Only a click in another of our windows (the widget) counts as
+            // outside — a sheet, popover or menu belonging to the panel
+            // does not.
+            guard let self, let window = event.window else { return false }
+            return window !== self.panel && window.parent !== self.panel && window.sheetParent !== self.panel
+        }, onClick: { [weak self] in
+            self?.handleOutsideClick(at: NSEvent.mouseLocation)
+        })
+    }
+
+    /// Expanded, the island is a drop: through the menu-bar band only the
+    /// neck (the housing's width) is ours; below it the whole body is.
+    private func islandOwns(viewPoint point: NSPoint, in bounds: NSRect) -> Bool {
+        guard targetState == .expanded else { return true }
+        let inNeckBand = point.y > bounds.maxY - closedSize.height
+        guard inNeckBand else { return true }
+        let notchWidth = closedSize.width - 2 * NotchMetrics.closedTopRadius
+        return abs(point.x - bounds.midX) <= notchWidth / 2
+    }
+
+    /// Same test in screen coordinates.
+    private func expandedContains(_ location: NSPoint, on screen: NSScreen) -> Bool {
+        let frame = frame(for: .expanded, on: screen)
+        guard frame.contains(location) else { return false }
+        let local = NSPoint(x: location.x - frame.minX, y: location.y - frame.minY)
+        return islandOwns(viewPoint: local, in: NSRect(origin: .zero, size: frame.size))
+    }
+
+    private func handleOutsideClick(at location: NSPoint) {
+        guard targetState == .expanded, !viewModel.isResizingPanel,
+              panel.attachedSheet == nil, !hasOwnPopupWindow,
+              let screen = NotchGeometry.targetScreen else { return }
+        if !expandedContains(location, on: screen) {
+            closeSettings()
+        }
     }
 
     private func setUpLiveEvents() {
@@ -73,22 +148,11 @@ final class NotchWindowController: NSObject {
         services.mediaCenter.onPlaybackChanged = { [weak self] in
             self?.refreshIdleState()
         }
-        viewModel.onTabChange = { [weak self] tab in
-            self?.log.info("tab -> \(tab.rawValue, privacy: .public)")
-        }
         services.timerService.onRunningChanged = { [weak self] in
             self?.refreshIdleState()
         }
         services.timerService.onFinished = { [weak self] in
             self?.present(.timerFinished)
-        }
-        // A file dragged over the island opens the shelf to receive it.
-        // In widget mode the shelf lives in the widget — never expand here.
-        viewModel.onDragTargeted = { [weak self] in
-            guard let self, self.settings.displayMode == .island,
-                  self.targetState != .expanded else { return }
-            self.viewModel.selectTab(.shelf)
-            self.requestState(.expanded)
         }
     }
 
@@ -154,57 +218,48 @@ final class NotchWindowController: NSObject {
     }
 
     private func eventFrame(on screen: NSScreen) -> NSRect {
-        let size = CGSize(
-            width: closedSize.width + NotchMetrics.eventSideWidth * 2,
-            height: closedSize.height
-        )
-        return NSRect(
-            x: screen.frame.midX - size.width / 2,
-            y: screen.frame.maxY - size.height,
-            width: size.width,
-            height: size.height
-        )
+        NotchGeometry.topCentered(NotchGeometry.capsule(closedSize, side: NotchMetrics.eventSideWidth), on: screen)
     }
 
-    /// SwiftUI `.onHover` does not fire in a non-activating agent app, so
-    /// hover is computed manually from the global cursor position.
-    private func setUpMouseTracking() {
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: { _ in
-            MainActor.assumeIsolated {
-                NotchWindowControllerRegistry.shared?.updateHover()
-            }
-        }) {
-            mouseMonitors.append(global)
-        }
-        let local = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved) { event in
-            MainActor.assumeIsolated {
-                NotchWindowControllerRegistry.shared?.updateHover()
-            }
-            return event
-        }
-        if let local {
-            mouseMonitors.append(local)
-        }
-        NotchWindowControllerRegistry.shared = self
+    /// Hover enters through the hosting view's tracking area. Resting on
+    /// the notch (or a live-event bulge) opens the settings unpinned;
+    /// leaving the expanded panel closes them unless they are pinned.
+    private func hoverEntered() {
+        hoverExitTask?.cancel()
+        hoverExitTask = nil
+        guard targetState != .expanded else { return }
+        requestState(.expanded)
     }
 
-    private func updateHover() {
-        // In widget mode the modules live in the edge widget — hovering the
-        // notch must not expand it. Live events keep their own timers.
-        guard settings.displayMode == .island else { return }
-        // Dragging the resize grip may momentarily put the cursor outside
-        // the shrinking panel — never collapse mid-resize.
-        if viewModel.isResizingPanel, targetState == .expanded { return }
+    private func hoverExited() {
+        guard targetState == .expanded, !settingsPinned else { return }
+        hoverExitTask?.cancel()
+        hoverExitTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled, let self else { return }
+            self.collapseIfCursorLeft()
+        }
+    }
+
+    /// Collapses only when the cursor really is away from the panel and
+    /// nothing of ours (a menu, a popover, a sheet) is up in front of it.
+    private func collapseIfCursorLeft() {
+        guard targetState == .expanded, !settingsPinned, !viewModel.isResizingPanel else { return }
+        guard panel.attachedSheet == nil, !hasOwnPopupWindow else { return }
         guard let screen = NotchGeometry.targetScreen else { return }
-        let location = NSEvent.mouseLocation
-        let hoverZone: NSRect = if targetState == .expanded {
-            frame(for: .expanded, on: screen)
-        } else if viewModel.activeEvent != nil {
-            eventFrame(on: screen)
-        } else {
-            frame(for: targetState, on: screen)
+        if expandedContains(NSEvent.mouseLocation, on: screen) { return }
+        requestState(idleState)
+    }
+
+    /// A SwiftUI Menu or picker opens its own window on top of the panel;
+    /// while one is visible the cursor is "inside" as far as the user is
+    /// concerned.
+    private var hasOwnPopupWindow: Bool {
+        NSApp.windows.contains { window in
+            window !== panel && window.isVisible
+                && (window.parent === panel || window.sheetParent === panel
+                    || window.className.contains("Popup") || window.className.contains("Menu"))
         }
-        requestState(hoverZone.contains(location) ? .expanded : idleState)
     }
 
     /// Single entry point for state changes: prepare the window frame first,
@@ -224,6 +279,10 @@ final class NotchWindowController: NSObject {
             eventDismissTask?.cancel()
             eventOwnsWindow = false
             viewModel.activeEvent = nil
+            // Settings host text input — let the panel take key status
+            // without activating the app.
+            panel.allowsKeyFocus = true
+            installOutsideClickMonitors()
             // Grow the window silently first: the island is pinned to the top
             // center and does not visually move. The animation starts on the
             // next tick, once the window's coordinate space is stable —
@@ -235,6 +294,14 @@ final class NotchWindowController: NSObject {
                 self?.viewModel.setState(.expanded)
             }
         case .closed, .compact:
+            settingsPinned = false
+            hoverExitTask?.cancel()
+            hoverExitTask = nil
+            clickMonitors.remove()
+            panel.allowsKeyFocus = false
+            if panel.isKeyWindow {
+                panel.resignKey()
+            }
             // While a live event is on screen it owns the window frame; only
             // the logical state advances — the dismiss task settles the rest.
             guard !eventOwnsWindow else {
@@ -273,12 +340,16 @@ final class NotchWindowController: NSObject {
             viewModel: viewModel,
             services: services,
             settings: settings,
-            playbooks: playbookStore,
             closedSize: closedSize
         )
         let hostingView = NotchHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
+        hostingView.onMouseEntered = { [weak self] in self?.hoverEntered() }
+        hostingView.onMouseExited = { [weak self] in self?.hoverExited() }
+        hostingView.ownsPoint = { [weak self] point in
+            self?.islandOwns(viewPoint: point, in: hostingView.bounds) ?? true
+        }
         panel.contentView = hostingView
 
         panel.setFrame(frame(for: viewModel.state, on: screen), display: true)
@@ -290,32 +361,36 @@ final class NotchWindowController: NSObject {
         case .expanded:
             // Already clamped (including to the screen) by AppSettings — the
             // window and the SwiftUI island must always agree on this size.
-            settings.expandedPanelSize
-        case .compact:
+            // The panel sits below the menu bar; the neck through it adds
+            // the housing's height.
             CGSize(
-                width: closedSize.width + NotchMetrics.compactSideWidth * 2,
-                height: closedSize.height
+                width: settings.expandedPanelSize.width,
+                height: settings.expandedPanelSize.height + closedSize.height + NotchMetrics.dropFillet
             )
+        case .compact:
+            NotchGeometry.capsule(closedSize, side: NotchMetrics.compactSideWidth)
         case .closed:
             closedSize
         }
-        return NSRect(
-            x: screen.frame.midX - size.width / 2,
-            y: screen.frame.maxY - size.height,
-            width: size.width,
-            height: size.height
-        )
+        return NotchGeometry.topCentered(size, on: screen)
     }
 
     @objc private func screenParametersDidChange() {
+        // The island rebuilds from scratch on the (possibly new) screen, so
+        // every in-flight transition and the live-event ownership must go
+        // with it — otherwise `targetState` would still say "expanded" for a
+        // window that is now closed, and hover could never reopen it.
+        collapseTask?.cancel()
+        expandTask?.cancel()
+        eventShowTask?.cancel()
+        eventDismissTask?.cancel()
+        eventOwnsWindow = false
+        viewModel.activeEvent = nil
+        clickMonitors.remove()
+        panel.allowsKeyFocus = false
+        targetState = .closed
         viewModel.setState(.closed)
         settings.revalidatePanelSize()
         attachToScreen()
     }
-}
-
-/// Bridge between non-isolated NSEvent monitor callbacks and the MainActor controller.
-@MainActor
-enum NotchWindowControllerRegistry {
-    static weak var shared: NotchWindowController?
 }

@@ -12,22 +12,17 @@ enum AssistantProvider: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var title: String {
+    private var spec: (title: String, executableName: String?) {
         switch self {
-        case .claudeCode: "Claude"
-        case .codex: "ChatGPT"
-        case .api: "API"
+        case .claudeCode: ("Claude", "claude")
+        case .codex: ("ChatGPT", "codex")
+        case .api: ("API", nil)
         }
     }
 
+    var title: String { spec.title }
     /// Name of the command-line tool this provider drives, if any.
-    var executableName: String? {
-        switch self {
-        case .claudeCode: "claude"
-        case .codex: "codex"
-        case .api: nil
-        }
-    }
+    var executableName: String? { spec.executableName }
 
     var isCLI: Bool { executableName != nil }
 }
@@ -68,35 +63,19 @@ enum AssistantAPIPreset: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    private var spec: (title: String, baseURL: String, sampleModel: String) {
         switch self {
-        case .openai: "OpenAI"
-        case .anthropic: "Anthropic"
-        case .openrouter: "OpenRouter"
-        case .perplexity: "Perplexity"
-        case .ollama: "Ollama"
+        case .openai: ("OpenAI", "https://api.openai.com/v1", "gpt-5-mini")
+        case .anthropic: ("Anthropic", "https://api.anthropic.com/v1", "claude-opus-5")
+        case .openrouter: ("OpenRouter", "https://openrouter.ai/api/v1", "anthropic/claude-opus-5")
+        case .perplexity: ("Perplexity", "https://api.perplexity.ai", "sonar-pro")
+        case .ollama: ("Ollama", "http://localhost:11434/v1", "llama3.2")
         }
     }
 
-    var baseURL: String {
-        switch self {
-        case .openai: "https://api.openai.com/v1"
-        case .anthropic: "https://api.anthropic.com/v1"
-        case .openrouter: "https://openrouter.ai/api/v1"
-        case .perplexity: "https://api.perplexity.ai"
-        case .ollama: "http://localhost:11434/v1"
-        }
-    }
-
-    var sampleModel: String {
-        switch self {
-        case .openai: "gpt-5-mini"
-        case .anthropic: "claude-opus-5"
-        case .openrouter: "anthropic/claude-opus-5"
-        case .perplexity: "sonar-pro"
-        case .ollama: "llama3.2"
-        }
-    }
+    var title: String { spec.title }
+    var baseURL: String { spec.baseURL }
+    var sampleModel: String { spec.sampleModel }
 
     static func matching(_ baseURL: String) -> AssistantAPIPreset? {
         let normalized = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))

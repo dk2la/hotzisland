@@ -4,61 +4,38 @@ import OSLog
 import ServiceManagement
 
 /// Island shell appearance.
-enum IslandTheme: String, CaseIterable, Identifiable {
+enum IslandTheme: String {
     case stealth
     case glass
     case glow
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .stealth: "Stealth"
-        case .glass: "Glass"
-        case .glow: "Glow"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .stealth: "Pure black — blends into the notch."
-        case .glass: "Dark translucent material."
-        case .glow: "Accent ring tinted by the current artwork."
-        }
-    }
 }
 
 /// What the island does when nothing demands attention.
-enum IdleMode: String, CaseIterable, Identifiable {
+enum IdleMode: String {
     /// Always shrink to the bare notch.
     case invisible
     /// Show compact indicators (playing track, running timer).
     case compact
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .invisible: "Invisible"
-        case .compact: "Compact indicators"
-        }
-    }
 }
 
-/// Where the module panel lives: attached to the notch or as a free
-/// edge-docked widget. Live events stay on the notch in both modes.
-enum DisplayMode: String, CaseIterable, Identifiable {
-    case island
-    case widget
+extension Notification.Name {
+    /// Posted by widget UI that wants the settings island opened; the
+    /// AppDelegate observes it.
+    static let hotzOpenSettings = Notification.Name("hotzOpenSettings")
+    /// Posted with `userInfo["tab"]` (a NotchTab raw value) to open that
+    /// module in the widget — e.g. the assistant handing a form to the
+    /// calendar.
+    static let hotzShowModule = Notification.Name("hotzShowModule")
+}
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .island: "Island"
-        case .widget: "Widget"
-        }
-    }
+/// Asks the AppDelegate for the settings island, optionally on a page.
+@MainActor
+func requestSettings(page: SettingsView.Page? = nil) {
+    NotificationCenter.default.post(
+        name: .hotzOpenSettings,
+        object: nil,
+        userInfo: page.map { ["page": $0.rawValue] }
+    )
 }
 
 /// User preferences, persisted to UserDefaults.
@@ -66,107 +43,74 @@ enum DisplayMode: String, CaseIterable, Identifiable {
 @Observable
 final class AppSettings {
     var theme: IslandTheme {
-        didSet {
-            defaults.set(theme.rawValue, forKey: Self.themeKey)
-            log.info("theme -> \(self.theme.rawValue, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(theme.rawValue, Self.themeKey, log: "theme") }
     }
 
     var idleMode: IdleMode {
-        didSet {
-            defaults.set(idleMode.rawValue, forKey: Self.idleKey)
-            log.info("idleMode -> \(self.idleMode.rawValue, privacy: .public)")
-            notifyChange()
-        }
-    }
-
-    var displayMode: DisplayMode {
-        didSet {
-            defaults.set(displayMode.rawValue, forKey: Self.displayModeKey)
-            log.info("displayMode -> \(self.displayMode.rawValue, privacy: .public)")
-            notifyChange()
-            onDisplayModeChange?(displayMode)
-        }
+        didSet { persist(idleMode.rawValue, Self.idleKey, log: "idleMode") }
     }
 
     /// Widget glass appearance (the island is always dark glass).
     var glassAppearance: GlassAppearance {
-        didSet {
-            defaults.set(glassAppearance.rawValue, forKey: Self.glassAppearanceKey)
-            log.info("glassAppearance -> \(self.glassAppearance.rawValue, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(glassAppearance.rawValue, Self.glassAppearanceKey, log: "glassAppearance") }
     }
 
     /// Interface language — translates the widget, island and settings.
     var language: AppLanguage {
         didSet {
-            defaults.set(language.rawValue, forKey: Self.languageKey)
             L10n.shared.language = language
-            log.info("language -> \(self.language.rawValue, privacy: .public)")
-            notifyChange()
+            persist(language.rawValue, Self.languageKey, log: "language")
         }
     }
 
-    /// Edge the widget strip is docked to (widget mode only).
+    /// Edge the widget strip is docked to.
     private(set) var widgetEdge: WidgetEdge {
-        didSet {
-            defaults.set(widgetEdge.rawValue, forKey: Self.widgetEdgeKey)
-            notifyChange()
-        }
+        didSet { persist(widgetEdge.rawValue, Self.widgetEdgeKey) }
     }
 
     /// Normalized 0…1 position of the strip's center along its edge.
     private(set) var widgetOffset: Double {
-        didSet {
-            defaults.set(widgetOffset, forKey: Self.widgetOffsetKey)
-            notifyChange()
-        }
+        didSet { persist(widgetOffset, Self.widgetOffsetKey) }
     }
 
     /// Clicking anywhere outside the widget closes the open panel. Off =
     /// the panel stays pinned until closed explicitly. ⌃⌥P flips it.
     var closeOnOutsideClick: Bool {
-        didSet {
-            defaults.set(closeOnOutsideClick, forKey: Self.outsideClickKey)
-            log.info("closeOnOutsideClick -> \(self.closeOnOutsideClick, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(closeOnOutsideClick, Self.outsideClickKey, log: "closeOnOutsideClick") }
     }
 
-    /// Widget collapsed to a small square (⌃⌥H). Persisted so a restart
-    /// brings the widget back the way it was left.
+    /// Widget rolled up to its grip plus the first module button (⌃⌥H).
+    /// Persisted so a restart brings the widget back the way it was left.
     var widgetMinimized: Bool {
-        didSet {
-            defaults.set(widgetMinimized, forKey: Self.widgetMinimizedKey)
-            log.info("widgetMinimized -> \(self.widgetMinimized, privacy: .public)")
-            notifyChange()
-        }
+        didSet { persist(widgetMinimized, Self.widgetMinimizedKey, log: "widgetMinimized") }
+    }
+
+    /// Size of the widget-mode panel, each axis dragged by its own grip.
+    /// Separate from the island's `expandedPanelSize` — the two surfaces
+    /// have different geometry.
+    private(set) var widgetPanelWidth: CGFloat {
+        didSet { persist(Double(widgetPanelWidth), Self.widgetPanelWidthKey) }
+    }
+
+    private(set) var widgetPanelHeight: CGFloat {
+        didSet { persist(Double(widgetPanelHeight), Self.widgetPanelHeightKey) }
     }
 
     /// User-chosen size of the expanded panel (dragged by the corner grip).
     private(set) var expandedPanelSize: CGSize {
         didSet {
             defaults.set(Double(expandedPanelSize.width), forKey: Self.panelWidthKey)
-            defaults.set(Double(expandedPanelSize.height), forKey: Self.panelHeightKey)
-            notifyChange()
+            persist(Double(expandedPanelSize.height), Self.panelHeightKey)
         }
     }
 
     private(set) var enabledTabs: Set<NotchTab> {
-        didSet {
-            defaults.set(enabledTabs.map(\.rawValue).sorted(), forKey: Self.tabsKey)
-            notifyChange()
-        }
+        didSet { persist(enabledTabs.map(\.rawValue).sorted(), Self.tabsKey) }
     }
 
     /// User-arranged channel order (onboarding step 3 / settings → Модули).
     private(set) var tabOrder: [NotchTab] {
-        didSet {
-            defaults.set(tabOrder.map(\.rawValue), forKey: Self.tabOrderKey)
-            notifyChange()
-        }
+        didSet { persist(tabOrder.map(\.rawValue), Self.tabOrderKey) }
     }
 
     /// Launch-at-login through SMAppService; mirrored here for observation.
@@ -181,14 +125,16 @@ final class AppSettings {
     /// idle state, the widget re-derives its layout. Handlers are append-only.
     @ObservationIgnored private var changeHandlers: [() -> Void] = []
 
-    /// The AppDelegate creates/tears down the widget window on mode switches.
-    @ObservationIgnored var onDisplayModeChange: ((DisplayMode) -> Void)?
-
     func addChangeHandler(_ handler: @escaping () -> Void) {
         changeHandlers.append(handler)
     }
 
-    private func notifyChange() {
+    /// The one write path of every persisted property.
+    private func persist(_ value: Any, _ key: String, log name: String? = nil) {
+        defaults.set(value, forKey: key)
+        if let name {
+            log.info("\(name, privacy: .public) -> \(String(describing: value), privacy: .public)")
+        }
         for handler in changeHandlers {
             handler()
         }
@@ -198,9 +144,9 @@ final class AppSettings {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    // v4: bumped when the email tab shipped (v3 = notes, v2 = playbooks) —
-    // a stored older set would silently hide new tabs, since "missing" is
-    // indistinguishable from "disabled by the user".
+    // v5: bumped when the assistant tab shipped (v4 = email, v3 = notes,
+    // v2 = playbooks) — a stored older set would silently hide new tabs,
+    // since "missing" is indistinguishable from "disabled by the user".
     @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
     /// (legacy key, tabs to surface when migrating from it)
     @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [
@@ -211,13 +157,14 @@ final class AppSettings {
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
     @ObservationIgnored private static let tabOrderKey = "settings.tabOrder"
-    @ObservationIgnored private static let displayModeKey = "settings.displayMode"
     @ObservationIgnored private static let glassAppearanceKey = "settings.glassAppearance"
     @ObservationIgnored private static let languageKey = "settings.language"
     @ObservationIgnored private static let widgetEdgeKey = "settings.widgetEdge"
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
     @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
     @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
+    @ObservationIgnored private static let widgetPanelWidthKey = "settings.widgetPanelWidth"
+    @ObservationIgnored private static let widgetPanelHeightKey = "settings.widgetPanelHeight"
 
     init() {
         let defaults = UserDefaults.standard
@@ -227,12 +174,18 @@ final class AppSettings {
             width: storedWidth > 0 ? storedWidth : NotchMetrics.expandedMinSize.width,
             height: storedHeight > 0 ? storedHeight : NotchMetrics.expandedMinSize.height
         ))
+        let storedPanelWidth = defaults.double(forKey: Self.widgetPanelWidthKey)
+        widgetPanelWidth = Self.clampWidgetPanelWidth(
+            storedPanelWidth > 0 ? storedPanelWidth : WidgetMetrics.panelDefaultWidth
+        )
+        let storedPanelHeight = defaults.double(forKey: Self.widgetPanelHeightKey)
+        widgetPanelHeight = Self.clampWidgetPanelHeight(
+            storedPanelHeight > 0 ? storedPanelHeight : WidgetMetrics.panelDefaultHeight
+        )
         theme = defaults.string(forKey: Self.themeKey)
             .flatMap(IslandTheme.init(rawValue:)) ?? .stealth
         idleMode = defaults.string(forKey: Self.idleKey)
             .flatMap(IdleMode.init(rawValue:)) ?? .compact
-        displayMode = defaults.string(forKey: Self.displayModeKey)
-            .flatMap(DisplayMode.init(rawValue:)) ?? .island
         glassAppearance = defaults.string(forKey: Self.glassAppearanceKey)
             .flatMap(GlassAppearance.init(rawValue:)) ?? .dark
         language = defaults.string(forKey: Self.languageKey)
@@ -273,7 +226,6 @@ final class AppSettings {
         log.info("""
         loaded theme=\(self.theme.rawValue, privacy: .public) \
         idle=\(self.idleMode.rawValue, privacy: .public) \
-        mode=\(self.displayMode.rawValue, privacy: .public) \
         tabs=\(self.enabledTabs.count, privacy: .public)
         """)
     }
@@ -284,6 +236,34 @@ final class AppSettings {
         log.info("widget placement -> \(edge.rawValue, privacy: .public) @ \(clamped, privacy: .public)")
         widgetEdge = edge
         widgetOffset = clamped
+    }
+
+    func setWidgetPanelWidth(_ raw: CGFloat) {
+        let clamped = Self.clampWidgetPanelWidth(raw)
+        guard clamped != widgetPanelWidth else { return }
+        widgetPanelWidth = clamped
+    }
+
+    private static func clampWidgetPanelWidth(_ width: CGFloat) -> CGFloat {
+        var maxWidth = WidgetMetrics.panelMaxWidth
+        if let screen = NotchGeometry.targetScreen {
+            maxWidth = min(maxWidth, screen.frame.width - 80)
+        }
+        return min(max(width, WidgetMetrics.panelMinWidth), maxWidth)
+    }
+
+    func setWidgetPanelHeight(_ raw: CGFloat) {
+        let clamped = Self.clampWidgetPanelHeight(raw)
+        guard clamped != widgetPanelHeight else { return }
+        widgetPanelHeight = clamped
+    }
+
+    private static func clampWidgetPanelHeight(_ height: CGFloat) -> CGFloat {
+        var maxHeight = WidgetMetrics.panelMaxHeight
+        if let screen = NotchGeometry.targetScreen {
+            maxHeight = min(maxHeight, screen.visibleFrame.height - 2 * WidgetMetrics.edgeInset)
+        }
+        return min(max(height, WidgetMetrics.panelMinHeight), maxHeight)
     }
 
     func setPanelSize(_ raw: CGSize) {

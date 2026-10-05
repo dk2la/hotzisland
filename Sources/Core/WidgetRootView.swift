@@ -10,7 +10,6 @@ struct WidgetRootView: View {
     var settings: AppSettings
 
     @Environment(\.colorScheme) private var colorScheme
-    var playbooks: PlaybookStore
 
     private var stripShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: WidgetMetrics.radius, style: .continuous)
@@ -30,7 +29,7 @@ struct WidgetRootView: View {
                 panel(for: tab)
                     .frame(width: viewModel.panelFrame.width, height: viewModel.panelFrame.height)
                     .offset(x: viewModel.panelFrame.minX, y: viewModel.panelFrame.minY)
-                    .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: panelAnchor)))
+                    .transition(panelTransition)
             }
             strip
                 .frame(width: viewModel.stripFrame.width, height: viewModel.stripFrame.height)
@@ -51,6 +50,18 @@ struct WidgetRootView: View {
         }
     }
 
+    /// Asymmetric on purpose: opening earns the scale-in, closing is the
+    /// user already done — a plain fade gets out of the way faster. Reduce
+    /// Motion drops the positional scale entirely.
+    private var panelTransition: AnyTransition {
+        Theme.reduceMotion
+            ? .opacity
+            : .asymmetric(
+                insertion: .opacity.combined(with: .scale(scale: 0.94, anchor: panelAnchor)),
+                removal: .opacity
+            )
+    }
+
     // MARK: - Ornament strip
 
     private var strip: some View {
@@ -67,10 +78,7 @@ struct WidgetRootView: View {
             .help(viewModel.isMinimized ? L10n.t(.setHideWidget) : "")
             .contextMenu {
                 Button(L10n.t(.menuSettings)) {
-                    NotificationCenter.default.post(name: .hotzOpenSettings, object: nil)
-                }
-                Button(L10n.t(.menuIslandMode)) {
-                    settings.displayMode = .island
+                    requestSettings()
                 }
                 Divider()
                 Button(L10n.t(.menuQuit)) {
@@ -88,7 +96,13 @@ struct WidgetRootView: View {
         return layout {
             gripDots
             ForEach(visibleTabs) { tab in
-                iconButton(for: tab)
+                RailIconButton(
+                    tab: tab,
+                    isActive: viewModel.selectedTab == tab,
+                    showsBadge: tab == .email && services.emailService.unreadCount > 0
+                ) {
+                    viewModel.onTabTapped?(tab)
+                }
             }
         }
         .padding(viewModel.edge.isVertical ? .vertical : .horizontal, WidgetMetrics.endPadding)
@@ -99,30 +113,6 @@ struct WidgetRootView: View {
     private var visibleTabs: [NotchTab] {
         let tabs = settings.orderedEnabledTabs
         return viewModel.isMinimized ? Array(tabs.prefix(1)) : tabs
-    }
-
-    private func iconButton(for tab: NotchTab) -> some View {
-        let isActive = viewModel.selectedTab == tab
-        let cellShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        return Button {
-            viewModel.onTabTapped?(tab)
-        } label: {
-            Image(systemName: tab.icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(isActive ? Theme.accent : Theme.textPrimary.opacity(0.6))
-                .frame(width: WidgetMetrics.cell, height: WidgetMetrics.cell)
-                .background(cellShape.fill(isActive ? Theme.accentWash : .clear))
-                .overlay(alignment: .topTrailing) {
-                    if tab == .email, services.emailService.unreadCount > 0 {
-                        Circle()
-                            .fill(Theme.critical)
-                            .frame(width: 5, height: 5)
-                            .padding(6)
-                    }
-                }
-                .contentShape(cellShape)
-        }
-        .buttonStyle(PressableStyle())
     }
 
     /// Drag handle at the strip's leading end. Dots run across the strip's
@@ -157,8 +147,10 @@ struct WidgetRootView: View {
         GlassSurface(shape: panelShape, dark: darkGlass)
             .overlay {
                 VStack(spacing: 0) {
-                    panelHeader(for: tab)
-                    ModuleContentView(tab: tab, services: services, playbooks: playbooks)
+                    PanelHeaderView(tab: tab, services: services) {
+                        viewModel.onClose?()
+                    }
+                    ModuleContentView(tab: tab, services: services)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .padding(.horizontal, Theme.panelInset)
                         .padding(.top, Theme.panelInset)
@@ -166,31 +158,90 @@ struct WidgetRootView: View {
                 }
             }
             .clipShape(panelShape)
+            .overlay(alignment: widthGripAlignment) { widthGrip }
+            .overlay(alignment: heightGripAlignment) { heightGrip }
     }
 
-    private func panelHeader(for tab: NotchTab) -> some View {
-        HStack(spacing: 0) {
-            Text(tab.title.uppercased())
-                .font(Theme.labelFont)
-                .kerning(1.2)
-                .foregroundStyle(Theme.accent)
-            Spacer(minLength: 0)
-            Button {
-                viewModel.onClose?()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Theme.textTertiary)
-                    .frame(width: 24, height: 24)
-                    .contentShape(Rectangle())
+    /// Each grip lives on an edge facing away from the strip — a side the
+    /// panel actually grows toward.
+    private var widthGripAlignment: Alignment {
+        viewModel.edge == .right ? .leading : .trailing
+    }
+
+    private var heightGripAlignment: Alignment {
+        viewModel.edge == .bottom ? .top : .bottom
+    }
+
+    private var widthGrip: some View {
+        resizeGrip(vertical: true) { viewModel.onResizeChanged?() } ended: { viewModel.onResizeEnded?() }
+    }
+
+    private var heightGrip: some View {
+        resizeGrip(vertical: false) { viewModel.onHeightResizeChanged?() } ended: { viewModel.onHeightResizeEnded?() }
+    }
+
+    /// A 3×34 bar in a 14pt hit strip along one panel edge; `vertical` is
+    /// the width grip on a side edge.
+    private func resizeGrip(
+        vertical: Bool,
+        changed: @escaping () -> Void,
+        ended: @escaping () -> Void
+    ) -> some View {
+        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+            .fill(Theme.textPrimary.opacity(0.22))
+            .frame(width: vertical ? 3 : 34, height: vertical ? 34 : 3)
+            .frame(width: vertical ? 14 : nil, height: vertical ? nil : 14)
+            .frame(maxWidth: vertical ? nil : .infinity, maxHeight: vertical ? .infinity : nil)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 2)
+                    .onChanged { _ in changed() }
+                    .onEnded { _ in ended() }
+            )
+            .onHover { inside in
+                if inside {
+                    (vertical ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+    }
+
+    /// One rail cell. A struct, not a builder func — hover feedback needs
+    /// its own state per cell.
+    private struct RailIconButton: View {
+        let tab: NotchTab
+        let isActive: Bool
+        let showsBadge: Bool
+        let action: () -> Void
+
+        @State private var hovered = false
+
+        var body: some View {
+            let cellShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+            Button(action: action) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(isActive ? Theme.accent : Theme.textSecondary)
+                    .frame(width: WidgetMetrics.cell, height: WidgetMetrics.cell)
+                    .background(
+                        cellShape.fill(isActive ? Theme.accentWash : hovered ? Theme.raisedFill : .clear)
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        if showsBadge {
+                            Circle()
+                                .fill(Theme.critical)
+                                .frame(width: 5, height: 5)
+                                .padding(6)
+                        }
+                    }
+                    .contentShape(cellShape)
             }
             .buttonStyle(PressableStyle())
-        }
-        .padding(.horizontal, Theme.panelInset)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
-        .overlay(alignment: .bottom) {
-            Hairline(color: Theme.hairline)
+            .onHover { hovered = $0 }
+            .animation(.easeOut(duration: 0.15), value: hovered)
+            // Eight abstract glyphs need names — the system tooltip is free.
+            .help(tab.title)
         }
     }
 }

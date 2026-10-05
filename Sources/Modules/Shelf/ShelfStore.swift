@@ -46,6 +46,29 @@ final class ShelfStore {
     }
 
     private func persist() {
+        guard !isDemo else { return }
         defaults.set(items.map(\.url.path), forKey: Self.key)
+    }
+
+    // MARK: - Demo mode
+
+    /// Scripted files; the real shelf is parked and never written while
+    /// the demo is on.
+    private(set) var isDemo = false
+    @ObservationIgnored private var parkedItems: [Item] = []
+
+    func enterDemo(urls: [URL]) {
+        guard !isDemo else { return }
+        isDemo = true
+        parkedItems = items
+        items = urls.map { Item(id: UUID(), url: $0) }
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
+        items = parkedItems
+        parkedItems = []
+        persist()
     }
 }

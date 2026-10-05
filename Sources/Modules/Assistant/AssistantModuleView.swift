@@ -25,13 +25,21 @@ struct AssistantModuleView: View {
     private var chat: some View {
         VStack(spacing: 8) {
             if assistant.transcript.isEmpty {
-                DashedZone(
-                    label: assistant.isVoiceMode ? L10n.t(.asstVoiceHint) : L10n.t(.asstHint)
+                // Same register as the Notes empty state: short caps label,
+                // the hint as the quiet subline.
+                EmptyStateZone(
+                    label: L10n.t(.asstEmptyTitle),
+                    sublabel: assistant.isVoiceMode ? L10n.t(.asstVoiceHint) : L10n.t(.asstHint)
                 )
                 .frame(maxHeight: 90)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 transcript
+            }
+            // A playbook closes apps, so the model only gets to ask.
+            if let playbook = assistant.pendingPlaybook {
+                playbookConfirmation(playbook)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             // Same live dictation line the Notes module shows: the words
             // appear as they are recognised, before the turn is sent.
@@ -39,6 +47,7 @@ struct AssistantModuleView: View {
             composer
         }
         .animation(Theme.stateSpring, value: speech.isRecording)
+        .animation(Theme.stateSpring, value: assistant.pendingPlaybook)
         // Answers are spoken from here, not from the service, so the audio
         // follows the view that is actually on screen.
         .onChange(of: assistant.pendingSpeech) { _, pending in
@@ -85,29 +94,11 @@ struct AssistantModuleView: View {
         case .user:
             HStack {
                 Spacer(minLength: 40)
-                Text(message.text)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.95))
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(
-                        Theme.raisedFill.opacity(0.8),
-                        in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-                    )
+                bubble(message.text, color: Theme.textPrimary, fill: Theme.raisedFill.opacity(0.8))
             }
         case .assistant:
             HStack {
-                Text(message.text)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(message.isError ? Theme.critical : Theme.textPrimary.opacity(0.85))
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(
-                        Theme.cardFill,
-                        in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-                    )
+                bubble(message.text, color: message.isError ? Theme.critical : Theme.textSecondary, fill: Theme.cardFill)
                 Spacer(minLength: 40)
             }
         case .tool:
@@ -123,13 +114,41 @@ struct AssistantModuleView: View {
         }
     }
 
+    private func bubble(_ text: String, color: Color, fill: Color) -> some View {
+        Text(text)
+            .font(Theme.bodyFont)
+            .foregroundStyle(color)
+            .textSelection(.enabled)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(fill, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+    }
+
+    private func playbookConfirmation(_ playbook: Playbook) -> some View {
+        HStack(spacing: 8) {
+            Text(L10n.f(.asstPlaybookConfirm, playbook.name))
+                .font(Theme.subFont)
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+            GlassCapsuleButton(label: L10n.t(.mailCancel)) {
+                assistant.cancelPendingPlaybook()
+            }
+            GlassCapsuleButton(label: L10n.t(.asstPlaybookRun), isPrimary: true) {
+                assistant.confirmPendingPlaybook()
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
     private var composer: some View {
         HStack(spacing: 8) {
             HStack(spacing: 6) {
                 TextField(L10n.t(.asstPlaceholder), text: Bindable(assistant).draft)
                     .textFieldStyle(.plain)
                     .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.92))
+                    .foregroundStyle(Theme.textPrimary)
                     .focused($composerFocused)
                     .onSubmit { assistant.send() }
                 if !assistant.draft.isEmpty, !assistant.isThinking {
@@ -142,34 +161,20 @@ struct AssistantModuleView: View {
             .padding(.leading, 12)
             .padding(.trailing, 4)
             .padding(.vertical, 4)
-            .frame(minHeight: 36)
+            .frame(minHeight: Theme.inputHeight)
             .background(Theme.raisedFill.opacity(0.7), in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
             .animation(Theme.stateSpring, value: assistant.draft.isEmpty)
             SpeechMicControl(speech: speech) { text in
                 voice.stop() // barge-in: speaking over the answer replaces it
                 assistant.acceptDictation(text)
             }
-            // Voice mode: dictation sends itself and answers are read aloud.
-            CircleGlassButton(
-                systemName: assistant.isVoiceMode ? "waveform.circle.fill" : "waveform",
-                size: 30,
-                solid: assistant.isVoiceMode
-            ) {
-                let enabled = !assistant.isVoiceMode
-                assistant.setVoiceMode(enabled)
-                if !enabled { voice.stop() }
-            }
+            // Voice-mode toggle and transcript clearing live in the panel
+            // header; only the in-the-moment mute belongs down here.
             if voice.isSpeaking {
-                CircleGlassButton(systemName: "speaker.slash", size: 30) {
+                CircleGlassButton(systemName: "speaker.slash", size: Theme.inputHeight) {
                     voice.stop()
                 }
                 .transition(.opacity)
-            }
-            if !assistant.transcript.isEmpty {
-                CircleGlassButton(systemName: "trash", size: 30) {
-                    voice.stop()
-                    assistant.clearTranscript()
-                }
             }
         }
         .animation(Theme.stateSpring, value: voice.isSpeaking)

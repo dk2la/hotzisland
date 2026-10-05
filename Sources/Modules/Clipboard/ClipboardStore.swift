@@ -31,7 +31,30 @@ final class ClipboardStore {
         }
     }
 
+    // MARK: - Demo mode
+
+    /// Scripted history; the pasteboard is not watched while it is shown,
+    /// so a stray copy during recording never lands in the list.
+    private(set) var isDemo = false
+    @ObservationIgnored private var parkedEntries: [Entry] = []
+
+    func enterDemo(entries demoEntries: [Entry]) {
+        guard !isDemo else { return }
+        isDemo = true
+        parkedEntries = entries
+        entries = demoEntries
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
+        entries = parkedEntries
+        parkedEntries = []
+        lastChangeCount = NSPasteboard.general.changeCount
+    }
+
     private func poll() {
+        guard !isDemo else { return }
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != lastChangeCount else { return }
         lastChangeCount = pasteboard.changeCount
