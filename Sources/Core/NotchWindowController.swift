@@ -350,7 +350,7 @@ final class NotchWindowController: NSObject {
         hostingView.ownsPoint = { [weak self] point in
             self?.islandOwns(viewPoint: point, in: hostingView.bounds) ?? true
         }
-        panel.contentView = hostingView
+        panel.contentView = hostingView.makeWindowContentView()
 
         panel.setFrame(frame(for: viewModel.state, on: screen), display: true)
         panel.orderFrontRegardless()

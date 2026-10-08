@@ -184,7 +184,7 @@ final class WidgetWindowController: NSObject {
         let hostingView = NotchHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
-        panel.contentView = hostingView
+        panel.contentView = hostingView.makeWindowContentView()
 
         applyDockedFrame()
         panel.orderFrontRegardless()

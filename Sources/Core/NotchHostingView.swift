@@ -21,6 +21,42 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     /// y up.
     var ownsPoint: ((NSPoint) -> Bool)?
 
+    /// Both controllers own the window frame and set it with `setFrame`
+    /// in step with the state machine. The default `.standardBounds`
+    /// sizing would make the hosting view install min/intrinsic/max
+    /// constraints on top of that; the content is always laid out at the
+    /// window's size, so SwiftUI has nothing to add.
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+        sizingOptions = []
+    }
+
+    /// The view to install as the panel's `contentView`.
+    ///
+    /// Never the hosting view itself: as a window's content view
+    /// `NSHostingView` animates the window frame to follow its content
+    /// (`updateAnimatedWindowSize`, from `windowDidLayout`) regardless of
+    /// `sizingOptions`. That races the controller's own `setFrame` — every
+    /// window resize invalidates the safe area, which requests another
+    /// update-constraints pass from inside the layout pass, and AppKit
+    /// throws once the loop exceeds its budget (crashes on ⌃⌥H and on tab
+    /// switches mid-animation). Behind a plain container the hosting view
+    /// is an ordinary subview that just fills the window.
+    func makeWindowContentView() -> NSView {
+        let container = NSView(frame: .zero)
+        container.wantsLayer = true
+        container.layer?.backgroundColor = .clear
+        frame = container.bounds
+        autoresizingMask = [.width, .height]
+        container.addSubview(self)
+        return container
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("unused")
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
         if let ownsPoint, !ownsPoint(local) { return nil }
