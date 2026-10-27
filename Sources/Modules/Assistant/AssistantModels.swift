@@ -35,7 +35,7 @@ struct AssistantConfig: Codable, Equatable {
     var model: String
 
     static let defaultsKey = "assistant.config.v1"
-    static let keychainService = "com.dk2la.hotzisland.assistant"
+    static let keychainService = "com.dk2la.pocket.assistant"
     static let defaultBaseURL = "https://api.openai.com/v1"
 
     init(provider: AssistantProvider = .api, baseURL: String = defaultBaseURL, model: String = "") {

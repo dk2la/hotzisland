@@ -5,15 +5,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let services = ModuleServices()
     private var statusItem: NSStatusItem?
-    private var notchController: NotchWindowController?
+    private var capsuleController: CapsuleWindowController?
     private var widgetController: WidgetWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         registerHotkeys()
-        notchController = NotchWindowController(settings: settings, services: services)
+        capsuleController = CapsuleWindowController(settings: settings, services: services)
 
-        // Modules live in the edge widget; the notch island shows live
+        // Modules live in the edge widget; the capsule shows live
         // events and, when opened, the settings.
         widgetController = WidgetWindowController(settings: settings, services: services)
         settings.addChangeHandler { [weak self] in
@@ -21,28 +21,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Widget UI (e.g. the "+ new" playbook card) asks for the settings
-        // island through this notification.
+        // capsule through this notification.
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleOpenSettings(_:)),
-            name: .hotzOpenSettings,
+            name: .pocketOpenSettings,
             object: nil
         )
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(openOnboarding),
-            name: .hotzOpenOnboarding,
+            name: .pocketOpenOnboarding,
             object: nil
         )
 
-        // A demo event is asked for from the settings island, which sits
+        // A demo event is asked for from the settings capsule, which sits
         // where the event would show — close it first, then flash the event.
         services.demo.presentEvent = { [weak self] event in
-            guard let notch = self?.notchController else { return }
-            notch.closeSettings()
+            guard let capsule = self?.capsuleController else { return }
+            capsule.closeSettings()
             Task {
                 try? await Task.sleep(for: .milliseconds(700))
-                notch.present(event)
+                capsule.present(event)
             }
         }
 
@@ -51,23 +51,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             services.demo.activate()
         }
 
-        // Developer convenience: `open HotzIsland.app --args --settings`
+        // Developer convenience: `open Pocket.app --args --settings`
         // wins over the tour; `--onboarding` forces the tour even when the
         // user switched it off.
         if CommandLine.arguments.contains("--settings") {
             showSettings(page: nil)
         } else if settings.showOnboardingAtLaunch || CommandLine.arguments.contains("--onboarding") {
-            // A beat after launch, so the island visibly drops open instead
+            // A beat after launch, so the capsule visibly drops open instead
             // of appearing already expanded.
             Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(600))
-                self?.notchController?.openOnboarding()
+                self?.capsuleController?.openOnboarding()
             }
         }
     }
 
     /// Global shortcuts (Carbon — no permissions needed). H and P act on
-    /// the widget; M opens or closes the settings island.
+    /// the widget; M opens or closes the settings capsule.
     private func registerHotkeys() {
         let hotkeys = services.hotkeys
         hotkeys.register(.toggleWidgetHidden) { [weak self] in
@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.settings.closeOnOutsideClick.toggle()
         }
         hotkeys.register(.toggleSettings) { [weak self] in
-            self?.notchController?.toggleSettings()
+            self?.capsuleController?.toggleSettings()
         }
     }
 
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(
             systemSymbolName: "capsule.portrait.fill",
-            accessibilityDescription: "HotzIsland"
+            accessibilityDescription: "Pocket"
         )
 
         let menu = NSMenu()
@@ -108,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(
             NSMenuItem(
-                title: "Quit HotzIsland",
+                title: "Quit Pocket",
                 action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q"
             )
@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openOnboarding() {
-        notchController?.openOnboarding()
+        capsuleController?.openOnboarding()
     }
 
     @objc private func handleOpenSettings(_ notification: Notification) {
@@ -133,6 +133,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showSettings(page: SettingsView.Page?) {
-        notchController?.openSettings(page: page)
+        capsuleController?.openSettings(page: page)
     }
 }

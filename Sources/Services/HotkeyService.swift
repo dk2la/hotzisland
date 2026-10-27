@@ -22,7 +22,7 @@ final class HotkeyService {
         case toggleWidgetHidden = 1
         /// Pin the panel: flips close-on-outside-click.
         case togglePanelPin = 2
-        /// Open/close the settings island.
+        /// Open/close the settings capsule.
         case toggleSettings = 3
 
         var id: UInt32 { rawValue }
@@ -81,7 +81,7 @@ final class HotkeyService {
     @ObservationIgnored private var keyMonitor: Any?
     @ObservationIgnored private var rejectionTask: Task<Void, Never>?
     @ObservationIgnored private let defaults = UserDefaults.standard
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "hotkeys")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "hotkeys")
 
     /// Four-char-code namespace for our hotkey ids ("HTZI").
     private static let signature: OSType = 0x48545A49
@@ -140,7 +140,7 @@ final class HotkeyService {
     }
 
     /// Starts capturing the next key press for `action` — keyDown events
-    /// of our key window (the island's panel) go to the recorder until a
+    /// of our key window (the capsule's panel) go to the recorder until a
     /// combination lands, Esc cancels, or `cancelRecording` is called.
     func startRecording(_ action: Action) {
         cancelRecording()

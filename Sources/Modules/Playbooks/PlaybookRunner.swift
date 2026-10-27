@@ -23,16 +23,16 @@ final class PlaybookRunner {
     private(set) var lastRun: RunRecord?
 
     /// Fired after a run completes — the window controller shows the
-    /// confirmation event on the island.
+    /// confirmation event on the capsule.
     @ObservationIgnored var onFinished: ((Playbook, PlaybookRunResult) -> Void)?
 
     @ObservationIgnored private let timer: TimerService
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "playbooks")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "playbooks")
 
     /// Apps that are never closed, regardless of playbook contents.
     @ObservationIgnored private let neverClose: Set<String> = [
         "com.apple.finder",
-        Bundle.main.bundleIdentifier ?? "com.dk2la.hotzisland",
+        Bundle.main.bundleIdentifier ?? "com.dk2la.pocket",
     ]
 
     init(timer: TimerService) {

@@ -16,7 +16,7 @@ struct AssistantStage: View {
     private var answer: TypedText { TypedText(L10n.t(.obMockAnswer)) }
 
     var body: some View {
-        StagePanel(title: NotchTab.assistant.title) {
+        StagePanel(title: ModuleTab.assistant.title) {
             StageGlyph("waveform", active: speaking)
                 .symbolEffect(.variableColor.iterative, isActive: speaking)
             StageGlyph("trash")

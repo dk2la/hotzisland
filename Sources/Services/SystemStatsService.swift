@@ -32,7 +32,7 @@ final class SystemStatsService {
     @ObservationIgnored private var previousTicks: (busy: UInt64, total: UInt64)?
     @ObservationIgnored private var previousTraffic: (rx: UInt64, tx: UInt64, at: Date)?
     @ObservationIgnored private var didLogFirstSample = false
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "stats")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "stats")
 
     /// `mach_host_self()` hands out a fresh send right on every call and
     /// they are never returned, so the port is fetched once and kept.

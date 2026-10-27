@@ -72,7 +72,7 @@ extension NSWorkspace {
 /// spares us from pretending AXUIElement is Sendable.
 @MainActor
 final class WindowLayoutService {
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "playbooks")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "playbooks")
 
     /// How long to wait for a freshly launched app to show a window.
     private static let windowWaitAttempts = 12

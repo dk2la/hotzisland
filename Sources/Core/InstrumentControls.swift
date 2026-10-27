@@ -142,24 +142,24 @@ struct EmptyStateZone: View {
     }
 }
 
-/// Themed shell for any island surface — the three treatments of the notch.
+/// Themed shell for any capsule surface — the three treatments of the capsule.
 /// Glass is the V3 dark-glass recipe (system blur + black tint); Glow tints
 /// its ring with the artwork's average color.
 struct InstrumentShell<S: Shape>: View {
     let shape: S
-    let theme: IslandTheme
+    let theme: CapsuleTheme
     var accent: Color?
 
     var body: some View {
         switch theme {
         case .stealth:
-            shape.fill(Theme.islandFill)
+            shape.fill(Theme.capsuleFill)
         case .glass:
             shape.fill(.ultraThinMaterial)
                 .overlay(shape.fill(Theme.glassTintDark))
         case .glow:
             let ring = accent ?? Theme.textQuaternary
-            shape.fill(Theme.islandFill)
+            shape.fill(Theme.capsuleFill)
                 .overlay(shape.stroke(ring.opacity(0.9), lineWidth: 1).blur(radius: 2.5))
                 .overlay(shape.stroke(ring.opacity(0.7), lineWidth: 1))
         }

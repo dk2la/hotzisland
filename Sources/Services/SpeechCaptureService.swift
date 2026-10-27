@@ -34,7 +34,7 @@ final class SpeechCaptureService {
     private(set) var transcript: String = ""
     private(set) var startedAt: Date?
 
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "speech")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "speech")
     /// Created per dictation and dropped on stop. A stopped AVAudioEngine
     /// keeps its input unit — and therefore the microphone — open; on
     /// Bluetooth headsets that pins the low-quality hands-free profile and

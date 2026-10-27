@@ -12,7 +12,7 @@ enum PlaybookStep: Codable, Equatable, Sendable, Identifiable {
     case runShortcut(id: UUID, name: String)
     /// Switch Focus through a shortcut that sets it — macOS has no API.
     case setFocus(id: UUID, shortcutName: String)
-    /// Start the island's timer for this many minutes.
+    /// Start the capsule's timer for this many minutes.
     case startTimer(id: UUID, minutes: Int)
     /// Open links in their default handlers.
     case openURLs(id: UUID, urls: [String])

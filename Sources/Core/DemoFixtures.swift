@@ -427,7 +427,7 @@ enum DemoFixtures {
     /// Root of everything demo mode writes; removed when the mode ends.
     static func makeScratchFolder() -> URL {
         let base = FileManager.default.temporaryDirectory
-            .appendingPathComponent("HotzIsland Demo", isDirectory: true)
+            .appendingPathComponent("Pocket Demo", isDirectory: true)
         try? FileManager.default.removeItem(at: base)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base

@@ -15,7 +15,7 @@ enum KeyPreset {
         }
     }
 
-    /// The app's default set, bundled with HotzIsland.
+    /// The app's default set, bundled with Pocket.
     var builtIn: [AppShortcut] {
         guard let url = Bundle.main.url(forResource: resourceName, withExtension: "txt"),
               let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }

@@ -9,12 +9,12 @@ import OSLog
 final class PlaybookStore {
     private(set) var playbooks: [Playbook] = []
 
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "playbooks")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "playbooks")
 
     @ObservationIgnored private static let fileURL: URL = {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return support
-            .appendingPathComponent("HotzIsland", isDirectory: true)
+            .appendingPathComponent("Pocket", isDirectory: true)
             .appendingPathComponent("playbooks.json")
     }()
 

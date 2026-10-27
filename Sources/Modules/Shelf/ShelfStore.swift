@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-/// Temporary parking spot for files dragged onto the notch. Stores
+/// Temporary parking spot for files dragged onto the capsule. Stores
 /// references (paths), not copies; entries whose files disappear are
 /// dropped on next launch.
 @MainActor

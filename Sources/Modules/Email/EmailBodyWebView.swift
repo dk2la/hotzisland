@@ -63,7 +63,7 @@ struct EmailBodyWebView: NSViewRepresentable {
             [{"trigger": {"url-filter": ".*"}, "action": {"type": "block"}}]
             """
             let compiled = try? await WKContentRuleListStore.default()?
-                .compileContentRuleList(forIdentifier: "hotz-mail-offline", encodedContentRuleList: rules)
+                .compileContentRuleList(forIdentifier: "pocket-mail-offline", encodedContentRuleList: rules)
             blocker = compiled
             return compiled
         }

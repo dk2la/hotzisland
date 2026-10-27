@@ -40,12 +40,12 @@ final class AppShortcutsService {
     @ObservationIgnored private var onRecorded: ((KeyStroke) -> Void)?
     /// Parsed once per app — the bundled files never change at run time.
     @ObservationIgnored private var builtInPresets: [String: [AppShortcut]] = [:]
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "hotkeys")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "hotkeys")
 
     @ObservationIgnored private static let heldAppKey = "hotkeys.heldApp"
     @ObservationIgnored private static let folder: URL = {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return support.appendingPathComponent("HotzIsland", isDirectory: true)
+        return support.appendingPathComponent("Pocket", isDirectory: true)
     }()
     /// The user's data — pins, tags, own shortcuts.
     @ObservationIgnored private static let prefsURL = folder.appendingPathComponent("hotkeys.json")
@@ -374,7 +374,7 @@ final class AppShortcutsService {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try JSONEncoder().encode(value).write(to: url, options: .atomic)
         } catch {
-            Logger(subsystem: "com.dk2la.hotzisland", category: "hotkeys")
+            Logger(subsystem: "com.dk2la.pocket", category: "hotkeys")
                 .error("failed to save \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
         }
     }

@@ -1,7 +1,7 @@
 /// Modules of the panel — V3 set. Every module except the coming-soon ones
 /// ships enabled (see AppSettings); all are toggleable and reorderable in
 /// settings. Only Chats is still a placeholder without a backing service.
-enum NotchTab: String, CaseIterable, Identifiable {
+enum ModuleTab: String, CaseIterable, Identifiable {
     case playbooks
     case calendar
     case email
@@ -20,9 +20,9 @@ enum NotchTab: String, CaseIterable, Identifiable {
     /// Core module set — tagged "default" in the settings module list. Not
     /// the enabled-by-default set (AppSettings enables everything that is
     /// not coming soon); it only drives the badge.
-    static let defaultTabs: [NotchTab] = [.playbooks, .calendar, .email, .clipboard, .notes, .assistant, .chats]
+    static let defaultTabs: [ModuleTab] = [.playbooks, .calendar, .email, .clipboard, .notes, .assistant, .chats]
     /// No backing service yet — shown as "soon", excluded from defaults.
-    static let comingSoon: Set<NotchTab> = [.chats]
+    static let comingSoon: Set<ModuleTab> = [.chats]
 
     var isComingSoon: Bool { Self.comingSoon.contains(self) }
 

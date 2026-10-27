@@ -12,7 +12,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
     var id: Int { rawValue }
 
     /// The module the page presents, if any.
-    var tab: NotchTab? {
+    var tab: ModuleTab? {
         switch self {
         case .calendar: .calendar
         case .mail: .email
@@ -34,7 +34,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 
     @MainActor var title: String {
         switch self {
-        case .welcome: "HotzIsland"
+        case .welcome: "Pocket"
         case .calendar: L10n.t(.obCalendarTitle)
         case .mail: L10n.t(.obMailTitle)
         case .playbooks: L10n.t(.obPlaybooksTitle)

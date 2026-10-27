@@ -1,8 +1,8 @@
 import AppKit
 
-/// Borderless non-activating panel over the notch: above the menu bar,
+/// Borderless non-activating panel over the camera housing: above the menu bar,
 /// on all Spaces, visible over fullscreen apps.
-final class NotchPanel: NSPanel {
+final class CapsulePanel: NSPanel {
     init() {
         super.init(
             contentRect: .zero,
@@ -20,7 +20,7 @@ final class NotchPanel: NSPanel {
         isReleasedWhenClosed = false
         animationBehavior = .none
         // Must come after `isFloatingPanel`, which silently resets the level
-        // to `.floating` — otherwise the island ends up below menu bar icons.
+        // to `.floating` — otherwise the capsule ends up below menu bar icons.
         level = .screenSaver
     }
 
@@ -54,7 +54,7 @@ final class NotchPanel: NSPanel {
     }
 
     /// By default macOS keeps windows out of the menu bar territory —
-    /// a window living in the notch must opt out of that constraint.
+    /// a window living under the camera housing must opt out of that constraint.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
     }

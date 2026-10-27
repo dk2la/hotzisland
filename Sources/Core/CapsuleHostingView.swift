@@ -1,25 +1,25 @@
 import SwiftUI
 
-/// Hosting view for the island panel.
+/// Hosting view for the capsule panel.
 ///
 /// The panel is key only while the settings are open (see
-/// NotchPanel.allowsKeyFocus) — the rest of the time it stays non-key so it
+/// CapsulePanel.allowsKeyFocus) — the rest of the time it stays non-key so it
 /// does not steal focus from the app the user is working in. AppKit
 /// swallows the first click into a non-key window by default, which would
-/// make every button in the island require two clicks. Accepting the first
+/// make every button in the capsule require two clicks. Accepting the first
 /// mouse restores single-click behaviour.
 ///
 /// Hover comes from a tracking area on this view rather than a global
-/// mouse-moved monitor: the window is exactly the island, so enter/exit
-/// on the view is enter/exit on the island, and nothing runs while the
+/// mouse-moved monitor: the window is exactly the capsule, so enter/exit
+/// on the view is enter/exit on the capsule, and nothing runs while the
 /// cursor is elsewhere on the screen.
-final class NotchHostingView<Content: View>: NSHostingView<Content> {
+final class CapsuleHostingView<Content: View>: NSHostingView<Content> {
     var onMouseEntered: (() -> Void)?
     var onMouseExited: (() -> Void)?
     /// Every move inside the window, in view coordinates (y up), with the
     /// view's bounds.
     var onMouseMoved: ((NSPoint, NSRect) -> Void)?
-    /// Points the island does not own (the menu bar beside the neck while
+    /// Points the capsule does not own (the menu bar beside the neck while
     /// expanded) fall through to whatever is underneath. View coordinates,
     /// y up.
     var ownsPoint: ((NSPoint) -> Bool)?

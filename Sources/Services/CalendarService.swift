@@ -59,7 +59,7 @@ final class CalendarService {
     @ObservationIgnored private var parkedEnabledIDs: Set<String> = []
 
     @ObservationIgnored private let store = EKEventStore()
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "calendar")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "calendar")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private static let enabledKey = "calendar.enabledIDs"
     @ObservationIgnored private static let modeKey = "calendar.displayMode"

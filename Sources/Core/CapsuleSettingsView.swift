@@ -1,20 +1,20 @@
 import SwiftUI
 
-/// Content of the expanded island: the app's settings, under the camera
-/// housing, with a close button and a corner resize grip. The island is
+/// Content of the expanded capsule: the app's settings, under the camera
+/// housing, with a close button and a corner resize grip. The capsule is
 /// the settings surface — modules live in the edge widget.
-struct IslandSettingsView: View {
-    var viewModel: NotchViewModel
+struct CapsuleSettingsView: View {
+    var viewModel: CapsuleViewModel
     var services: ModuleServices
     var settings: AppSettings
-    let notchHeight: CGFloat
+    let housingHeight: CGFloat
 
     @State private var resizeStartSize: CGSize?
     @State private var resizeStartGlobal: CGPoint?
 
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: notchHeight)
+            Color.clear.frame(height: housingHeight)
             SettingsView(
                 settings: settings,
                 services: services,
@@ -30,7 +30,7 @@ struct IslandSettingsView: View {
                 viewModel.onClose?()
             }
             .keyboardShortcut(.cancelAction)
-            .padding(.top, notchHeight + 18)
+            .padding(.top, housingHeight + 18)
             .padding(.trailing, 18)
         }
         .overlay(alignment: .bottomTrailing) {

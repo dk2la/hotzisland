@@ -1,30 +1,30 @@
 import AppKit
 
 @MainActor
-enum NotchGeometry {
-    /// The screen with a physical notch, falling back to the main screen.
+enum CapsuleGeometry {
+    /// The screen with a camera housing, falling back to the main screen.
     static var targetScreen: NSScreen? {
         NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
     }
 
-    /// Closed capsule size: exactly the physical notch plus margins for the
-    /// top arcs, so the capsule body lines up with the notch seamlessly.
+    /// Closed capsule size: exactly the camera housing plus margins for the
+    /// top arcs, so the capsule body lines up with the camera housing seamlessly.
     static func closedSize(on screen: NSScreen) -> CGSize {
         guard screen.safeAreaInsets.top > 0,
               let left = screen.auxiliaryTopLeftArea,
               let right = screen.auxiliaryTopRightArea
         else {
-            return NotchMetrics.fallbackClosedSize
+            return CapsuleMetrics.fallbackClosedSize
         }
 
-        let notchWidth = screen.frame.width - left.width - right.width
+        let housingWidth = screen.frame.width - left.width - right.width
         return CGSize(
-            width: notchWidth + NotchMetrics.closedTopRadius * 2,
+            width: housingWidth + CapsuleMetrics.closedTopRadius * 2,
             height: screen.safeAreaInsets.top
         )
     }
 
-    /// The closed capsule widened by a content area on each side of the notch.
+    /// The closed capsule widened by a content area on each side of the camera housing.
     static func capsule(_ closed: CGSize, side: CGFloat) -> CGSize {
         CGSize(width: closed.width + side * 2, height: closed.height)
     }

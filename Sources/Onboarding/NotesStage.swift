@@ -19,7 +19,7 @@ struct NotesStage: View {
     }
 
     var body: some View {
-        StagePanel(title: NotchTab.notes.title, showsBack: true) {
+        StagePanel(title: ModuleTab.notes.title, showsBack: true) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(L10n.t(.obMockNoteTitle))
                     .font(Theme.titleFont)

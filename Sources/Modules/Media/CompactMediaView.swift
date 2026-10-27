@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Closed-island playback indicator: amber dot while playing (dim when
+/// Closed-capsule playback indicator: amber dot while playing (dim when
 /// paused), mono remaining time on the right.
 ///
 /// The remaining time is derived from the track's timing sample on a

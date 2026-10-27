@@ -120,7 +120,7 @@ struct TimerModuleView: View {
     }
 }
 
-/// Closed-island indicator while the timer runs: blinking dot, countdown.
+/// Closed-capsule indicator while the timer runs: blinking dot, countdown.
 struct CompactTimerView: View {
     var timer: TimerService
 

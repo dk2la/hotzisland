@@ -4,10 +4,10 @@ import SwiftUI
 /// Modules draw no chrome of their own — their navigation state lives in the
 /// services and this view reads it, so every tab speaks the same grammar:
 /// chevron to go up, module title, the module's few actions on the right.
-/// The island's expanded panel embeds the same back/actions pieces next to
+/// The capsule's expanded panel embeds the same back/actions pieces next to
 /// its tab row.
 struct PanelHeaderView: View {
-    let tab: NotchTab
+    let tab: ModuleTab
     var services: ModuleServices
     let onClose: () -> Void
 
@@ -68,7 +68,7 @@ struct UnreadBadge: View {
 /// Chevron shown whenever the module is one level deep; always returns to
 /// the module's root.
 struct ModuleBackButton: View {
-    let tab: NotchTab
+    let tab: ModuleTab
     var services: ModuleServices
 
     var body: some View {
@@ -118,9 +118,9 @@ struct ModuleBackButton: View {
 }
 
 /// The module's few header actions — the same set on the widget panel and
-/// the island.
+/// the capsule.
 struct ModuleAccessoriesView: View {
-    let tab: NotchTab
+    let tab: ModuleTab
     var services: ModuleServices
 
     var body: some View {

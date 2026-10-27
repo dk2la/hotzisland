@@ -16,10 +16,10 @@ final class SenderAvatarStore {
     private(set) var images: [String: NSImage?] = [:]
 
     @ObservationIgnored private var inFlight: Set<String> = []
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "avatars")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "avatars")
     @ObservationIgnored private let cacheDirectory: URL = {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("com.dk2la.hotzisland/avatars", isDirectory: true)
+        let dir = base.appendingPathComponent("com.dk2la.pocket/avatars", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()

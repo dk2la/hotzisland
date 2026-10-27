@@ -29,7 +29,7 @@ struct MailStage: View {
     private var unread: Int { 1 + (arrived && !opened ? 1 : 0) }
 
     var body: some View {
-        StagePanel(title: NotchTab.email.title, badge: "\(unread)") {
+        StagePanel(title: ModuleTab.email.title, badge: "\(unread)") {
             StageGlyph("square.and.pencil")
             StageGlyph("magnifyingglass")
             StageGlyph("arrow.clockwise")

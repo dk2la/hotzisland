@@ -18,7 +18,7 @@ final class AudioSystemMonitor {
     @ObservationIgnored private var deviceID = AudioObjectID(kAudioObjectUnknown)
     /// Default level (persisted by the unified log) on purpose: audio
     /// glitches are diagnosed after the fact from `log show`.
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "audio")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "audio")
     /// The first device-change callback fires for the device present at
     /// launch — that one should not produce a visible event.
     @ObservationIgnored private var suppressInitialDeviceEvent = true

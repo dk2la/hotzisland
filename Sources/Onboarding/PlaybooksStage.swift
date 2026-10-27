@@ -18,7 +18,7 @@ struct PlaybooksStage: View {
     private static let windowColors = [StagePalette.blue, StagePalette.orange, StagePalette.teal]
 
     var body: some View {
-        StagePanel(title: NotchTab.playbooks.title) {
+        StagePanel(title: ModuleTab.playbooks.title) {
             StageGlyph("plus")
         } content: {
             VStack(spacing: 6) {

@@ -49,10 +49,10 @@ final class CLIAssistantTests: XCTestCase {
         // A private PATH with a binary only the test knows about — the
         // runner's own PATH must not decide the outcome.
         let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("hotzisland-path-\(UUID().uuidString)")
+            .appendingPathComponent("pocket-path-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let name = "hotzisland-fake-cli"
+        let name = "pocket-fake-cli"
         let binary = directory.appendingPathComponent(name)
         try Data("#!/bin/sh\nexit 0\n".utf8).write(to: binary)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
@@ -60,7 +60,7 @@ final class CLIAssistantTests: XCTestCase {
 
         XCTAssertEqual(CLIAssistantClient.locateExecutable(name, searchPath: searchPath)?.path, binary.path)
         XCTAssertNil(CLIAssistantClient.locateExecutable(name, searchPath: "/nonexistent-dir"))
-        XCTAssertNil(CLIAssistantClient.locateExecutable("hotzisland-definitely-not-a-binary", searchPath: searchPath))
+        XCTAssertNil(CLIAssistantClient.locateExecutable("pocket-definitely-not-a-binary", searchPath: searchPath))
     }
 
     func testProviderShape() {

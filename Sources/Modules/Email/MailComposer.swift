@@ -4,7 +4,7 @@ import Foundation
 /// message id and date are injected so the output is testable.
 enum MailComposer {
     private static func messageID() -> String {
-        "<\(UUID().uuidString.lowercased())@hotzisland>"
+        "<\(UUID().uuidString.lowercased())@pocket>"
     }
 
     /// The body goes out base64: it keeps UTF-8 intact and no encoded line

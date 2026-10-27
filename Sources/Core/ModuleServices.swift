@@ -1,4 +1,4 @@
-/// Single shared instances of every module service. Both the notch island
+/// Single shared instances of every module service. Both the capsule
 /// and the edge widget render from these — separate copies would diverge
 /// (two clipboard histories) or double the work (two media pollers).
 @MainActor

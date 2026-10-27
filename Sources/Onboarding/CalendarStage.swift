@@ -25,7 +25,7 @@ struct CalendarStage: View {
     private static let newEvent = MockEvent(title: .obMockEvent4, start: "19:00", end: "20:00", color: StagePalette.teal)
 
     var body: some View {
-        StagePanel(title: NotchTab.calendar.title) {
+        StagePanel(title: ModuleTab.calendar.title) {
             StageGlyph("plus", active: adding)
             StageGlyph(CalendarDisplayMode.week.icon)
             StageGlyph(CalendarDisplayMode.listOnly.icon, active: true)
@@ -156,7 +156,7 @@ private struct WeekStrip: View {
                         }
                         Text("\(calendar.component(.day, from: day))")
                             .font(Theme.dayFont)
-                            .foregroundStyle(isToday ? Theme.islandFill : Theme.textSecondary)
+                            .foregroundStyle(isToday ? Theme.capsuleFill : Theme.textSecondary)
                     }
                     .frame(width: 22, height: 22)
                 }

@@ -12,7 +12,7 @@ struct EmailAccountConfig: Codable, Equatable {
     var presetID: String
 
     static let defaultsKey = "email.account.v1"
-    static let keychainService = "com.dk2la.hotzisland.email"
+    static let keychainService = "com.dk2la.pocket.email"
 }
 
 /// Provider presets — prefill hosts/ports and carry the auth hint.

@@ -9,7 +9,7 @@ struct WelcomeStage: View {
     @State private var flash: Int?
 
     /// The tour's modules, then "+N" for the rest of the strip.
-    private static let cells: [NotchTab?] = [.calendar, .email, .playbooks, .notes, .assistant, nil]
+    private static let cells: [ModuleTab?] = [.calendar, .email, .playbooks, .notes, .assistant, nil]
 
     private var count: Int { Self.cells.count }
 
@@ -77,9 +77,9 @@ struct WelcomeStage: View {
         .animation(.easeOut(duration: 0.25), value: isOn)
     }
 
-    private func label(for tab: NotchTab?) -> String {
+    private func label(for tab: ModuleTab?) -> String {
         if let tab { return tab.title }
-        let shipping = NotchTab.allCases.count - NotchTab.comingSoon.count
+        let shipping = ModuleTab.allCases.count - ModuleTab.comingSoon.count
         return "+\(shipping - Self.cells.count + 1)"
     }
 

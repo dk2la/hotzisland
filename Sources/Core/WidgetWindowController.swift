@@ -3,11 +3,11 @@ import OSLog
 import SwiftUI
 
 /// Owns the edge-docked widget window (widget display mode). Click-driven:
-/// unlike the notch it tracks no hover — its only mouse monitors are the
+/// unlike the capsule it tracks no hover — its only mouse monitors are the
 /// optional close-on-outside-click ones, installed while a panel is open.
 @MainActor
 final class WidgetWindowController: NSObject {
-    private let panel = NotchPanel()
+    private let panel = CapsulePanel()
     private let viewModel = WidgetViewModel()
     private let settings: AppSettings
     private let services: ModuleServices
@@ -27,10 +27,10 @@ final class WidgetWindowController: NSObject {
     /// makes would otherwise bounce back through settingsDidChange and
     /// stomp the running animation.
     private var isTogglingMinimize = false
-    /// Screen the widget currently lives on. Reset to the island's target
+    /// Screen the widget currently lives on. Reset to the capsule's target
     /// screen on display changes; updated when a drag ends elsewhere.
     private var screen: NSScreen?
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "widget")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "widget")
 
     init(settings: AppSettings, services: ModuleServices) {
         self.settings = settings
@@ -57,7 +57,7 @@ final class WidgetWindowController: NSObject {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(showModuleRequested(_:)),
-            name: .hotzShowModule,
+            name: .pocketShowModule,
             object: nil
         )
 
@@ -68,7 +68,7 @@ final class WidgetWindowController: NSObject {
     /// handing a prefilled form to the calendar).
     @objc private func showModuleRequested(_ notification: Notification) {
         guard let raw = notification.userInfo?["tab"] as? String,
-              let tab = NotchTab(rawValue: raw), settings.isEnabled(tab) else { return }
+              let tab = ModuleTab(rawValue: raw), settings.isEnabled(tab) else { return }
         if viewModel.isMinimized {
             setMinimized(false)
         }
@@ -111,7 +111,7 @@ final class WidgetWindowController: NSObject {
         }
         if minimized {
             collapseTask = Task { [weak self] in
-                try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+                try? await Task.sleep(for: .milliseconds(CapsuleMetrics.windowCollapseDelayMilliseconds))
                 guard !Task.isCancelled, let self else { return }
                 self.collapseTask = nil
                 self.panel.setFrame(target, display: true)
@@ -173,7 +173,7 @@ final class WidgetWindowController: NSObject {
     // MARK: - Window lifecycle
 
     private func attach() {
-        screen = NotchGeometry.targetScreen
+        screen = CapsuleGeometry.targetScreen
         viewModel.edge = settings.widgetEdge
 
         let rootView = WidgetRootView(
@@ -181,7 +181,7 @@ final class WidgetWindowController: NSObject {
             services: services,
             settings: settings
         )
-        let hostingView = NotchHostingView(rootView: rootView)
+        let hostingView = CapsuleHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
         panel.contentView = hostingView.makeWindowContentView()
@@ -192,7 +192,7 @@ final class WidgetWindowController: NSObject {
     }
 
     @objc private func screenParametersDidChange() {
-        screen = NotchGeometry.targetScreen
+        screen = CapsuleGeometry.targetScreen
         openTask?.cancel()
         collapseTask?.cancel()
         collapseTask = nil
@@ -204,7 +204,7 @@ final class WidgetWindowController: NSObject {
 
     // MARK: - Panel open/close
 
-    private func toggleTab(_ tab: NotchTab) {
+    private func toggleTab(_ tab: ModuleTab) {
         log.info("tab -> \(tab.rawValue, privacy: .public)")
         if viewModel.isMinimized {
             // The lone visible button unfolds the widget and opens itself.
@@ -222,14 +222,14 @@ final class WidgetWindowController: NSObject {
         }
     }
 
-    private func openPanel(_ tab: NotchTab) {
+    private func openPanel(_ tab: ModuleTab) {
         guard currentScreen != nil, !viewModel.isMinimized else { return }
         collapseTask?.cancel()
         collapseTask = nil
         // Module panels host text input — let the panel take key status
         // without activating the app.
         panel.allowsKeyFocus = true
-        // Two-phase, same as the notch: grow the window silently first (the
+        // Two-phase, same as the capsule: grow the window silently first (the
         // strip's local frame shifts in the same tick, so it does not move
         // on screen), animate the panel in on the next tick once the
         // window's coordinate space is stable.
@@ -253,7 +253,7 @@ final class WidgetWindowController: NSObject {
         // Shrink the window only after the close animation has finished,
         // otherwise it would clip the panel mid-flight.
         collapseTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+            try? await Task.sleep(for: .milliseconds(CapsuleMetrics.windowCollapseDelayMilliseconds))
             guard !Task.isCancelled, let self else { return }
             self.collapseTask = nil
             self.applyDockedFrame()
@@ -312,7 +312,7 @@ final class WidgetWindowController: NSObject {
     }
 
     private var currentScreen: NSScreen? {
-        screen ?? NotchGeometry.targetScreen
+        screen ?? CapsuleGeometry.targetScreen
     }
 
     /// The window's resting frame — the strip alone, sized for the current

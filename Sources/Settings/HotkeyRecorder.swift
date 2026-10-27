@@ -43,7 +43,7 @@ struct HotkeyRecorder: View {
         .animation(.easeOut(duration: 0.15), value: isRecording)
         .animation(.easeOut(duration: 0.15), value: hotkeys.isCustomized(action))
         .animation(.easeOut(duration: 0.2), value: rejection)
-        // Leaving the page (or the island closing) must hand the shortcuts
+        // Leaving the page (or the capsule closing) must hand the shortcuts
         // back — they are switched off while recording.
         .onDisappear {
             if isRecording { hotkeys.cancelRecording() }

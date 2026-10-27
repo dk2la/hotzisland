@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// One module's content, shared by the expanded island panel and the edge
+/// One module's content, shared by the expanded capsule panel and the edge
 /// widget — the single place a tab maps to its view.
 struct ModuleContentView: View {
-    let tab: NotchTab
+    let tab: ModuleTab
     var services: ModuleServices
 
     var body: some View {

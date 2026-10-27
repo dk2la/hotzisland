@@ -34,7 +34,7 @@ final class MediaCenter {
     @ObservationIgnored private var demoSource: DemoMediaSource?
 
     /// Fired when playback starts/stops — the window controller uses it to
-    /// flip the island between closed and compact.
+    /// flip the capsule between closed and compact.
     @ObservationIgnored var onPlaybackChanged: (() -> Void)?
 
     @ObservationIgnored private let spotify = SpotifySource()
@@ -59,7 +59,7 @@ final class MediaCenter {
     /// Dedicated players currently running, kept current by NSWorkspace
     /// launch/quit notifications instead of a scan per refresh.
     @ObservationIgnored private var runningPlayers: Set<String> = []
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "media")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "media")
     @ObservationIgnored private var lastLoggedSources: [String] = []
     /// Last known automation-permission statuses, refreshed off-thread.
     @ObservationIgnored private var permissionCache: [String: AutomationPermission.Status] = [:]

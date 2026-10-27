@@ -134,7 +134,7 @@ struct StageCaret: View {
 // MARK: - Storyboard timing
 
 /// One beat of a stage storyboard. False once the stage has gone away
-/// (page turned, island closed) — the script stops right there.
+/// (page turned, capsule closed) — the script stops right there.
 @MainActor
 func beat(_ seconds: Double) async -> Bool {
     try? await Task.sleep(for: .seconds(seconds))

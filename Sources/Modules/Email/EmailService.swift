@@ -115,7 +115,7 @@ final class EmailService {
     }
     @ObservationIgnored private var parked: ParkedState?
 
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "email")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private let vault = SecretVault(service: EmailAccountConfig.keychainService)
     @ObservationIgnored private var pollTask: Task<Void, Never>?
@@ -534,7 +534,7 @@ final class EmailService {
     /// a few tens of kilobytes; one read at launch, one write per refresh.
     private static let cacheURL: URL = {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        let dir = base.appendingPathComponent("com.dk2la.hotzisland", isDirectory: true)
+        let dir = base.appendingPathComponent("com.dk2la.pocket", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("mail-headers.json")
     }()
@@ -1131,7 +1131,7 @@ final class EmailService {
                 cc: mail.cc,
                 date: Date(),
                 isUnread: false,
-                messageID: "<demo-sent-\(nextUID)@hotzisland.app>",
+                messageID: "<demo-sent-\(nextUID)@pocket.app>",
                 references: mail.inReplyTo.map { [$0] } ?? [],
                 bodyPlain: mail.body
             )

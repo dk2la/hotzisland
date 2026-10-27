@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Design tokens — "HotzIsland V3" design system, visionOS material language.
+/// Design tokens — "Pocket V3" design system, visionOS material language.
 /// Glass surfaces over the desktop, a white vibrancy ramp for text, rounded
 /// rectangles (never full capsules), SF Pro with monospace readouts. The one
 /// chromatic accent is acid green (`accent`, with `inkOnAccent` glyphs on
@@ -11,8 +11,8 @@ import SwiftUI
 enum Theme {
     // MARK: - Colors
 
-    /// shell/void — the notch housing itself stays hardware black.
-    static let islandFill = Color.black
+    /// shell/void — the camera housing itself stays hardware black.
+    static let capsuleFill = Color.black
     /// Inner cells and cards: raised glass on top of the window material.
     static let cardFill = Color.white.opacity(0.06)
     /// Opaque surface for forms that sit over content (the reply sheet):
@@ -60,9 +60,9 @@ enum Theme {
     static let glassTintDark = Color.black.opacity(0.52)
     static let glassStrokeLight = Color.white.opacity(0.20)
     static let glassStrokeDark = Color.white.opacity(0.14)
-    /// The expanded island is the widget's dark glass, a touch denser:
+    /// The expanded capsule is the widget's dark glass, a touch denser:
     /// it carries whole pages of text.
-    static let islandGlassTint = Color.black.opacity(0.6)
+    static let capsuleGlassTint = Color.black.opacity(0.6)
 
     // MARK: - Severity
 
@@ -143,7 +143,7 @@ enum Theme {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
-    /// Island open/close, panel open/close.
+    /// Capsule open/close, panel open/close.
     static var stateSpring: Animation {
         reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.30, dampingFraction: 0.82)
     }

@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Settings UI, hosted inside the expanded island (see IslandSettingsView).
-/// Drawn on the island's glass — the widget's material — with nothing
+/// Settings UI, hosted inside the expanded capsule (see CapsuleSettingsView).
+/// Drawn on the capsule's glass — the widget's material — with nothing
 /// opaque in between: a lighter sidebar of pages on the left, the page on
 /// the right as a titled stack of grouped cards. Fully localized; sized by
 /// its host, not itself.
@@ -77,7 +77,7 @@ struct SettingsView: View {
                 }
             }
             Spacer(minLength: 0)
-            Text("HotzIsland \(Self.version)")
+            Text("Pocket \(Self.version)")
                 .font(Theme.captionFont)
                 .foregroundStyle(Palette.ink40)
                 .padding(.horizontal, 10)
@@ -204,7 +204,7 @@ struct SettingsView: View {
         }
     }
 
-    /// Demo mode toggle and, while it is on, one button per sample island
+    /// Demo mode toggle and, while it is on, one button per sample capsule
     /// event — everything a promo recording needs from one page.
     private var demoSection: some View {
         let demo = services.demo
@@ -273,9 +273,9 @@ struct SettingsView: View {
                 SettingRow(title: L10n.t(.setCapsule), subtitle: L10n.t(.setCapsuleSub)) {
                     WindowSegmented(
                         options: [
-                            (IslandTheme.stealth, "Stealth"),
-                            (IslandTheme.glass, "Glass"),
-                            (IslandTheme.glow, "Glow"),
+                            (CapsuleTheme.stealth, "Stealth"),
+                            (CapsuleTheme.glass, "Glass"),
+                            (CapsuleTheme.glow, "Glow"),
                         ],
                         selection: $settings.theme
                     )
@@ -341,7 +341,7 @@ struct SettingsView: View {
     // MARK: Playbooks
 
     /// The editor replaces the page in place: a sheet would hang out of the
-    /// island and fight its hover tracking.
+    /// capsule and fight its hover tracking.
     @ViewBuilder
     private var playbooksPage: some View {
         if creatingPlaybook {
@@ -406,7 +406,7 @@ struct SettingsView: View {
                     keyCaps(["⌘", ","])
                 }
                 Hairline(color: Palette.hairline)
-                SettingRow(title: L10n.t(.setExpandIsland), subtitle: L10n.t(.setExpandIslandSub)) {
+                SettingRow(title: L10n.t(.setExpandCapsule), subtitle: L10n.t(.setExpandCapsuleSub)) {
                     KeyCap(symbol: "click")
                 }
             }
@@ -508,7 +508,7 @@ struct ModulesOrderList: View {
                         Text(L10n.t(.setSoonTag))
                             .font(Theme.subFont)
                             .foregroundStyle(Palette.ink40)
-                    } else if NotchTab.defaultTabs.contains(tab) {
+                    } else if ModuleTab.defaultTabs.contains(tab) {
                         Text(L10n.t(.setDefaultTag))
                             .font(Theme.subFont)
                             .foregroundStyle(Palette.ink40)

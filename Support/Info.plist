@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>HotzIsland</string>
+	<string>Pocket</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,16 +23,16 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>HotzIsland controls your music players (Spotify, Apple Music) to show and manage playback from the island.</string>
+	<string>Pocket controls your music players (Spotify, Apple Music) to show and manage playback from the widget.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>HotzIsland shows your upcoming events in the island.</string>
+	<string>Pocket shows your upcoming events in the widget.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>HotzIsland shows your upcoming events in the island.</string>
+	<string>Pocket shows your upcoming events in the widget.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Danila Kozlov</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>HotzIsland records audio only while you dictate a note.</string>
+	<string>Pocket records audio only while you dictate a note.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>HotzIsland transcribes your dictation into note text.</string>
+	<string>Pocket transcribes your dictation into note text.</string>
 </dict>
 </plist>

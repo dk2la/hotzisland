@@ -19,7 +19,7 @@ final class NotesStore {
     private(set) var isDirty = false
     private(set) var lastError: String?
 
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "notes")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "notes")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var watcher: NotesFolderWatcher?
@@ -40,7 +40,7 @@ final class NotesStore {
         } else {
             folderURL = FileManager.default
                 .urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("HotzIsland Notes", isDirectory: true)
+                .appendingPathComponent("Pocket Notes", isDirectory: true)
         }
         rescan()
         startWatcher()
@@ -62,7 +62,7 @@ final class NotesStore {
     }
 
     /// Folder chooser. The widget is a non-activating panel, so it brings
-    /// the app forward first; the settings island does not need to.
+    /// the app forward first; the settings capsule does not need to.
     func pickFolder(activating: Bool) {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -415,7 +415,7 @@ private final class NotesFolderWatcher {
     /// retains it via the context callbacks, so it outlives any in-flight
     /// callback even after the watcher itself is gone.
     private final class Relay: @unchecked Sendable {
-        let queue = DispatchQueue(label: "com.dk2la.hotzisland.notes.fsevents", qos: .utility)
+        let queue = DispatchQueue(label: "com.dk2la.pocket.notes.fsevents", qos: .utility)
         let onChange: @MainActor @Sendable () -> Void
         /// Only touched on `queue` (the stream's dispatch queue).
         var pending: DispatchWorkItem?

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Compact event presentation: instrument caption on the left of the notch,
+/// Compact event presentation: instrument caption on the left of the camera housing,
 /// mono readout on the right (the middle is the camera housing).
 struct LiveEventView: View {
     let event: LiveEvent
@@ -8,10 +8,10 @@ struct LiveEventView: View {
     var body: some View {
         HStack(spacing: 0) {
             leading
-                .frame(width: NotchMetrics.eventSideWidth - 24, alignment: .leading)
+                .frame(width: CapsuleMetrics.eventSideWidth - 24, alignment: .leading)
             Spacer(minLength: 0)
             trailing
-                .frame(width: NotchMetrics.eventSideWidth - 24, alignment: .trailing)
+                .frame(width: CapsuleMetrics.eventSideWidth - 24, alignment: .trailing)
         }
         .padding(.horizontal, 14)
     }

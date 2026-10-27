@@ -1,15 +1,15 @@
 import AppKit
 import SwiftUI
 
-/// The welcome tour, hosted in the expanded island like the settings, on
+/// The welcome tour, hosted in the expanded capsule like the settings, on
 /// the same glass. One card per page: an illustration on top — the widget
 /// itself, alive, over a colourful wallpaper its glass picks up — then the
 /// words, then the way on.
-struct IslandOnboardingView: View {
-    var viewModel: NotchViewModel
+struct CapsuleOnboardingView: View {
+    var viewModel: CapsuleViewModel
     var services: ModuleServices
     @Bindable var settings: AppSettings
-    let notchHeight: CGFloat
+    let housingHeight: CGFloat
 
     /// Entry choreography: the card settles, the widget's strip pops in,
     /// its panel opens, then the words arrive.
@@ -21,7 +21,7 @@ struct IslandOnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: notchHeight)
+            Color.clear.frame(height: housingHeight)
             illustration
                 .padding(.horizontal, 14)
                 .padding(.top, 14)
@@ -36,7 +36,7 @@ struct IslandOnboardingView: View {
         .onAppear {
             guard !appeared else { return }
             // One tick later, so the entry runs as its own transaction on
-            // top of the island's drop instead of merging into it.
+            // top of the capsule's drop instead of merging into it.
             Task { appeared = true }
         }
     }

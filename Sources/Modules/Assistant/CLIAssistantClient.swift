@@ -48,7 +48,7 @@ struct CLIAssistantClient: Sendable {
     /// Optional model override passed to the CLI.
     var model: String
 
-    private static let log = Logger(subsystem: "com.dk2la.hotzisland", category: "assistant")
+    private static let log = Logger(subsystem: "com.dk2la.pocket", category: "assistant")
     private static let timeout: Duration = .seconds(180)
 
     enum CLIError: Error, LocalizedError {
@@ -356,7 +356,7 @@ struct CLIAssistantClient: Sendable {
         // Neutral working directory: never inherit a project context.
         process.currentDirectoryURL = FileManager.default.temporaryDirectory
         var environment = ProcessInfo.processInfo.environment
-        environment["CLAUDE_CODE_ENTRYPOINT"] = "hotzisland"
+        environment["CLAUDE_CODE_ENTRYPOINT"] = "pocket"
         process.environment = environment
 
         let out = Pipe()

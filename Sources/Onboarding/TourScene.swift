@@ -33,7 +33,7 @@ struct MiniWidget: View {
     /// Built at the widget's true size, shown at this scale.
     static let scale: CGFloat = 0.84
     static let panelSize = CGSize(width: 320, height: 356)
-    static let tabs: [NotchTab] = [.calendar, .email, .playbooks, .notes, .assistant]
+    static let tabs: [ModuleTab] = [.calendar, .email, .playbooks, .notes, .assistant]
 
     @Namespace private var selection
 
@@ -107,8 +107,8 @@ struct MiniWidget: View {
 /// open one washed in the accent. Vertical or horizontal, like the real
 /// one on a side or on the top/bottom edge.
 struct MiniStrip: View {
-    let tabs: [NotchTab]
-    let active: NotchTab?
+    let tabs: [ModuleTab]
+    let active: ModuleTab?
     var vertical = true
     var appeared = true
     var namespace: Namespace.ID?
@@ -154,7 +154,7 @@ struct MiniStrip: View {
         )
     }
 
-    private func cell(_ tab: NotchTab) -> some View {
+    private func cell(_ tab: ModuleTab) -> some View {
         let isActive = tab == active
         let cellShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         return Image(systemName: tab.icon)

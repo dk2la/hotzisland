@@ -8,7 +8,7 @@ actor SMTPClient {
     private let transport: StreamTransport
     private let usesSTARTTLS: Bool
     private var capabilities = ""
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "email")
 
     /// EHLO needs a name; we have no resolvable hostname, and RFC 5321 allows
     /// an address literal in that case.
