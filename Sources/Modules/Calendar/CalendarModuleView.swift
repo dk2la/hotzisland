@@ -42,59 +42,14 @@ struct CalendarModuleView: View {
         }
     }
 
-    /// The agenda: grid, list or both, per display mode.
+    /// The agenda: the week strip with one day, or the rolling list.
     @ViewBuilder
     private var browser: some View {
-                switch service.displayMode {
-                case .gridAndList:
-                    GeometryReader { proxy in
-                        // The grid keeps its natural row height while a third
-                        // of the panel allows it, then shrinks its rows. The
-                        // whole column scrolls as one, so on a small panel
-                        // the grid simply scrolls away above the events.
-                        let gridBudget = proxy.size.height / 3
-                        let rowHeight = min(26, max(18, (gridBudget - 16 - 16 - 4 - 20) / 6))
-                        ScrollView(.vertical, showsIndicators: false) {
-                            VStack(spacing: 8) {
-                                monthNav
-                                MonthGridView(service: service, rowHeight: rowHeight)
-                                    .padding(.horizontal, 8)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 6)
-                                    .frame(maxWidth: .infinity)
-                                    .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-                                HStack(spacing: 8) {
-                                    InstrumentLabel(service.dayLabel(service.selectedDay), color: Theme.accent)
-                                    Hairline()
-                                }
-                                .padding(.top, 4)
-                                EventListView(service: service, day: service.selectedDay)
-                                    .frame(maxWidth: .infinity, alignment: .top)
-                            }
-                        }
-                    }
-                case .listOnly:
-                    AgendaListView(service: service)
-                }
-    }
-
-    /// Month furniture — arrows and the tappable "back to today" title. It
-    /// belongs to the grid, so it only appears with one.
-    private var monthNav: some View {
-        HStack(spacing: 6) {
-            iconButton("chevron.left") { service.step(months: -1) }
-            Button {
-                service.goToToday()
-            } label: {
-                Text(Self.monthFormatter.string(from: service.displayedMonth))
-                    .font(Theme.headlineFont)
-                    .foregroundStyle(Theme.textPrimary)
-                    .frame(minWidth: 116)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            iconButton("chevron.right") { service.step(months: 1) }
-            Spacer(minLength: 0)
+        switch service.displayMode {
+        case .week:
+            WeekView(service: service)
+        case .listOnly:
+            AgendaListView(service: service)
         }
     }
 
@@ -111,32 +66,10 @@ struct CalendarModuleView: View {
                 .font(Theme.bodyFont)
                 .foregroundStyle(Theme.textQuaternary)
             if let action {
-                Button(action: action.run) {
-                    InstrumentLabel(action.title, color: Theme.accent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.controlRadius)
-                                .stroke(Theme.accentBorder, lineWidth: 1)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(PressableStyle())
+                ModuleButton(label: action.title, kind: .light, action: action.run)
+                    .padding(.top, 6)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func iconButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(Theme.iconSmallFont)
-                .foregroundStyle(Theme.textSecondary)
-                .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private static let monthFormatter = DateFormatter(template: "MMMM yyyy")
 }

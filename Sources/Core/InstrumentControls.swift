@@ -125,7 +125,11 @@ struct EmptyStateZone: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            InstrumentLabel(label, color: Theme.textQuaternary)
+            // The strings are stored lower case ("no notes"); the label reads
+            // as a sentence.
+            Text(label.prefix(1).uppercased() + label.dropFirst())
+                .font(Theme.headlineFont)
+                .foregroundStyle(Theme.textSecondary)
             if let sublabel {
                 Text(sublabel)
                     .font(Theme.subFont)

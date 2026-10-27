@@ -27,7 +27,7 @@ struct CalendarStage: View {
     var body: some View {
         StagePanel(title: NotchTab.calendar.title) {
             StageGlyph("plus", active: adding)
-            StageGlyph(CalendarDisplayMode.gridAndList.icon)
+            StageGlyph(CalendarDisplayMode.week.icon)
             StageGlyph(CalendarDisplayMode.listOnly.icon, active: true)
             StageGlyph("line.3.horizontal.decrease")
         } content: {

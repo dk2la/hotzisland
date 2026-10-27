@@ -18,6 +18,16 @@ extension Mailbox {
         case .spam: L10n.t(.mailboxSpam)
         }
     }
+
+    var icon: String {
+        switch self {
+        case .primary: "tray"
+        case .starred: "star"
+        case .important: "bookmark"
+        case .sent: "paperplane"
+        case .spam: "xmark.bin"
+        }
+    }
 }
 
 /// "Email" module: inbox list with unread dots; opening a message loads its
@@ -76,7 +86,7 @@ struct EmailModuleView: View {
     }
 
     private var inbox: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 14) {
             mailboxRow
             if service.isSearchOpen {
                 searchRow
@@ -86,19 +96,16 @@ struct EmailModuleView: View {
         }
     }
 
-    /// Gmail-like sections as a row of pills. Scrolls sideways when the
-    /// panel is narrower than the row; no indicator, the cut-off pill says
-    /// enough.
+    /// Gmail-like sections as a row of equal tiles; the selected one is the
+    /// light tile.
     private var mailboxRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(service.availableMailboxes, id: \.self) { mailbox in
-                    MailboxPill(
-                        title: mailbox.title,
-                        selected: mailbox == service.selectedMailbox
-                    ) {
-                        service.select(mailbox)
-                    }
+        HStack(spacing: 6) {
+            ForEach(service.availableMailboxes, id: \.self) { mailbox in
+                MailboxTile(
+                    mailbox: mailbox,
+                    selected: mailbox == service.selectedMailbox
+                ) {
+                    service.select(mailbox)
                 }
             }
         }
@@ -115,12 +122,35 @@ struct EmailModuleView: View {
             .frame(maxHeight: 90)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
+            // Search results stay one list; the mailbox splits into what is
+            // new and what has been read.
+            let unread = service.searchResults == nil ? shown.filter(\.isUnread) : []
+            let read = service.searchResults == nil ? shown.filter { !$0.isUnread } : shown
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 6) {
-                    ForEach(shown) { message in
-                        row(message)
+                VStack(alignment: .leading, spacing: 18) {
+                    if !unread.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            SectionHeader(title: L10n.t(.mailSectionNew), trailing: "\(unread.count)")
+                            group(unread)
+                        }
+                    }
+                    if !read.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !unread.isEmpty {
+                                SectionHeader(title: L10n.t(.mailSectionEarlier))
+                            }
+                            group(read)
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    private func group(_ messages: [EmailMessage]) -> some View {
+        GroupedCard {
+            ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                row(message, isLast: index == messages.count - 1)
             }
         }
     }
@@ -145,20 +175,19 @@ struct EmailModuleView: View {
                 .buttonStyle(PressableStyle())
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(
-            Theme.raisedFill.opacity(0.7),
-            in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.groupRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.groupRadius, style: .continuous)
+                .stroke(Theme.hairline, lineWidth: 1)
         )
     }
 
     /// Connection state, quietly at the bottom — it is status, not chrome.
     private var statusFooter: some View {
         HStack(spacing: 8) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 6, height: 6)
+            StatusDot(color: statusColor)
             Text(statusText)
                 .font(Theme.subFont)
                 .lineLimit(1)
@@ -172,6 +201,7 @@ struct EmailModuleView: View {
                     .transition(.opacity)
             }
         }
+        .padding(.horizontal, 4)
         .animation(Theme.stateSpring, value: service.didSend)
     }
 
@@ -191,7 +221,7 @@ struct EmailModuleView: View {
         }
     }
 
-    private func row(_ message: EmailMessage) -> some View {
+    private func row(_ message: EmailMessage, isLast: Bool) -> some View {
         // Sent mail is about who it went to, not who wrote it (that is us).
         let isSent = service.isSentMessage(message)
         let name = isSent ? message.recipientDisplay : message.fromName
@@ -200,16 +230,8 @@ struct EmailModuleView: View {
             service.open(message)
         } label: {
             HStack(alignment: .center, spacing: 10) {
-                SenderAvatarView(name: name, address: address, store: avatars)
-                    .overlay(alignment: .topTrailing) {
-                        if message.isUnread {
-                            Circle()
-                                .fill(Theme.critical)
-                                .frame(width: 8, height: 8)
-                                .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1.5))
-                                .offset(x: 2, y: -2)
-                        }
-                    }
+                SenderAvatarView(name: name, address: address, size: 34, store: avatars)
+                    .opacity(message.isUnread ? 1 : 0.8)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
                         .font(Theme.bodyFont)
@@ -220,14 +242,19 @@ struct EmailModuleView: View {
                         .font(Theme.subFont)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .foregroundStyle(Theme.textTertiary)
+                        .foregroundStyle(message.isUnread ? Theme.textSecondary : Theme.textTertiary)
                 }
                 Spacer(minLength: 0)
-                Text(Self.time(message.date))
-                    .font(Theme.readoutSFont)
-                    .foregroundStyle(Theme.textQuaternary)
+                VStack(alignment: .trailing, spacing: 7) {
+                    Text(Self.time(message.date))
+                        .font(Theme.subFont)
+                        .monospacedDigit()
+                        .foregroundStyle(message.isUnread ? Theme.textSecondary : Theme.textTertiary)
+                    StatusDot(size: 7)
+                        .opacity(message.isUnread ? 1 : 0)
+                }
             }
-            .cardRow(raised: message.isUnread)
+            .groupedRow(isLast: isLast)
         }
         .buttonStyle(PressableStyle())
     }
@@ -243,31 +270,36 @@ struct EmailModuleView: View {
     }
 }
 
-/// One section pill: the selected one reads as a raised, accent-washed
-/// capsule with primary text; the rest sit flat in tertiary.
-private struct MailboxPill: View {
-    let title: String
+/// One mailbox tile: icon over the name. The selected one is the light
+/// tile; the rest sit on card fill.
+private struct MailboxTile: View {
+    let mailbox: Mailbox
     let selected: Bool
     let action: () -> Void
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+        RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
     }
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(Theme.subFont)
-                .fontWeight(selected ? .semibold : .medium)
-                .lineLimit(1)
-                .foregroundStyle(selected ? Theme.textPrimary : Theme.textTertiary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    shape.fill(selected ? Theme.raisedFill : .clear)
-                        .overlay(shape.fill(selected ? Theme.accentWash : .clear))
-                )
-                .contentShape(shape)
+            VStack(spacing: 5) {
+                Image(systemName: selected ? "\(mailbox.icon).fill" : mailbox.icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .frame(height: 16)
+                Text(mailbox.title)
+                    .font(Theme.captionFont)
+                    .fontWeight(selected ? .semibold : .medium)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(selected ? Theme.inkOnAccent : Theme.textSecondary)
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(shape.fill(selected ? Theme.lightFill : Theme.cardFill))
+            .overlay(shape.stroke(Theme.hairlineSoft, lineWidth: selected ? 0 : 1))
+            .contentShape(shape)
         }
         .buttonStyle(PressableStyle())
     }
@@ -303,10 +335,10 @@ struct EmailMessageView: View {
     @State private var showImages = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .center, spacing: 10) {
-                    SenderAvatarView(name: message.fromName, address: message.fromAddress, size: 36, store: avatars)
+                    SenderAvatarView(name: message.fromName, address: message.fromAddress, size: 38, store: avatars)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(message.fromName)
                             .font(Theme.headlineFont)
@@ -319,15 +351,16 @@ struct EmailMessageView: View {
                     }
                     Spacer(minLength: 0)
                     Text(EmailModuleView.time(message.date))
-                        .font(Theme.readoutSFont)
-                        .foregroundStyle(Theme.textQuaternary)
+                        .font(Theme.subFont)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.textTertiary)
                 }
                 Text(message.displaySubject)
-                    .font(Theme.titleFont)
+                    .font(Theme.heroFont)
                     .lineLimit(2)
                     .foregroundStyle(Theme.textPrimary)
-                    .padding(.top, 4)
             }
+            .padding(.horizontal, 4)
             Group {
                 if service.isLoadingBody, message.bodyPlain == nil {
                     Text("…")
@@ -357,31 +390,64 @@ struct EmailMessageView: View {
                     }
                 }
             }
-            .padding(10)
-            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+            .padding(12)
+            .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.groupRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.groupRadius, style: .continuous)
+                    .stroke(Theme.hairlineSoft, lineWidth: 1)
+            )
             if !service.isComposeOpen {
-              HStack(spacing: 8) {
-                GlassCapsuleButton(label: L10n.t(.mailReply), systemName: "arrowshape.turn.up.left", isPrimary: true) {
-                    service.startReply(.reply)
+                HStack(spacing: 6) {
+                    ModuleButton(label: L10n.t(.mailReplyAll), systemName: "arrowshape.turn.up.left.2") {
+                        service.startReply(.replyAll)
+                    }
+                    ModuleButton(label: L10n.t(.mailForward), systemName: "arrowshape.turn.up.right") {
+                        service.startReply(.forward)
+                    }
+                    Spacer(minLength: 0)
+                    if service.didSend {
+                        Label(L10n.t(.mailSent), systemImage: "checkmark")
+                            .font(Theme.subFont)
+                            .foregroundStyle(Theme.accent)
+                            .transition(.opacity)
+                    }
                 }
-                GlassCapsuleButton(label: L10n.t(.mailReplyAll), systemName: "arrowshape.turn.up.left.2") {
-                    service.startReply(.replyAll)
-                }
-                GlassCapsuleButton(label: L10n.t(.mailForward), systemName: "arrowshape.turn.up.right") {
-                    service.startReply(.forward)
-                }
-                if service.didSend {
-                    Label(L10n.t(.mailSent), systemImage: "checkmark")
-                        .font(Theme.subFont)
-                        .foregroundStyle(Theme.accent)
-                        .transition(.opacity)
-                }
-                Spacer(minLength: 0)
-              }
-              .animation(Theme.stateSpring, value: service.didSend)
+                .animation(Theme.stateSpring, value: service.didSend)
+                replyBar
             }
         }
         .onChange(of: message.key) { showImages = false }
+    }
+
+    /// Reads like an input, opens the reply form: the whole bar is the
+    /// Reply button.
+    private var replyBar: some View {
+        Button {
+            service.startReply(.reply)
+        } label: {
+            ComposerBar {
+                Text(L10n.f(.mailReplyTo, firstName))
+                    .font(Theme.bodyFont)
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.textTertiary)
+                    .padding(.leading, 9)
+                Spacer(minLength: 0)
+                Text(L10n.t(.mailReply))
+                    .font(Theme.subFont)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Theme.inkOnAccent)
+                    .padding(.horizontal, 14)
+                    .frame(height: 30)
+                    .background(Theme.lightFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private var firstName: String {
+        let name = message.fromName.isEmpty ? message.fromAddress : message.fromName
+        return name.split(separator: " ").first.map(String.init) ?? name
     }
 
     /// The HTML travels in through the service as the body downloads.
@@ -602,12 +668,12 @@ private struct MailDraftBody: View {
                 service.draft = service.draft.isEmpty ? text : service.draft + " " + text
             }
             Spacer(minLength: 0)
-            GlassCapsuleButton(label: L10n.t(.mailCancel)) {
+            ModuleButton(label: L10n.t(.mailCancel)) {
                 service.discardCompose()
             }
-            GlassCapsuleButton(
+            ModuleButton(
                 label: service.isSending ? L10n.t(.mailSending) : L10n.t(.mailSend),
-                isPrimary: true,
+                kind: .light,
                 enabled: service.canSendCompose
             ) {
                 service.sendCompose()

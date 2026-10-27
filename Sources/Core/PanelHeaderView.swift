@@ -14,26 +14,54 @@ struct PanelHeaderView: View {
     var body: some View {
         HStack(spacing: 4) {
             ModuleBackButton(tab: tab, services: services)
-            Text(tab.title.uppercased())
-                .font(Theme.labelFont)
-                .kerning(1.2)
-                .foregroundStyle(Theme.accent)
+            Text(tab.title)
+                .font(Theme.titleFont)
+                .lineLimit(1)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.leading, 4)
             if tab == .email, let badge = services.emailService.unreadBadge {
-                Text(badge)
-                    .font(Theme.readoutSFont)
-                    .foregroundStyle(Theme.critical)
-                    .padding(.leading, 2)
+                UnreadBadge(text: badge)
+                    .padding(.leading, 4)
+            }
+            if tab == .calendar, showsCalendarDate {
+                // The agenda's date; the week view carries its own range.
+                Text(Self.dateFormatter.string(from: Date()))
+                    .font(Theme.bodyFont)
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.textTertiary)
+                    .padding(.leading, 6)
             }
             Spacer(minLength: 0)
             ModuleAccessoriesView(tab: tab, services: services)
             HeaderIconButton("xmark", action: onClose)
         }
-        .padding(.horizontal, Theme.panelInset)
+        .padding(.horizontal, Theme.panelInset - 4)
         .padding(.top, 10)
-        .padding(.bottom, 6)
-        .overlay(alignment: .bottom) {
-            Hairline(color: Theme.hairline)
-        }
+        .padding(.bottom, 2)
+    }
+
+    private var showsCalendarDate: Bool {
+        let calendar = services.calendarService
+        return calendar.displayMode == .listOnly && calendar.selectedEvent == nil
+            && !calendar.isCreating && calendar.editingEvent == nil && !calendar.showingPicker
+    }
+
+    private static let dateFormatter = DateFormatter(template: "EEE d MMM")
+}
+
+/// Red count capsule after the mail title.
+struct UnreadBadge: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(Theme.captionFont)
+            .fontWeight(.semibold)
+            .monospacedDigit()
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 5)
+            .frame(minWidth: 18, minHeight: 18)
+            .background(Theme.critical, in: Capsule())
     }
 }
 
@@ -223,11 +251,11 @@ struct HeaderIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(active ? Theme.accent : hovered ? Theme.textSecondary : Theme.textTertiary)
-                .frame(width: 24, height: 24)
+                .frame(width: 28, height: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(hovered ? Theme.raisedFill : .clear)
                 )
                 .contentShape(Rectangle())

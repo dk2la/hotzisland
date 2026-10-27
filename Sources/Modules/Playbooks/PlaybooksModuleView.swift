@@ -31,25 +31,35 @@ enum AppVisuals {
     }
 }
 
-/// "Playbooks" module: one card per playbook in the mail-row language —
-/// the user-chosen symbol, the name over a one-line recipe of its steps,
-/// and a run button. A "+ new" card at the end opens the editor in
-/// Settings. A quiet register underneath reports failures of the last run.
+/// "Playbooks" module: the last-run playbook as a hero card with Run, the
+/// rest as one grouped list — symbol, name over a one-line recipe of its
+/// steps, a run button — ending in "Add playbook…", which opens the editor
+/// in Settings. A quiet register underneath reports failures of the last
+/// run.
 struct PlaybooksModuleView: View {
     var store: PlaybookStore
     var runner: PlaybookRunner
 
-    /// Playbook that just finished — its row shows a checkmark for 3 s.
+    /// Playbook that just finished — it shows a checkmark for 3 s.
     @State private var justRanID: UUID?
+
+    /// The hero: the last playbook run, else the first one.
+    private var featured: Playbook? {
+        if let last = runner.lastRun,
+           let current = store.playbooks.first(where: { $0.id == last.playbook.id }) {
+            return current
+        }
+        return store.playbooks.first
+    }
 
     var body: some View {
         VStack(spacing: 10) {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 6) {
-                    ForEach(store.playbooks) { playbook in
-                        row(for: playbook)
+                VStack(alignment: .leading, spacing: 18) {
+                    if let featured {
+                        hero(featured)
                     }
-                    newCard
+                    list(store.playbooks.filter { $0.id != featured?.id })
                 }
             }
             if let last = runner.lastRun, !last.result.failures.isEmpty {
@@ -68,22 +78,82 @@ struct PlaybooksModuleView: View {
         }
     }
 
-    // MARK: - Rows
+    // MARK: - Hero
 
-    private static let cardShape = RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+    private func hero(_ playbook: Playbook) -> some View {
+        let isRunningThis = runner.runningPlaybookID == playbook.id
+        return HeroCard {
+            if let last = runner.lastRun, last.playbook.id == playbook.id {
+                HStack(spacing: 7) {
+                    StatusDot()
+                    Text(L10n.f(.playLastRun, Self.timeFormatter.string(from: last.finishedAt)))
+                        .heroCaption()
+                        .monospacedDigit()
+                }
+            }
+            HStack(spacing: 12) {
+                IconTile(systemName: playbook.icon, size: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(playbook.name)
+                        .font(Theme.heroFont)
+                        .lineLimit(1)
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(summary(for: playbook))
+                        .font(Theme.subFont)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+            HStack(spacing: 4) {
+                ForEach(appIDs(of: playbook).prefix(6), id: \.self) { bundleID in
+                    if let icon = AppVisuals.icon(for: bundleID) {
+                        Image(nsImage: icon)
+                            .resizable()
+                            .frame(width: 24, height: 24)
+                            .help(AppVisuals.name(for: bundleID) ?? bundleID)
+                    }
+                }
+                Spacer(minLength: 0)
+                ModuleButton(
+                    label: L10n.t(.asstPlaybookRun),
+                    systemName: justRanID == playbook.id ? "checkmark" : "play.fill",
+                    kind: .accent,
+                    height: 34,
+                    enabled: !runner.isRunning || isRunningThis
+                ) {
+                    runner.run(playbook)
+                }
+            }
+        }
+    }
+
+    /// Apps the playbook opens, in step order.
+    private func appIDs(of playbook: Playbook) -> [String] {
+        playbook.steps.flatMap { step -> [String] in
+            if case .openApps(_, let bundleIDs, _) = step { return bundleIDs }
+            return []
+        }
+    }
+
+    private static let timeFormatter = DateFormatter(format: "HH:mm")
+
+    // MARK: - List
+
+    private func list(_ playbooks: [Playbook]) -> some View {
+        GroupedCard {
+            ForEach(playbooks) { playbook in
+                row(for: playbook)
+            }
+            newRow
+        }
+    }
 
     private func row(for playbook: Playbook) -> some View {
         let isRunningThis = runner.runningPlaybookID == playbook.id
         let justRan = justRanID == playbook.id
-        return HStack(alignment: .center, spacing: 10) {
-            Image(systemName: playbook.icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Theme.textPrimary)
-                .frame(width: 30, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Theme.raisedFill)
-                )
+        return HStack(alignment: .center, spacing: 12) {
+            IconTile(systemName: playbook.icon)
             VStack(alignment: .leading, spacing: 2) {
                 Text(playbook.name)
                     .font(Theme.bodyFont)
@@ -100,19 +170,17 @@ struct PlaybooksModuleView: View {
             Spacer(minLength: 0)
             if justRan {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .transition(.opacity)
             }
-            CircleGlassButton(systemName: "play.fill", size: 28, solid: isRunningThis) {
+            CircleGlassButton(systemName: "play.fill", size: 30, solid: isRunningThis) {
                 runner.run(playbook)
             }
             .disabled(runner.isRunning)
             .opacity(runner.isRunning && !isRunningThis ? 0.5 : 1)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Theme.cardFill, in: Self.cardShape)
+        .groupedRow(isLast: false)
         .animation(.easeOut(duration: 0.15), value: justRan)
     }
 
@@ -139,23 +207,20 @@ struct PlaybooksModuleView: View {
         return parts.isEmpty ? L10n.t(.playEmpty) : parts.joined(separator: " · ")
     }
 
-    /// Dashed placeholder card: the only way to create a playbook from the
-    /// widget — deep-links to Settings → Playbooks.
-    private var newCard: some View {
+    /// The last row: the only way to create a playbook from the widget —
+    /// deep-links to Settings → Playbooks.
+    private var newRow: some View {
         Button {
             requestSettings(page: .playbooks)
         } label: {
-            Text(L10n.t(.playNew))
-                .font(Theme.subFont)
-                .fontWeight(.medium)
-                .foregroundStyle(Theme.textTertiary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 46)
-                .background(
-                    Self.cardShape
-                        .stroke(Theme.dashedBorder, style: StrokeStyle(lineWidth: 1, dash: [5, 6]))
-                )
-                .contentShape(Self.cardShape)
+            HStack(spacing: 12) {
+                IconTile(systemName: "plus", dashed: true)
+                Text(L10n.t(.playAdd))
+                    .font(Theme.bodyFont)
+                    .foregroundStyle(Theme.textSecondary)
+                Spacer(minLength: 0)
+            }
+            .groupedRow(isLast: true)
         }
         .buttonStyle(PressableStyle())
     }
@@ -175,9 +240,9 @@ struct PlaybooksModuleView: View {
                 .foregroundStyle(Theme.textSecondary)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.groupRadius, style: .continuous))
     }
 
     private func registerText(_ last: PlaybookRunner.RunRecord) -> String {

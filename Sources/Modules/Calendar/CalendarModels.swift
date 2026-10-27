@@ -2,9 +2,10 @@ import SwiftUI
 
 /// Layout of the calendar tab.
 enum CalendarDisplayMode: String, CaseIterable, Identifiable {
-    /// Month grid on top (at most a third of the panel), the selected
-    /// day's events under it.
-    case gridAndList
+    /// Seven day tiles on top, the selected day's events under them. The
+    /// raw value predates the week strip (it was a month grid) and keeps
+    /// the stored choice.
+    case week = "gridAndList"
     /// The coming days as one rolling agenda.
     case listOnly
 
@@ -12,7 +13,7 @@ enum CalendarDisplayMode: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .gridAndList: "calendar"
+        case .week: "calendar"
         case .listOnly: "list.bullet"
         }
     }

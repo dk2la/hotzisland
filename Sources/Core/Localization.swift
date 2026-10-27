@@ -97,7 +97,7 @@ enum L10nKey {
     case mediaIdle, mediaSilent, mediaNoSignal
 
     // Clipboard
-    case clipCopied, clipClear, clipEmptyTitle, clipEmptySub, clipMemoryNote
+    case clipCopied, clipClear, clipEmptyTitle, clipEmptySub, clipMemoryNote, clipLatest, clipCopy
     case ageNow, ageMin, ageHour, kindLink, kindText
 
     // Shelf
@@ -105,7 +105,7 @@ enum L10nKey {
 
     // Calendar
     case calAllDay, calJoin, calNow, calNoEvents, calToday, calTomorrow
-    case calStartsInMinutes, calStartsInHours
+    case calStartsInMinutes, calStartsInHours, calUpNext, calNewEventAt
     case calNewEvent, calEditEvent, calTitleField, calStarts, calEnds
     case calLocationField, calURLField, calNotesField, calAttendees, calOrganizer
     case calOpenInCalendar, calInviteesHint, calDelete, calConfirmDelete, calSave, calEdit
@@ -113,7 +113,7 @@ enum L10nKey {
 
     // Notes
     case notesEmptyTitle, notesEmptySub, notesQuickPlaceholder, notesNew
-    case notesFolder, notesChange
+    case notesFolder, notesChange, notesContinue
 
     // Speech
     case speechListening, speechDenied, speechOpenSettings
@@ -130,6 +130,7 @@ enum L10nKey {
     case mailSearchPlaceholder, mailNoResults, mailArchive, mailRefresh, mailSearch
     case mailToField, mailSubjectField, mailNewMessage, mailBodyPlaceholder
     case mailboxPrimary, mailboxStarred, mailboxImportant, mailboxSent, mailboxSpam
+    case mailSectionNew, mailSectionEarlier, mailReplyTo
 
     // Assistant
     case asstSetupTitle, asstSetupSub, asstHint, asstPlaceholder, asstThinking
@@ -145,7 +146,7 @@ enum L10nKey {
     case playAddStep, playLayout, playGrantAccess, playLayoutHint
     case playLayoutNone, playLayoutLeftRight, playLayoutThirds, playLayoutGrid2x2, playLayoutMainSide, playLayoutFullscreen
     case playName, playIcon, playSteps, playNoSteps, playSearchApps, playAddBundleID, playSelectedCount
-    case playChooseShortcut, playShortcutName, playMinutes, playURLsHint, playLinks
+    case playChooseShortcut, playShortcutName, playMinutes, playURLsHint, playLinks, playLastRun
 
     // Metrics
     case sysMemory, sysNetwork, sysBattery, sysCharging, sysVolume
@@ -209,6 +210,8 @@ enum L10nKey {
         case .mediaNoSignal: return ["no signal", "нет сигнала", "pas de signal", "sin señal", "无信号", "sem sinal", "kein Signal", "nessun segnale", "信号なし", "신호 없음"]
 
         case .clipCopied: return ["Copied", "Готово", "Copié", "Copiado", "已复制", "Copiado", "Kopiert", "Copiato", "コピー済み", "복사됨"]
+        case .clipLatest: return ["Latest", "Последнее", "Dernier", "Lo último", "最新", "Mais recente", "Neueste", "Ultimo", "最新", "최근"]
+        case .clipCopy: return ["Copy", "Копировать", "Copier", "Copiar", "复制", "Copiar", "Kopieren", "Copia", "コピー", "복사"]
         case .clipClear: return ["Clear", "Очистить", "Effacer", "Limpiar", "清除", "Limpar", "Leeren", "Svuota", "クリア", "지우기"]
         case .clipEmptyTitle: return ["empty", "пусто", "vide", "vacío", "空", "vazio", "leer", "vuoto", "空", "비어 있음"]
         case .clipEmptySub: return ["Copied text will appear here", "Скопированный текст появится здесь", "Le texte copié apparaîtra ici", "El texto copiado aparecerá aquí", "复制的文本会显示在这里", "O texto copiado aparecerá aqui", "Kopierter Text erscheint hier", "Il testo copiato apparirà qui", "コピーしたテキストがここに表示されます", "복사한 텍스트가 여기에 표시됩니다"]
@@ -226,6 +229,8 @@ enum L10nKey {
         case .calJoin: return ["Join", "Войти", "Rejoindre", "Unirse", "加入", "Entrar", "Beitreten", "Entra", "参加", "참여"]
         case .calNow: return ["now", "сейчас", "maintenant", "ahora", "现在", "agora", "jetzt", "ora", "今", "지금"]
         case .calStartsInMinutes: return ["in %d min", "через %d мин", "dans %d min", "en %d min", "%d 分钟后", "em %d min", "in %d Min.", "tra %d min", "%d分後", "%d분 후"]
+        case .calUpNext: return ["Up next", "Далее", "À suivre", "A continuación", "接下来", "A seguir", "Als Nächstes", "A seguire", "次の予定", "다음 일정"]
+        case .calNewEventAt: return ["New event at %@", "Новое событие в %@", "Nouvel événement à %@", "Nuevo evento a las %@", "%@ 新建日程", "Novo evento às %@", "Neuer Termin um %@", "Nuovo evento alle %@", "%@ に新規予定", "%@에 새 일정"]
         case .calStartsInHours: return ["in %dh %02dm", "через %dч %02dм", "dans %dh %02dm", "en %dh %02dm", "%d小时%02d分后", "em %dh %02dm", "in %dh %02dm", "tra %dh %02dm", "%d時間%02d分後", "%d시간 %02d분 후"]
         case .calNoEvents: return ["no events", "нет событий", "aucun événement", "sin eventos", "没有日程", "sem eventos", "keine Termine", "nessun evento", "予定なし", "일정 없음"]
         case .calToday: return ["Today", "Сегодня", "Aujourd'hui", "Hoy", "今天", "Hoje", "Heute", "Oggi", "今日", "오늘"]
@@ -249,6 +254,7 @@ enum L10nKey {
         case .timerCustomPlaceholder: return ["min", "мин", "min", "min", "分", "min", "Min", "min", "分", "분"]
 
         case .notesEmptyTitle: return ["no notes", "нет заметок", "aucune note", "sin notas", "没有备忘录", "sem notas", "keine Notizen", "nessuna nota", "メモなし", "메모 없음"]
+        case .notesContinue: return ["Continue", "Продолжить", "Reprendre", "Continuar", "继续", "Continuar", "Weiter", "Continua", "続ける", "이어서"]
         case .notesEmptySub: return ["Type below — Enter saves a note", "Напишите ниже — Enter сохранит заметку", "Écrivez ci-dessous — Entrée enregistre", "Escribe abajo — Enter guarda la nota", "在下方输入 — 回车保存", "Escreva abaixo — Enter guarda a nota", "Unten tippen — Enter speichert", "Scrivi sotto — Invio salva la nota", "下に入力 — Enterで保存", "아래에 입력 — Enter로 저장"]
         case .notesQuickPlaceholder: return ["Quick note…", "Быстрая заметка…", "Note rapide…", "Nota rápida…", "快速记录…", "Nota rápida…", "Schnellnotiz…", "Nota rapida…", "クイックメモ…", "빠른 메모…"]
         case .notesNew: return ["New", "Новая", "Nouvelle", "Nueva", "新建", "Nova", "Neu", "Nuova", "新規", "새로 만들기"]
@@ -264,6 +270,9 @@ enum L10nKey {
         case .mailSetupSub: return ["Connect your mailbox — it stays between your Mac and your provider", "Подключите ящик — данные ходят только между Mac и вашим провайдером", "Connectez votre boîte — tout reste entre votre Mac et votre fournisseur", "Conecta tu buzón — todo queda entre tu Mac y tu proveedor", "连接邮箱 — 数据仅在您的 Mac 与邮件服务商之间传输", "Ligue a sua caixa — tudo fica entre o Mac e o fornecedor", "Postfach verbinden — alles bleibt zwischen Mac und Anbieter", "Collega la casella — resta tra il tuo Mac e il provider", "メールボックスを接続 — データはMacとプロバイダ間のみ", "메일함 연결 — 데이터는 Mac과 제공업체 사이에만"]
         case .mailSetupAction: return ["Set up account", "Настроить аккаунт", "Configurer le compte", "Configurar cuenta", "设置账户", "Configurar conta", "Konto einrichten", "Configura account", "アカウントを設定", "계정 설정"]
         case .mailInboxEmpty: return ["inbox is empty", "входящие пусты", "boîte vide", "bandeja vacía", "收件箱为空", "caixa vazia", "Posteingang leer", "posta vuota", "受信トレイは空", "받은편지함 비어 있음"]
+        case .mailSectionNew: return ["New", "Новые", "Nouveaux", "Nuevos", "新邮件", "Novos", "Neu", "Nuovi", "新着", "새 메일"]
+        case .mailSectionEarlier: return ["Earlier", "Ранее", "Plus tôt", "Anteriores", "更早", "Anteriores", "Früher", "Precedenti", "以前", "이전"]
+        case .mailReplyTo: return ["Reply to %@…", "Ответить: %@…", "Répondre à %@…", "Responder a %@…", "回复 %@…", "Responder a %@…", "%@ antworten…", "Rispondi a %@…", "%@ に返信…", "%@에게 답장…"]
         case .mailOpenInApp: return ["Open in Mail", "Открыть в почте", "Ouvrir dans Mail", "Abrir en Mail", "在邮件App中打开", "Abrir no Mail", "In Mail öffnen", "Apri in Mail", "メールで開く", "Mail에서 열기"]
         case .mailNoBody: return ["(no text)", "(нет текста)", "(pas de texte)", "(sin texto)", "（无正文）", "(sem texto)", "(kein Text)", "(nessun testo)", "（本文なし）", "(본문 없음)"]
         case .mailNoSubject: return ["(no subject)", "(без темы)", "(sans objet)", "(sin asunto)", "（无主题）", "(sem assunto)", "(kein Betreff)", "(nessun oggetto)", "（件名なし）", "(제목 없음)"]
@@ -330,6 +339,7 @@ enum L10nKey {
         case .playCloseRest: return ["closes others", "закрывает прочие", "ferme le reste", "cierra el resto", "关闭其他", "fecha o resto", "schließt andere", "chiude il resto", "他を閉じる", "다른 앱 닫기"]
         case .playFocus: return ["focus", "фокус", "focus", "enfoque", "专注", "foco", "Fokus", "focus", "集中", "집중"]
         case .playDone: return ["done", "выполнен", "terminé", "hecho", "已完成", "concluído", "fertig", "fatto", "完了", "완료"]
+        case .playLastRun: return ["Last run · %@", "Последний запуск · %@", "Dernier lancement · %@", "Última ejecución · %@", "上次运行 · %@", "Última execução · %@", "Zuletzt gestartet · %@", "Ultimo avvio · %@", "前回の実行 · %@", "마지막 실행 · %@"]
         case .playClosed: return ["closed %d", "закрыто %d", "fermé %d", "cerradas %d", "已关闭 %d", "fechadas %d", "geschlossen %d", "chiuse %d", "終了 %d", "닫음 %d"]
         case .playOpened: return ["opened %d", "открыто %d", "ouvert %d", "abiertas %d", "已打开 %d", "abertas %d", "geöffnet %d", "aperte %d", "起動 %d", "열림 %d"]
         case .playErrors: return ["errors %d", "ошибок %d", "erreurs %d", "errores %d", "错误 %d", "erros %d", "Fehler %d", "errori %d", "エラー %d", "오류 %d"]
