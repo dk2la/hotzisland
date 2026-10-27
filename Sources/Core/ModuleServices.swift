@@ -21,6 +21,9 @@ final class ModuleServices {
     let playbookRunner: PlaybookRunner
     /// Scripted data in every module, for promo recordings.
     let demo = DemoMode()
+    /// Global shortcuts — the AppDelegate binds their actions, Settings →
+    /// Hotkeys rebinds their keys.
+    let hotkeys = HotkeyService()
 
     init() {
         playbookRunner = PlaybookRunner(timer: timerService)

@@ -28,9 +28,6 @@ final class NotchWindowController: NSObject {
     /// the panel then stays until the hotkey again, ✕, or a click outside —
     /// moving the mouse away must not close what the user asked for.
     private var settingsPinned = false
-    /// Hover exits are debounced: menus, pickers and quick cursor flicks
-    /// at the panel edge fire exits that do not mean "leave".
-    private var hoverExitTask: Task<Void, Never>?
     private let services: ModuleServices
     private let settings: AppSettings
     private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "window")
@@ -281,23 +278,42 @@ final class NotchWindowController: NSObject {
     /// the notch (or a live-event bulge) opens the settings unpinned;
     /// leaving the expanded panel closes them unless they are pinned.
     private func hoverEntered() {
-        hoverExitTask?.cancel()
-        hoverExitTask = nil
-        guard targetState != .expanded else { return }
+        expandIfOverRestingIsland()
+    }
+
+    /// Leaving closes at once — no grace period. Menus, sheets and the
+    /// resize grip are still respected by `collapseIfCursorLeft`.
+    private func hoverExited() {
+        collapseIfCursorLeft()
+    }
+
+    /// Moves inside the window. Expanded, the menu-bar band beside the neck
+    /// is window but not island: crossing into it is leaving. Resting, the
+    /// window may still be the size of a drop that is closing; only the
+    /// island itself opens it again.
+    private func hoverMoved(viewPoint point: NSPoint, in bounds: NSRect) {
+        if targetState == .expanded {
+            if !islandOwns(viewPoint: point, in: bounds) {
+                collapseIfCursorLeft()
+            }
+        } else {
+            expandIfOverRestingIsland()
+        }
+    }
+
+    /// Hover opens the settings only from the resting island (or a live
+    /// event's bulge). The window outlives the close animation by a beat,
+    /// and without this the cursor crossing the space a closing drop is
+    /// still vacating would throw it straight back open.
+    private func expandIfOverRestingIsland() {
+        guard targetState != .expanded, let screen = NotchGeometry.targetScreen else { return }
+        let resting = eventOwnsWindow ? eventFrame(on: screen) : frame(for: targetState, on: screen)
+        // One point of slack: the cursor parks on the screen's very edge.
+        guard resting.insetBy(dx: -1, dy: -1).contains(NSEvent.mouseLocation) else { return }
         // Hover is a glance at the settings — never the tour.
         viewModel.content = .settings
         viewModel.cameFromOnboarding = false
         requestState(.expanded)
-    }
-
-    private func hoverExited() {
-        guard targetState == .expanded, !settingsPinned else { return }
-        hoverExitTask?.cancel()
-        hoverExitTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(200))
-            guard !Task.isCancelled, let self else { return }
-            self.collapseIfCursorLeft()
-        }
     }
 
     /// Collapses only when the cursor really is away from the panel and
@@ -354,8 +370,6 @@ final class NotchWindowController: NSObject {
             }
         case .closed, .compact:
             settingsPinned = false
-            hoverExitTask?.cancel()
-            hoverExitTask = nil
             clickMonitors.remove()
             panel.allowsKeyFocus = false
             if panel.isKeyWindow {
@@ -406,6 +420,9 @@ final class NotchWindowController: NSObject {
         hostingView.layer?.backgroundColor = .clear
         hostingView.onMouseEntered = { [weak self] in self?.hoverEntered() }
         hostingView.onMouseExited = { [weak self] in self?.hoverExited() }
+        hostingView.onMouseMoved = { [weak self] point, bounds in
+            self?.hoverMoved(viewPoint: point, in: bounds)
+        }
         hostingView.ownsPoint = { [weak self] point in
             self?.islandOwns(viewPoint: point, in: hostingView.bounds) ?? true
         }

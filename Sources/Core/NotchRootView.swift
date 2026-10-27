@@ -63,6 +63,7 @@ struct NotchRootView: View {
         NotchDropShape(
             neckWidth: notchWidth,
             neckHeight: closedSize.height + Self.fillet,
+            cornerRadius: NotchMetrics.dropRadius,
             fillet: Self.fillet
         )
     }
@@ -133,13 +134,10 @@ struct NotchRootView: View {
     }
 
     /// The falling drop: one shape whose frame animates from a sliver
-    /// behind the housing to the full panel, so nothing ever jumps.
+    /// behind the housing to the full panel, so nothing ever jumps. It is
+    /// the widget's glass, born black out of the housing.
     private var drop: some View {
-        InstrumentShell(
-            shape: dropShape,
-            theme: settings.theme,
-            accent: services.mediaCenter.artworkAccent
-        )
+        IslandGlass(shape: dropShape, inkHeight: closedSize.height + Self.fillet)
             .overlay {
                 if isExpanded {
                     expandedContent
@@ -173,6 +171,41 @@ struct NotchRootView: View {
                 notchHeight: closedSize.height + Self.fillet
             )
             .transition(.opacity)
+        }
+    }
+}
+
+/// The expanded island's material: the widget's dark glass recipe, with
+/// the housing's black running down the neck and fading out below the menu
+/// bar — the drop leaves the hardware as ink and becomes glass. The glass
+/// stroke fades in the opposite way, so no outline is drawn around the
+/// neck.
+private struct IslandGlass<S: Shape>: View {
+    let shape: S
+    /// Menu-bar band plus shoulders: solid black down to here.
+    let inkHeight: CGFloat
+
+    var body: some View {
+        shape.fill(.ultraThinMaterial)
+            .overlay(shape.fill(Theme.islandGlassTint))
+            .overlay(
+                shape.fill(Color.black)
+                    .mask(alignment: .top) { fade(from: .white, to: .clear) }
+            )
+            .overlay(
+                shape.stroke(Theme.glassStrokeDark, lineWidth: 1)
+                    .mask(alignment: .top) { fade(from: .clear, to: .white) }
+            )
+    }
+
+    /// `from` down to the end of the ink band, a ramp to `to`, then `to`.
+    private func fade(from start: Color, to end: Color) -> some View {
+        let ramp = NotchMetrics.dropInkFade
+        return VStack(spacing: 0) {
+            start.frame(height: inkHeight)
+            LinearGradient(colors: [start, end], startPoint: .top, endPoint: .bottom)
+                .frame(height: ramp)
+            end
         }
     }
 }

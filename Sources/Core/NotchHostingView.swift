@@ -16,6 +16,9 @@ import SwiftUI
 final class NotchHostingView<Content: View>: NSHostingView<Content> {
     var onMouseEntered: (() -> Void)?
     var onMouseExited: (() -> Void)?
+    /// Every move inside the window, in view coordinates (y up), with the
+    /// view's bounds.
+    var onMouseMoved: ((NSPoint, NSRect) -> Void)?
     /// Points the island does not own (the menu bar beside the neck while
     /// expanded) fall through to whatever is underneath. View coordinates,
     /// y up.
@@ -74,7 +77,7 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
         // activeAlways: the app is an agent and never the active app.
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
             owner: self,
             userInfo: nil
         )
@@ -88,5 +91,11 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
 
     override func mouseExited(with event: NSEvent) {
         onMouseExited?()
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        // SwiftUI's own hover effects ride on the same events.
+        super.mouseMoved(with: event)
+        onMouseMoved?(convert(event.locationInWindow, from: nil), bounds)
     }
 }

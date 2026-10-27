@@ -15,32 +15,30 @@ struct IslandSettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: notchHeight)
-            SettingsView(settings: settings, services: services, pageSelection: viewModel.pageSelection)
+            SettingsView(
+                settings: settings,
+                services: services,
+                pageSelection: viewModel.pageSelection,
+                // A detour out of the tour (connecting an account) keeps
+                // the way back to the page it left.
+                onBack: viewModel.cameFromOnboarding ? { viewModel.onResumeOnboarding?() } : nil
+            )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .overlay(alignment: .topTrailing) {
-            HStack(spacing: 6) {
-                // A detour out of the tour (connecting an account) keeps
-                // the way back to the page it left.
-                if viewModel.cameFromOnboarding {
-                    GlassCapsuleButton(label: L10n.t(.obBackToTour), systemName: "chevron.left") {
-                        viewModel.onResumeOnboarding?()
-                    }
-                    .transition(.opacity)
-                }
-                HeaderIconButton("xmark") {
-                    viewModel.onClose?()
-                }
+            GlassCloseButton {
+                viewModel.onClose?()
             }
-            .padding(.top, notchHeight + 8)
-            .padding(.trailing, 10)
+            .keyboardShortcut(.cancelAction)
+            .padding(.top, notchHeight + 18)
+            .padding(.trailing, 18)
         }
         .overlay(alignment: .bottomTrailing) {
             resizeGrip
-                // Kept clear of the capsule's rounded corner: clipShape also
+                // Kept clear of the drop's rounded corner: clipShape also
                 // clips hit-testing.
-                .padding(.trailing, 16)
-                .padding(.bottom, 6)
+                .padding(.trailing, 20)
+                .padding(.bottom, 10)
         }
     }
 

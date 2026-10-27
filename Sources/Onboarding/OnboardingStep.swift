@@ -1,5 +1,5 @@
 /// Pages of the welcome tour, in order. Module pages wear their module's
-/// own icon and name, so the tour's strip reads like the widget's.
+/// own name, as the widget's panel header does.
 enum OnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
     case calendar
@@ -20,14 +20,6 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
         case .notes: .notes
         case .assistant: .assistant
         case .welcome, .ready: nil
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .welcome: "power"
-        case .ready: "arrow.up.and.down.and.arrow.left.and.right"
-        default: tab?.icon ?? "circle"
         }
     }
 
@@ -67,9 +59,4 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
     var next: OnboardingStep? { OnboardingStep(rawValue: rawValue + 1) }
     var previous: OnboardingStep? { OnboardingStep(rawValue: rawValue - 1) }
     var isLast: Bool { next == nil }
-
-    /// "02 / 07".
-    var counter: String {
-        String(format: "%02d / %02d", rawValue + 1, Self.allCases.count)
-    }
 }

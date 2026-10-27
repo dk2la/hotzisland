@@ -14,11 +14,19 @@ enum NotchMetrics {
 
     /// The welcome tour's body. Fixed, and small enough for the smallest
     /// supported screen, so it needs none of the settings' clamping.
-    static let onboardingSize = CGSize(width: 760, height: 480)
+    static let onboardingSize = CGSize(width: 600, height: 560)
+
+    /// Corner radius of the expanded island's body — the large, soft
+    /// corners of a floating glass sheet.
+    static let dropRadius: CGFloat = 30
+
+    /// Below the menu bar the drop keeps the housing's black for this long
+    /// before it has fully turned into glass.
+    static let dropInkFade: CGFloat = 70
 
     /// Expanded island: the drop's concave shoulders below the menu bar,
     /// where the housing-wide neck widens into the panel.
-    static let dropFillet: CGFloat = 12
+    static let dropFillet: CGFloat = 14
 
     /// Capsule size on Macs without a physical notch.
     static let fallbackClosedSize = CGSize(width: 196, height: 32)

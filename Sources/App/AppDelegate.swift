@@ -7,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var notchController: NotchWindowController?
     private var widgetController: WidgetWindowController?
-    private let hotkeys = HotkeyService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
@@ -70,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Global shortcuts (Carbon — no permissions needed). H and P act on
     /// the widget; M opens or closes the settings island.
     private func registerHotkeys() {
+        let hotkeys = services.hotkeys
         hotkeys.register(.toggleWidgetHidden) { [weak self] in
             // The controller reconciles through settingsDidChange, so the
             // hotkey works even while the widget window is being rebuilt.

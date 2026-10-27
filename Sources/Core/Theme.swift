@@ -57,6 +57,9 @@ enum Theme {
     static let glassTintDark = Color.black.opacity(0.52)
     static let glassStrokeLight = Color.white.opacity(0.20)
     static let glassStrokeDark = Color.white.opacity(0.14)
+    /// The expanded island is the widget's dark glass, a touch denser:
+    /// it carries whole pages of text.
+    static let islandGlassTint = Color.black.opacity(0.6)
 
     // MARK: - Severity
 
