@@ -38,9 +38,10 @@ struct NotchRootView: View {
     /// covered at any point.
     private var dropSize: CGSize {
         if isExpanded {
+            let panel = viewModel.panelSize(for: viewModel.content, settings: settings)
             return CGSize(
-                width: settings.expandedPanelSize.width,
-                height: settings.expandedPanelSize.height + closedSize.height + Self.fillet
+                width: panel.width,
+                height: panel.height + closedSize.height + Self.fillet
             )
         }
         // Shorter than the capsule by its bottom radius: the sliver's square
@@ -112,6 +113,9 @@ struct NotchRootView: View {
                 Button(L10n.t(.menuSettings)) {
                     viewModel.onIslandTapped?()
                 }
+                Button(L10n.t(.obTour)) {
+                    requestOnboarding()
+                }
                 Divider()
                 Button(L10n.t(.menuQuit)) {
                     NSApplication.shared.terminate(nil)
@@ -146,14 +150,29 @@ struct NotchRootView: View {
             .contentShape(dropShape)
             .frame(width: dropSize.width, height: dropSize.height)
             .animation(Theme.stateSpring, value: isExpanded)
+            // Settings ⇄ tour morphs the open drop to the other body size.
+            .animation(Theme.stateSpring, value: viewModel.content)
     }
 
+    @ViewBuilder
     private var expandedContent: some View {
-        IslandSettingsView(
-            viewModel: viewModel,
-            services: services,
-            settings: settings,
-            notchHeight: closedSize.height + Self.fillet
-        )
+        switch viewModel.content {
+        case .settings:
+            IslandSettingsView(
+                viewModel: viewModel,
+                services: services,
+                settings: settings,
+                notchHeight: closedSize.height + Self.fillet
+            )
+            .transition(.opacity)
+        case .onboarding:
+            IslandOnboardingView(
+                viewModel: viewModel,
+                services: services,
+                settings: settings,
+                notchHeight: closedSize.height + Self.fillet
+            )
+            .transition(.opacity)
+        }
     }
 }

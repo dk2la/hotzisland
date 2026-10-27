@@ -80,6 +80,9 @@ struct WidgetRootView: View {
                 Button(L10n.t(.menuSettings)) {
                     requestSettings()
                 }
+                Button(L10n.t(.obTour)) {
+                    requestOnboarding()
+                }
                 Divider()
                 Button(L10n.t(.menuQuit)) {
                     NSApplication.shared.terminate(nil)

@@ -132,6 +132,17 @@ struct SettingsView: View {
     }
 
     private var generalPage: some View {
+        // Scrolls: behavior, tour and demo outgrow the smallest panel.
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                behaviorSection
+                tourSection
+                demoSection
+            }
+        }
+    }
+
+    private var behaviorSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(L10n.t(.setBehavior))
             SettingRow(title: L10n.t(.setLanguage), subtitle: L10n.t(.setLanguageSub)) {
@@ -160,7 +171,23 @@ struct SettingsView: View {
                     selection: $settings.idleMode
                 )
             }
-            demoSection
+        }
+    }
+
+    /// The welcome tour: replay it now, or have it greet every launch.
+    private var tourSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(L10n.t(.obTour))
+                .padding(.top, 18)
+            SettingRow(title: L10n.t(.obTour), subtitle: L10n.t(.obTourSub)) {
+                PaletteButton(L10n.t(.obShow), filled: true) {
+                    requestOnboarding()
+                }
+            }
+            Hairline(color: Palette.hairline)
+            SettingRow(title: L10n.t(.obShowAtLaunch), subtitle: L10n.t(.obShowAtLaunchSub)) {
+                InstrumentToggle(isOn: $settings.showOnboardingAtLaunch)
+            }
         }
     }
 
@@ -375,8 +402,7 @@ struct SettingsView: View {
     }
 }
 
-/// Drag-to-reorder module list with enable toggles — shared by settings
-/// and onboarding step 3.
+/// Drag-to-reorder module list with enable toggles (Settings → Modules).
 struct ModulesOrderList: View {
     @Bindable var settings: AppSettings
 

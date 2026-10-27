@@ -26,6 +26,9 @@ extension Notification.Name {
     /// module in the widget — e.g. the assistant handing a form to the
     /// calendar.
     static let hotzShowModule = Notification.Name("hotzShowModule")
+    /// Posted by UI that wants the welcome tour on the island (settings,
+    /// context menus); the AppDelegate observes it.
+    static let hotzOpenOnboarding = Notification.Name("hotzOpenOnboarding")
 }
 
 /// Asks the AppDelegate for the settings island, optionally on a page.
@@ -36,6 +39,12 @@ func requestSettings(page: SettingsView.Page? = nil) {
         object: nil,
         userInfo: page.map { ["page": $0.rawValue] }
     )
+}
+
+/// Asks the AppDelegate for the welcome tour, from its first page.
+@MainActor
+func requestOnboarding() {
+    NotificationCenter.default.post(name: .hotzOpenOnboarding, object: nil)
 }
 
 /// User preferences, persisted to UserDefaults.
@@ -85,6 +94,12 @@ final class AppSettings {
         didSet { persist(widgetMinimized, Self.widgetMinimizedKey, log: "widgetMinimized") }
     }
 
+    /// The welcome tour opens on the island at every launch until switched
+    /// off — from the tour's own footer or Settings → General.
+    var showOnboardingAtLaunch: Bool {
+        didSet { persist(showOnboardingAtLaunch, Self.onboardingAtLaunchKey, log: "showOnboardingAtLaunch") }
+    }
+
     /// Size of the widget-mode panel, each axis dragged by its own grip.
     /// Separate from the island's `expandedPanelSize` — the two surfaces
     /// have different geometry.
@@ -108,7 +123,7 @@ final class AppSettings {
         didSet { persist(enabledTabs.map(\.rawValue).sorted(), Self.tabsKey) }
     }
 
-    /// User-arranged channel order (onboarding step 3 / settings → Модули).
+    /// User-arranged channel order (Settings → Modules).
     private(set) var tabOrder: [NotchTab] {
         didSet { persist(tabOrder.map(\.rawValue), Self.tabOrderKey) }
     }
@@ -163,6 +178,7 @@ final class AppSettings {
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
     @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
     @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
+    @ObservationIgnored private static let onboardingAtLaunchKey = "settings.showOnboardingAtLaunch"
     @ObservationIgnored private static let widgetPanelWidthKey = "settings.widgetPanelWidth"
     @ObservationIgnored private static let widgetPanelHeightKey = "settings.widgetPanelHeight"
 
@@ -197,6 +213,8 @@ final class AppSettings {
         // Absent key = default ON: auto-close is the expected light behaviour.
         closeOnOutsideClick = (defaults.object(forKey: Self.outsideClickKey) as? Bool) ?? true
         widgetMinimized = defaults.bool(forKey: Self.widgetMinimizedKey)
+        // Absent key = on: the tour shows until the user turns it off.
+        showOnboardingAtLaunch = (defaults.object(forKey: Self.onboardingAtLaunchKey) as? Bool) ?? true
         // Coming-soon modules stay off until their services land.
         let defaultEnabled = Set(NotchTab.allCases).subtracting(NotchTab.comingSoon)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {

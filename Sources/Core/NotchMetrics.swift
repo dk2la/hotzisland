@@ -12,6 +12,10 @@ enum NotchMetrics {
     static let expandedMinSize = CGSize(width: 720, height: 520)
     static let expandedMaxSize = CGSize(width: 1100, height: 760)
 
+    /// The welcome tour's body. Fixed, and small enough for the smallest
+    /// supported screen, so it needs none of the settings' clamping.
+    static let onboardingSize = CGSize(width: 760, height: 480)
+
     /// Expanded island: the drop's concave shoulders below the menu bar,
     /// where the housing-wide neck widens into the panel.
     static let dropFillet: CGFloat = 12

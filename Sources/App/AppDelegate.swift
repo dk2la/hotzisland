@@ -7,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var notchController: NotchWindowController?
     private var widgetController: WidgetWindowController?
-    private let onboarding = OnboardingWindowController()
     private let hotkeys = HotkeyService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -30,6 +29,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .hotzOpenSettings,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(openOnboarding),
+            name: .hotzOpenOnboarding,
+            object: nil
+        )
 
         // A demo event is asked for from the settings island, which sits
         // where the event would show — close it first, then flash the event.
@@ -42,20 +47,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Developer convenience: `open HotzIsland.app --args --settings`.
-        if CommandLine.arguments.contains("--settings") {
-            showSettings(page: nil)
-        }
         // `--demo`: scripted data in every module from the first frame.
         if CommandLine.arguments.contains("--demo") {
             services.demo.activate()
         }
 
-        let defaults = UserDefaults.standard
-        if !defaults.bool(forKey: "onboarding.completed")
-            || CommandLine.arguments.contains("--onboarding") {
-            onboarding.show(settings: settings) {
-                defaults.set(true, forKey: "onboarding.completed")
+        // Developer convenience: `open HotzIsland.app --args --settings`
+        // wins over the tour; `--onboarding` forces the tour even when the
+        // user switched it off.
+        if CommandLine.arguments.contains("--settings") {
+            showSettings(page: nil)
+        } else if settings.showOnboardingAtLaunch || CommandLine.arguments.contains("--onboarding") {
+            // A beat after launch, so the island visibly drops open instead
+            // of appearing already expanded.
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(600))
+                self?.notchController?.openOnboarding()
             }
         }
     }
@@ -91,6 +98,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         settingsItem.target = self
         menu.addItem(settingsItem)
+        let tourItem = NSMenuItem(
+            title: "Welcome Tour…",
+            action: #selector(openOnboarding),
+            keyEquivalent: ""
+        )
+        tourItem.target = self
+        menu.addItem(tourItem)
         menu.addItem(.separator())
         menu.addItem(
             NSMenuItem(
@@ -106,6 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettings() {
         showSettings(page: nil)
+    }
+
+    @objc private func openOnboarding() {
+        notchController?.openOnboarding()
     }
 
     @objc private func handleOpenSettings(_ notification: Notification) {

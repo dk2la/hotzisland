@@ -5,7 +5,8 @@ import SwiftUI
 /// Owns the island panel: positions it on the notch, resizes the window in
 /// step with the state machine, and survives display configuration changes.
 /// Resting, the island shows live events and compact indicators; expanded,
-/// it hosts the app's settings (click the notch, ⌃⌥M, or the menu bar).
+/// it hosts the app's settings (click the notch, ⌃⌥M, or the menu bar) or
+/// the welcome tour (at launch, or on demand).
 @MainActor
 final class NotchWindowController: NSObject {
     private let panel = NotchPanel()
@@ -68,6 +69,9 @@ final class NotchWindowController: NSObject {
         viewModel.onClose = { [weak self] in
             self?.closeSettings()
         }
+        viewModel.onResumeOnboarding = { [weak self] in
+            self?.openOnboarding(resume: true)
+        }
     }
 
     // MARK: - Settings island
@@ -78,8 +82,60 @@ final class NotchWindowController: NSObject {
         if let page {
             viewModel.pageSelection.page = page
         }
+        // Leaving the open tour for the settings is a detour; anything else
+        // starts the settings afresh.
+        if targetState == .expanded {
+            if viewModel.content == .onboarding { viewModel.cameFromOnboarding = true }
+        } else {
+            viewModel.cameFromOnboarding = false
+        }
         settingsPinned = pinned
-        requestState(.expanded)
+        show(.settings)
+    }
+
+    /// Expands the island onto the welcome tour, always pinned — it is read,
+    /// not glanced at. `resume` comes back to the page a detour left.
+    func openOnboarding(resume: Bool = false) {
+        if !resume {
+            viewModel.onboardingStep = .welcome
+        }
+        viewModel.cameFromOnboarding = false
+        settingsPinned = true
+        show(.onboarding)
+    }
+
+    /// Expands onto `content`, or morphs the open island into it.
+    private func show(_ content: IslandContent) {
+        guard targetState == .expanded else {
+            viewModel.content = content
+            requestState(.expanded)
+            return
+        }
+        switchContent(to: content)
+    }
+
+    /// Settings ⇄ tour while expanded: the two bodies differ in size. The
+    /// window first takes the union of both — top-centered like every
+    /// island frame — so the morph is clipped in neither direction, then
+    /// settles on the new size once the spring is done.
+    private func switchContent(to content: IslandContent) {
+        guard viewModel.content != content, let screen = NotchGeometry.targetScreen else { return }
+        collapseTask?.cancel()
+        expandTask?.cancel()
+        let target = frame(for: .expanded, content: content, on: screen)
+        let union = CGSize(
+            width: max(panel.frame.width, target.width),
+            height: max(panel.frame.height, target.height)
+        )
+        panel.setFrame(NotchGeometry.topCentered(union, on: screen), display: true)
+        expandTask = Task { [weak self] in
+            guard !Task.isCancelled, let self else { return }
+            self.viewModel.content = content
+            try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+            guard !Task.isCancelled, self.targetState == .expanded,
+                  let screen = NotchGeometry.targetScreen else { return }
+            self.panel.setFrame(self.frame(for: .expanded, on: screen), display: true)
+        }
     }
 
     func closeSettings() {
@@ -228,6 +284,9 @@ final class NotchWindowController: NSObject {
         hoverExitTask?.cancel()
         hoverExitTask = nil
         guard targetState != .expanded else { return }
+        // Hover is a glance at the settings — never the tour.
+        viewModel.content = .settings
+        viewModel.cameFromOnboarding = false
         requestState(.expanded)
     }
 
@@ -356,23 +415,29 @@ final class NotchWindowController: NSObject {
         panel.orderFrontRegardless()
     }
 
-    private func frame(for state: NotchState, on screen: NSScreen) -> NSRect {
+    /// `content` defaults to what the island shows now.
+    private func frame(
+        for state: NotchState,
+        content: IslandContent? = nil,
+        on screen: NSScreen
+    ) -> NSRect {
         let size: CGSize = switch state {
         case .expanded:
-            // Already clamped (including to the screen) by AppSettings — the
-            // window and the SwiftUI island must always agree on this size.
-            // The panel sits below the menu bar; the neck through it adds
-            // the housing's height.
-            CGSize(
-                width: settings.expandedPanelSize.width,
-                height: settings.expandedPanelSize.height + closedSize.height + NotchMetrics.dropFillet
-            )
+            // The view model is the one source of the body size — the window
+            // and the SwiftUI island must always agree on it. The panel sits
+            // below the menu bar; the neck through it adds the housing's
+            // height.
+            expandedSize(viewModel.panelSize(for: content ?? viewModel.content, settings: settings))
         case .compact:
             NotchGeometry.capsule(closedSize, side: NotchMetrics.compactSideWidth)
         case .closed:
             closedSize
         }
         return NotchGeometry.topCentered(size, on: screen)
+    }
+
+    private func expandedSize(_ panel: CGSize) -> CGSize {
+        CGSize(width: panel.width, height: panel.height + closedSize.height + NotchMetrics.dropFillet)
     }
 
     @objc private func screenParametersDidChange() {

@@ -19,8 +19,18 @@ struct IslandSettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .overlay(alignment: .topTrailing) {
-            HeaderIconButton("xmark") {
-                viewModel.onClose?()
+            HStack(spacing: 6) {
+                // A detour out of the tour (connecting an account) keeps
+                // the way back to the page it left.
+                if viewModel.cameFromOnboarding {
+                    GlassCapsuleButton(label: L10n.t(.obBackToTour), systemName: "chevron.left") {
+                        viewModel.onResumeOnboarding?()
+                    }
+                    .transition(.opacity)
+                }
+                HeaderIconButton("xmark") {
+                    viewModel.onClose?()
+                }
             }
             .padding(.top, notchHeight + 8)
             .padding(.trailing, 10)
