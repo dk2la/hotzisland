@@ -8,6 +8,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
     case clipboard
     case notes
     case assistant
+    case hotkeys
     case chats
     case media
     case timer
@@ -33,6 +34,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .clipboard: (.modClipboard, "doc.on.clipboard")
         case .notes: (.modNotes, "note.text")
         case .assistant: (.modAssistant, "sparkles")
+        case .hotkeys: (.modKeys, "keyboard")
         case .chats: (.modChats, "bubble.left")
         case .media: (.modMusic, "music.note")
         case .timer: (.modTimer, "timer")

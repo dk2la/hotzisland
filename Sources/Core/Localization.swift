@@ -84,7 +84,7 @@ final class L10n {
 enum L10nKey {
     // Module titles
     case modPlaybooks, modCalendar, modEmail, modClipboard, modNotes, modChats
-    case modMusic, modTimer, modShelf, modSystem, modAssistant
+    case modMusic, modTimer, modShelf, modSystem, modAssistant, modKeys
     case comingSoonSub
 
     // Widget chrome
@@ -167,6 +167,13 @@ enum L10nKey {
     case setGeneralSub, setAppearanceSub, setModulesSub, setAccountsSub, setPlaybooksSub, setHotkeysSub
     case hkBuiltIn, hkGlobal, hkRecord, hkReset, hkNeedsModifier, hkTaken, hkRefused, hkHint
 
+    // App hotkeys module
+    case keysSearch, keysPinned, keysMine, keysCount, keysReading, keysAccessSub
+    case keysNoApp, keysNoAppSub, keysNone, keysNoneSub, keysNotRunning, keysAddOwn
+    case keysNew, keysKeys, keysName, keysTags, keysTagsHint, keysEditTags
+    case keysPin, keysUnpin, keysHoldApp, keysFollowApp, keysRefresh
+    case keysImport, keysUseBuiltIn, keysImportFailed, keysFromFile, keysBuiltInSet
+
     // Welcome tour
     case obTour, obTourSub, obShow, obShowAtLaunch, obShowAtLaunchSub
     case obNext, obBack, obStart, obConnect
@@ -191,6 +198,7 @@ enum L10nKey {
         case .modMusic: return ["Music", "Музыка", "Musique", "Música", "音乐", "Música", "Musik", "Musica", "ミュージック", "음악"]
         case .modTimer: return ["Timer", "Таймер", "Minuteur", "Temporizador", "计时器", "Temporizador", "Timer", "Timer", "タイマー", "타이머"]
         case .modShelf: return ["Shelf", "Полка", "Étagère", "Estante", "暂存架", "Prateleira", "Ablage", "Mensola", "シェルフ", "선반"]
+        case .modKeys: return ["Hotkeys", "Шорткаты", "Raccourcis", "Atajos", "快捷键", "Atalhos", "Tastenkürzel", "Scorciatoie", "ショートカット", "단축키"]
         case .modSystem: return ["System", "Система", "Système", "Sistema", "系统", "Sistema", "System", "Sistema", "システム", "시스템"]
         case .modAssistant: return ["Assistant", "Ассистент", "Assistant", "Asistente", "助手", "Assistente", "Assistent", "Assistente", "アシスタント", "어시스턴트"]
         case .comingSoonSub: return ["Connects in a later build.", "Подключится в следующих версиях.", "Disponible dans une prochaine version.", "Se conecta en una versión futura.", "将在后续版本中接入。", "Chega numa versão futura.", "Kommt in einer späteren Version.", "Arriva in una versione futura.", "今後のバージョンで対応します。", "이후 버전에서 연결됩니다."]
@@ -428,6 +436,34 @@ enum L10nKey {
         case .hkTaken: return ["Taken: %@", "Уже занято: %@", "Déjà pris : %@", "Ya en uso: %@", "已被占用：%@", "Já em uso: %@", "Schon belegt: %@", "Già in uso: %@", "使用中：%@", "이미 사용 중: %@"]
         case .hkRefused: return ["macOS won't allow this one", "macOS не даёт это сочетание", "macOS refuse ce raccourci", "macOS no permite este atajo", "macOS 不允许此快捷键", "O macOS não permite este atalho", "macOS lässt das nicht zu", "macOS non lo consente", "macOSで使用できません", "macOS에서 허용하지 않음"]
         case .hkHint: return ["Click a shortcut to change it. Esc cancels.", "Нажмите на сочетание, чтобы изменить его. Esc — отмена.", "Cliquez sur un raccourci pour le modifier. Échap annule.", "Haz clic en un atajo para cambiarlo. Esc cancela.", "点击快捷键即可修改，按 Esc 取消。", "Clique num atalho para o alterar. Esc cancela.", "Klicke auf einen Kurzbefehl, um ihn zu ändern. Esc bricht ab.", "Fai clic su una scorciatoia per cambiarla. Esc annulla.", "ショートカットをクリックして変更。Escでキャンセル。", "단축키를 클릭해 변경하세요. Esc로 취소."]
+        case .keysSearch: return ["Search shortcuts", "Поиск по шорткатам", "Rechercher un raccourci", "Buscar atajos", "搜索快捷键", "Procurar atalhos", "Kürzel suchen", "Cerca scorciatoie", "ショートカットを検索", "단축키 검색"]
+        case .keysPinned: return ["Pinned", "Закреплённые", "Épinglés", "Fijados", "已固定", "Fixados", "Angeheftet", "Fissate", "ピン留め", "고정됨"]
+        case .keysMine: return ["My shortcuts", "Мои шорткаты", "Mes raccourcis", "Mis atajos", "我的快捷键", "Os meus atalhos", "Meine Kürzel", "Le mie scorciatoie", "マイショートカット", "내 단축키"]
+        case .keysCount: return ["%d shortcuts", "Шорткатов: %d", "%d raccourcis", "%d atajos", "%d 个快捷键", "%d atalhos", "%d Kürzel", "%d scorciatoie", "ショートカット %d 件", "단축키 %d개"]
+        case .keysReading: return ["Reading menus…", "Читаю меню…", "Lecture des menus…", "Leyendo menús…", "正在读取菜单…", "A ler os menus…", "Menüs werden gelesen…", "Lettura dei menu…", "メニューを読み込み中…", "메뉴 읽는 중…"]
+        case .keysAccessSub: return ["Allow Accessibility so the widget can read this app's menus.", "Разрешите Универсальный доступ, чтобы виджет мог читать меню приложения.", "Autorisez l'Accessibilité pour que le widget lise les menus de l'app.", "Permite Accesibilidad para que el widget lea los menús de la app.", "允许辅助功能，小组件才能读取此应用的菜单。", "Permita a Acessibilidade para o widget ler os menus da app.", "Erlaube Bedienungshilfen, damit das Widget die Menüs der App lesen kann.", "Consenti Accessibilità perché il widget legga i menu dell'app.", "ウィジェットがアプリのメニューを読めるよう、アクセシビリティを許可してください。", "위젯이 앱 메뉴를 읽을 수 있도록 손쉬운 사용을 허용하세요."]
+        case .keysNoApp: return ["no app yet", "пока нет приложения", "aucune app", "aún no hay app", "暂无应用", "ainda sem app", "noch keine App", "nessuna app", "アプリがありません", "앱 없음"]
+        case .keysNoAppSub: return ["Switch to any app to see its shortcuts", "Переключитесь на любое приложение, и здесь появятся его шорткаты", "Passez à une app pour voir ses raccourcis", "Cambia a cualquier app para ver sus atajos", "切换到任意应用即可查看它的快捷键", "Mude para qualquer app para ver os atalhos", "Wechsle zu einer App, um ihre Kürzel zu sehen", "Passa a un'app per vederne le scorciatoie", "アプリに切り替えるとショートカットが表示されます", "앱으로 전환하면 단축키가 표시됩니다"]
+        case .keysNone: return ["no shortcuts found", "шорткатов не нашлось", "aucun raccourci", "no hay atajos", "未找到快捷键", "nenhum atalho", "keine Kürzel gefunden", "nessuna scorciatoia", "ショートカットが見つかりません", "단축키 없음"]
+        case .keysNoneSub: return ["This app's menus have no shortcuts", "В меню этого приложения нет шорткатов", "Les menus de cette app n'ont pas de raccourcis", "Los menús de esta app no tienen atajos", "此应用的菜单中没有快捷键", "Os menus desta app não têm atalhos", "Die Menüs dieser App haben keine Kürzel", "I menu di questa app non hanno scorciatoie", "このアプリのメニューにはショートカットがありません", "이 앱의 메뉴에는 단축키가 없습니다"]
+        case .keysNotRunning: return ["Open the app to read its menus.", "Откройте приложение, чтобы прочитать его меню.", "Ouvrez l'app pour lire ses menus.", "Abre la app para leer sus menús.", "打开应用以读取它的菜单。", "Abra a app para ler os menus.", "Öffne die App, um ihre Menüs zu lesen.", "Apri l'app per leggerne i menu.", "メニューを読むにはアプリを開いてください。", "메뉴를 읽으려면 앱을 여세요."]
+        case .keysAddOwn: return ["Add your own", "Добавить свой", "Ajouter le vôtre", "Añadir el tuyo", "添加自己的", "Adicionar o seu", "Eigenes hinzufügen", "Aggiungi il tuo", "自分で追加", "직접 추가"]
+        case .keysNew: return ["New shortcut", "Новый шорткат", "Nouveau raccourci", "Nuevo atajo", "新建快捷键", "Novo atalho", "Neues Kürzel", "Nuova scorciatoia", "新規ショートカット", "새 단축키"]
+        case .keysKeys: return ["Keys", "Клавиши", "Touches", "Teclas", "按键", "Teclas", "Tasten", "Tasti", "キー", "키"]
+        case .keysName: return ["Name", "Название", "Nom", "Nombre", "名称", "Nome", "Name", "Nome", "名前", "이름"]
+        case .keysTags: return ["Tags", "Теги", "Tags", "Etiquetas", "标签", "Etiquetas", "Tags", "Tag", "タグ", "태그"]
+        case .keysTagsHint: return ["crop, trim…", "обрезка, crop…", "recadrer, crop…", "recortar, crop…", "裁剪, crop…", "cortar, crop…", "zuschneiden, crop…", "ritaglia, crop…", "トリミング, crop…", "자르기, crop…"]
+        case .keysEditTags: return ["Tags…", "Теги…", "Tags…", "Etiquetas…", "标签…", "Etiquetas…", "Tags…", "Tag…", "タグ…", "태그…"]
+        case .keysPin: return ["Pin", "Закрепить", "Épingler", "Fijar", "固定", "Fixar", "Anheften", "Fissa", "ピン留め", "고정"]
+        case .keysUnpin: return ["Unpin", "Открепить", "Désépingler", "Quitar fijación", "取消固定", "Desafixar", "Lösen", "Sblocca", "ピン留めを外す", "고정 해제"]
+        case .keysHoldApp: return ["Keep showing this app", "Держать это приложение", "Garder cette app", "Mantener esta app", "固定显示此应用", "Manter esta app", "Diese App behalten", "Mantieni questa app", "このアプリを表示し続ける", "이 앱 계속 표시"]
+        case .keysFollowApp: return ["Follow the active app", "Следовать за активным приложением", "Suivre l'app active", "Seguir la app activa", "跟随当前应用", "Seguir a app ativa", "Der aktiven App folgen", "Segui l'app attiva", "アクティブなアプリに合わせる", "활성 앱 따라가기"]
+        case .keysRefresh: return ["Read menus again", "Перечитать меню", "Relire les menus", "Volver a leer los menús", "重新读取菜单", "Ler os menus de novo", "Menüs neu lesen", "Rileggi i menu", "メニューを再読み込み", "메뉴 다시 읽기"]
+        case .keysImport: return ["Import key preset…", "Импортировать пресет клавиш…", "Importer un préréglage de touches…", "Importar preajuste de teclas…", "导入按键预设…", "Importar predefinição de teclas…", "Tastaturvorgabe importieren…", "Importa preset tasti…", "キープリセットを読み込む…", "키 프리셋 가져오기…"]
+        case .keysUseBuiltIn: return ["Use the built-in set", "Вернуть стандартный набор", "Revenir au jeu intégré", "Usar el conjunto integrado", "使用内置组合", "Usar o conjunto integrado", "Eingebauten Satz verwenden", "Usa il set integrato", "内蔵セットに戻す", "기본 세트 사용"]
+        case .keysImportFailed: return ["This file isn't the app's key preset", "Это не пресет клавиш этого приложения", "Ce fichier n'est pas un préréglage de touches de l'app", "Este archivo no es un preajuste de teclas de la app", "此文件不是该应用的按键预设", "Este ficheiro não é uma predefinição de teclas da app", "Diese Datei ist keine Tastaturvorgabe der App", "Questo file non è un preset tasti dell'app", "このファイルはアプリのキープリセットではありません", "이 파일은 앱의 키 프리셋이 아닙니다"]
+        case .keysFromFile: return ["from file", "из файла", "depuis un fichier", "desde archivo", "来自文件", "do ficheiro", "aus Datei", "da file", "ファイルから", "파일에서"]
+        case .keysBuiltInSet: return ["built-in set", "стандартный набор", "jeu intégré", "conjunto integrado", "内置组合", "conjunto integrado", "eingebauter Satz", "set integrato", "内蔵セット", "기본 세트"]
         case .setGeneralSub: return ["Language, startup and everyday behavior.", "Язык, запуск и повседневное поведение.", "Langue, démarrage et comportement au quotidien.", "Idioma, inicio y comportamiento diario.", "语言、启动与日常行为。", "Idioma, arranque e comportamento do dia a dia.", "Sprache, Start und Verhalten im Alltag.", "Lingua, avvio e comportamento quotidiano.", "言語、起動、ふだんの動作。", "언어, 시작, 일상적인 동작."]
         case .setAppearanceSub: return ["Materials and how the panels look.", "Материалы и вид панелей.", "Matériaux et apparence des panneaux.", "Materiales y aspecto de los paneles.", "材质与面板外观。", "Materiais e aspeto dos painéis.", "Materialien und Aussehen der Panels.", "Materiali e aspetto dei pannelli.", "素材とパネルの見た目。", "재질과 패널 모양."]
         case .setModulesSub: return ["What the widget shows, and in what order.", "Что показывает виджет и в каком порядке.", "Ce que le widget affiche, et dans quel ordre.", "Qué muestra el widget y en qué orden.", "小组件显示哪些模块及其顺序。", "O que o widget mostra e por que ordem.", "Was das Widget zeigt und in welcher Reihenfolge.", "Cosa mostra il widget e in quale ordine.", "ウィジェットに何をどの順で表示するか。", "위젯에 무엇을 어떤 순서로 보여줄지."]

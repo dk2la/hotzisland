@@ -36,6 +36,8 @@ struct ModuleContentView: View {
                 speech: services.speechCapture,
                 voice: services.speechSynthesis
             )
+        case .hotkeys:
+            AppShortcutsModuleView(service: services.appShortcuts)
         case .chats:
             ComingSoonModuleView(tab: tab)
         }

@@ -159,15 +159,16 @@ final class AppSettings {
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    // v5: bumped when the assistant tab shipped (v4 = email, v3 = notes,
-    // v2 = playbooks) — a stored older set would silently hide new tabs,
-    // since "missing" is indistinguishable from "disabled by the user".
-    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
+    // v6: bumped when the hotkeys tab shipped (v5 = assistant, v4 = email,
+    // v3 = notes, v2 = playbooks) — a stored older set would silently hide
+    // new tabs, since "missing" is indistinguishable from "disabled by the user".
+    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v6"
     /// (legacy key, tabs to surface when migrating from it)
     @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [
-        ("settings.enabledTabs.v4", [.assistant]),
-        ("settings.enabledTabs.v3", [.email, .assistant]),
-        ("settings.enabledTabs.v2", [.notes, .email, .assistant]),
+        ("settings.enabledTabs.v5", [.hotkeys]),
+        ("settings.enabledTabs.v4", [.assistant, .hotkeys]),
+        ("settings.enabledTabs.v3", [.email, .assistant, .hotkeys]),
+        ("settings.enabledTabs.v2", [.notes, .email, .assistant, .hotkeys]),
     ]
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"

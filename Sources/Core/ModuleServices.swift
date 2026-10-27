@@ -19,6 +19,7 @@ final class ModuleServices {
     let assistantService = AssistantService()
     let playbookStore = PlaybookStore()
     let playbookRunner: PlaybookRunner
+    let appShortcuts = AppShortcutsService()
     /// Scripted data in every module, for promo recordings.
     let demo = DemoMode()
     /// Global shortcuts — the AppDelegate binds their actions, Settings →
