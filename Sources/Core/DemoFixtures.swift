@@ -342,19 +342,23 @@ enum DemoFixtures {
     static var playbooks: [Playbook] {
         [
             Playbook(name: "Morning review", icon: "sunrise.fill", steps: [
-                .openApps(id: UUID(), bundleIDs: ["com.google.Chrome", "com.tinyspeck.slackmacgap", "com.apple.iCal"], layout: .thirds),
+                .openApps(id: UUID(), bundleIDs: ["com.google.Chrome", "com.tinyspeck.slackmacgap", "com.apple.iCal"], layout: .leftAndQuarters),
                 .startTimer(id: UUID(), minutes: 15),
             ]),
             Playbook(name: "Campaign work", icon: "megaphone.fill", steps: [
-                .openApps(id: UUID(), bundleIDs: ["com.figma.Desktop", "com.google.Chrome", "com.apple.Notes"], layout: .mainAndSide),
+                .openApps(
+                    id: UUID(),
+                    bundleIDs: ["com.figma.Desktop", "com.google.Chrome", "com.apple.Notes", "com.tinyspeck.slackmacgap"],
+                    layout: .grid2x2
+                ),
                 .startTimer(id: UUID(), minutes: 45),
             ]),
             Playbook(name: "Board deck", icon: "chart.bar.fill", steps: [
-                .openApps(id: UUID(), bundleIDs: ["com.apple.iWork.Keynote", "com.apple.iWork.Numbers"], layout: .leftRight),
+                .openApps(id: UUID(), bundleIDs: ["com.apple.iWork.Keynote", "com.apple.iWork.Numbers"], layout: .topBottom),
                 .openURLs(id: UUID(), urls: ["https://analytics.google.com"]),
             ]),
             Playbook(name: "Wind down", icon: "moon.stars.fill", steps: [
-                .openApps(id: UUID(), bundleIDs: ["com.spotify.client"], layout: .none),
+                .openApps(id: UUID(), bundleIDs: ["com.spotify.client"], layout: .fullscreen),
                 .startTimer(id: UUID(), minutes: 20),
             ]),
         ]

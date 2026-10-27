@@ -32,4 +32,14 @@ final class ModuleServices {
         assistantService.attachToolbox(services: self)
         demo.attach(services: self)
     }
+
+    /// Starts everything that makes macOS ask for access on its own: the
+    /// notes folder (Documents by default), the clipboard, scripting the
+    /// music players. On first launch the welcome tour calls it once it is
+    /// closed — its pages ask for the calendar and the notes folder first.
+    func beginProtectedAccess() {
+        notesStore.activate()
+        clipboardStore.startWatching()
+        mediaCenter.allowPlayerScripts()
+    }
 }

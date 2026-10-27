@@ -90,7 +90,19 @@ final class CalendarService {
             }
         }
 
-        Task { await requestAccess() }
+        readAuthorizationStatus()
+    }
+
+    /// The current answer, without asking: the question itself is put by
+    /// the welcome tour's calendar page or the module's own button.
+    private func readAuthorizationStatus() {
+        realAccess = switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess: .granted
+        case .notDetermined: .unknown
+        default: .denied
+        }
+        access = realAccess
+        if access == .granted { reload() }
     }
 
     func requestAccess() async {

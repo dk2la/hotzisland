@@ -82,8 +82,9 @@ final class AppSettings {
         didSet { persist(widgetOffset, Self.widgetOffsetKey) }
     }
 
-    /// Clicking anywhere outside the widget closes the open panel. Off =
-    /// the panel stays pinned until closed explicitly. ⌃⌥P flips it.
+    /// Clicking anywhere outside the widget, or the cursor leaving it,
+    /// closes the open panel. Off = the panel stays pinned until closed
+    /// explicitly. ⌃⌥P flips it.
     var closeOnOutsideClick: Bool {
         didSet { persist(closeOnOutsideClick, Self.outsideClickKey, log: "closeOnOutsideClick") }
     }
@@ -98,6 +99,12 @@ final class AppSettings {
     /// off — from the tour's own footer or Settings → General.
     var showOnboardingAtLaunch: Bool {
         didSet { persist(showOnboardingAtLaunch, Self.onboardingAtLaunchKey, log: "showOnboardingAtLaunch") }
+    }
+
+    /// The first welcome tour has been closed. Until then nothing asks
+    /// macOS for access on its own — the tour asks, page by page.
+    var onboardingCompleted: Bool {
+        didSet { persist(onboardingCompleted, Self.onboardingCompletedKey, log: "onboardingCompleted") }
     }
 
     /// Size of the widget-mode panel, each axis dragged by its own grip.
@@ -180,6 +187,7 @@ final class AppSettings {
     @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
     @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
     @ObservationIgnored private static let onboardingAtLaunchKey = "settings.showOnboardingAtLaunch"
+    @ObservationIgnored private static let onboardingCompletedKey = "settings.onboardingCompleted"
     @ObservationIgnored private static let widgetPanelWidthKey = "settings.widgetPanelWidth"
     @ObservationIgnored private static let widgetPanelHeightKey = "settings.widgetPanelHeight"
 
@@ -216,6 +224,7 @@ final class AppSettings {
         widgetMinimized = defaults.bool(forKey: Self.widgetMinimizedKey)
         // Absent key = on: the tour shows until the user turns it off.
         showOnboardingAtLaunch = (defaults.object(forKey: Self.onboardingAtLaunchKey) as? Bool) ?? true
+        onboardingCompleted = defaults.bool(forKey: Self.onboardingCompletedKey)
         // Coming-soon modules stay off until their services land.
         let defaultEnabled = Set(ModuleTab.allCases).subtracting(ModuleTab.comingSoon)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {

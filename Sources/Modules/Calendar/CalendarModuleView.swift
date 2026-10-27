@@ -35,10 +35,18 @@ struct CalendarModuleView: View {
             message(
                 icon: "lock.fill",
                 text: "Calendar access denied",
-                action: ("Open Settings", { NSWorkspace.shared.openPrivacyPane("Calendars") })
+                action: ("Open Settings", {
+                    PermissionGuide.shared.show(.calendars) {
+                        Task { await service.requestAccess() }
+                    }
+                })
             )
         case .unknown:
-            message(icon: "calendar", text: "Requesting access…", action: nil)
+            message(
+                icon: "calendar",
+                text: "No calendar access yet",
+                action: ("Allow Access", { Task { await service.requestAccess() } })
+            )
         }
     }
 

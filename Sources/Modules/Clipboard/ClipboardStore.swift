@@ -22,7 +22,10 @@ final class ClipboardStore {
     private static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
     private static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
 
-    init() {
+    /// Reading another app's copy may raise macOS's paste-access prompt, so
+    /// watching starts only once the welcome tour is out of the way.
+    func startWatching() {
+        guard pollTask == nil else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 self?.poll()

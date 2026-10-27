@@ -51,6 +51,8 @@ struct NotesModuleView: View {
             captureBar
         }
         .animation(Theme.stateSpring, value: speech.isRecording)
+        // Opening the module is consent enough to read the folder.
+        .onAppear { store.activate() }
     }
 
     private func hero(_ note: NoteFile) -> some View {

@@ -18,6 +18,10 @@ final class NotesStore {
     var editorTitle: String = ""
     private(set) var isDirty = false
     private(set) var lastError: String?
+    /// The folder is read and watched only after `activate()` or a folder
+    /// pick: the default one lives in Documents, which macOS guards with a
+    /// prompt that must not land on top of the welcome tour.
+    private(set) var isActive = false
 
     @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "notes")
     @ObservationIgnored private let defaults = UserDefaults.standard
@@ -42,9 +46,14 @@ final class NotesStore {
                 .urls(for: .documentDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("Pocket Notes", isDirectory: true)
         }
+        log.info("folder=\(self.folderURL.path, privacy: .public)")
+    }
+
+    func activate() {
+        guard !isActive else { return }
+        isActive = true
         rescan()
         startWatcher()
-        log.info("folder=\(self.folderURL.path, privacy: .public)")
     }
 
     // MARK: - Folder
@@ -57,6 +66,7 @@ final class NotesStore {
         folderURL = url
         defaults.set(url.path, forKey: Self.folderKey)
         log.info("folder -> \(url.path, privacy: .public)")
+        isActive = true
         rescan()
         startWatcher()
     }
@@ -101,6 +111,12 @@ final class NotesStore {
         closeEditor()
         folderURL = url
         notes = []
+        // Back from the demo before the real folder was ever opened.
+        guard isActive || isDemo else {
+            watcher?.stop()
+            watcher = nil
+            return
+        }
         rescan()
         startWatcher()
     }

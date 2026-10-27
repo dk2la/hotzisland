@@ -30,6 +30,8 @@ final class CapsuleWindowController: NSObject {
     private var settingsPinned = false
     private let services: ModuleServices
     private let settings: AppSettings
+    /// Fired when the expanded capsule (settings or tour) closes.
+    var onCollapse: (() -> Void)?
     private let log = Logger(subsystem: "com.dk2la.pocket", category: "window")
 
     init(settings: AppSettings, services: ModuleServices) {
@@ -139,6 +141,7 @@ final class CapsuleWindowController: NSObject {
         settingsPinned = false
         guard targetState == .expanded else { return }
         requestState(idleState)
+        onCollapse?()
     }
 
     /// ⌃⌥M: open pinned, or close if already open.
@@ -183,9 +186,14 @@ final class CapsuleWindowController: NSObject {
         return capsuleOwns(viewPoint: local, in: NSRect(origin: .zero, size: frame.size))
     }
 
+    /// The tour is read, not glanced at: it closes only on ✕, Start, Esc
+    /// or the hotkey — granting access means clicking in System Settings
+    /// and the consent dialogs, which must not end it. Neither the tour
+    /// nor the settings close while the permission guide is up.
     private func handleOutsideClick(at location: NSPoint) {
-        guard targetState == .expanded, !viewModel.isResizingPanel,
-              panel.attachedSheet == nil, !hasOwnPopupWindow,
+        guard targetState == .expanded, viewModel.content != .onboarding,
+              !PermissionGuide.shared.isShowing, !viewModel.isResizingPanel,
+              panel.attachedSheet == nil, !panel.hasOwnPopupWindow,
               let screen = CapsuleGeometry.targetScreen else { return }
         if !expandedContains(location, on: screen) {
             closeSettings()
@@ -320,7 +328,7 @@ final class CapsuleWindowController: NSObject {
     /// nothing of ours (a menu, a popover, a sheet) is up in front of it.
     private func collapseIfCursorLeft() {
         guard targetState == .expanded, !settingsPinned, !viewModel.isResizingPanel else { return }
-        guard panel.attachedSheet == nil, !hasOwnPopupWindow else { return }
+        guard panel.attachedSheet == nil, !panel.hasOwnPopupWindow else { return }
         guard let screen = CapsuleGeometry.targetScreen else { return }
         if expandedContains(NSEvent.mouseLocation, on: screen) { return }
         requestState(idleState)
@@ -329,13 +337,6 @@ final class CapsuleWindowController: NSObject {
     /// A SwiftUI Menu or picker opens its own window on top of the panel;
     /// while one is visible the cursor is "inside" as far as the user is
     /// concerned.
-    private var hasOwnPopupWindow: Bool {
-        NSApp.windows.contains { window in
-            window !== panel && window.isVisible
-                && (window.parent === panel || window.sheetParent === panel
-                    || window.className.contains("Popup") || window.className.contains("Menu"))
-        }
-    }
 
     /// Single entry point for state changes: prepare the window frame first,
     /// then run the animation.

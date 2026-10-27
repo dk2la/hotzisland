@@ -42,6 +42,19 @@ struct PlaybooksModuleView: View {
 
     /// Playbook that just finished — it shows a checkmark for 3 s.
     @State private var justRanID: UUID?
+    /// Not observable — re-read on appearance, set by the guide on success.
+    @State private var accessibilityTrusted = WindowLayoutService.isTrusted
+
+    /// Some playbook arranges windows, which silently does nothing without
+    /// Accessibility — say so where the playbooks are run.
+    private var needsAccessibility: Bool {
+        !accessibilityTrusted && store.playbooks.contains { playbook in
+            playbook.steps.contains { step in
+                if case .openApps(_, _, let layout) = step { return layout != .none }
+                return false
+            }
+        }
+    }
 
     /// The hero: the last playbook run, else the first one.
     private var featured: Playbook? {
@@ -62,10 +75,14 @@ struct PlaybooksModuleView: View {
                     list(store.playbooks.filter { $0.id != featured?.id })
                 }
             }
+            if needsAccessibility {
+                accessNotice
+            }
             if let last = runner.lastRun, !last.result.failures.isEmpty {
                 runRegister(last)
             }
         }
+        .onAppear { accessibilityTrusted = WindowLayoutService.isTrusted }
         .onChange(of: runner.lastRun) { _, record in
             guard let record else { return }
             justRanID = record.playbook.id
@@ -223,6 +240,29 @@ struct PlaybooksModuleView: View {
             .groupedRow(isLast: true)
         }
         .buttonStyle(PressableStyle())
+    }
+
+    // MARK: - Access notice
+
+    private var accessNotice: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "macwindow")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+            Text(L10n.t(.playAccessNeeded))
+                .font(Theme.subFont)
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            ModuleButton(label: L10n.t(.obAllowAccess), kind: .accent, height: 28) {
+                WindowLayoutService.requestAccess {
+                    accessibilityTrusted = true
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: Theme.groupRadius, style: .continuous))
     }
 
     // MARK: - Run register

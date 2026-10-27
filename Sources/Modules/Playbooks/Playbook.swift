@@ -69,7 +69,7 @@ enum PlaybookStep: Codable, Equatable, Sendable, Identifiable {
 
     // MARK: - Codable
     // Flat object with a `kind` discriminator: {"kind":"openApps","id":…,
-    // "bundleIDs":[…],"layout":"thirds"}. Keys are explicit so renaming a
+    // "bundleIDs":[…],"layout":"leftRight"}. Keys are explicit so renaming a
     // case never silently breaks saved files.
 
     private enum CodingKeys: String, CodingKey {
@@ -187,9 +187,9 @@ extension WindowLayout {
         switch self {
         case .none: "no layout"
         case .leftRight: "side by side"
-        case .thirds: "three columns"
+        case .topBottom: "top and bottom"
+        case .leftAndQuarters: "left + quarters"
         case .grid2x2: "2x2 grid"
-        case .mainAndSide: "main + sidebar"
         case .fullscreen: "fill the screen"
         }
     }

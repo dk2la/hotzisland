@@ -3,8 +3,9 @@ import OSLog
 import SwiftUI
 
 /// Owns the edge-docked widget window (widget display mode). Click-driven:
-/// unlike the capsule it tracks no hover — its only mouse monitors are the
-/// optional close-on-outside-click ones, installed while a panel is open.
+/// a panel opens on a click, never on hover. While one is open and
+/// close-on-outside-click is on, a click elsewhere or the cursor leaving
+/// the widget closes it.
 @MainActor
 final class WidgetWindowController: NSObject {
     private let panel = CapsulePanel()
@@ -23,6 +24,8 @@ final class WidgetWindowController: NSObject {
     /// Mouse monitors active only while the panel is open and the
     /// close-on-outside-click setting is on.
     private let outsideClickMonitors = OutsideClickMonitors()
+    /// Cursor watch, alive under the same conditions as the monitors.
+    private var mouseLeaveTask: Task<Void, Never>?
     /// Set while a minimize/restore is mid-flight: the settings write it
     /// makes would otherwise bounce back through settingsDidChange and
     /// stomp the running animation.
@@ -95,7 +98,7 @@ final class WidgetWindowController: NSObject {
         openTask?.cancel()
         collapseTask?.cancel()
         collapseTask = nil
-        outsideClickMonitors.remove()
+        stopAutoClose()
         panel.allowsKeyFocus = false
 
         let full = stripFrame(minimized: false, on: screen)
@@ -134,12 +137,68 @@ final class WidgetWindowController: NSObject {
     // MARK: - Outside click (close-on-click-away)
 
     private func installOutsideClickMonitors() {
-        outsideClickMonitors.remove()
+        stopAutoClose()
         guard settings.closeOnOutsideClick else { return }
         outsideClickMonitors.install(
             isOutside: { [weak self] event in self.map { event.window !== $0.panel } ?? false },
             onClick: { [weak self] in self?.closePanel() }
         )
+        watchMouseLeave()
+    }
+
+    private func stopAutoClose() {
+        outsideClickMonitors.remove()
+        mouseLeaveTask?.cancel()
+        mouseLeaveTask = nil
+    }
+
+    /// Leaving the widget closes the panel too — once the cursor has been
+    /// over it (a panel opened by a hotkey or another module must not shut
+    /// before the user gets there), and only after a grace period, so an
+    /// overshoot past the edge does not count. Polled: the window's frame
+    /// changes on every open, resize and drag, which a tracking area would
+    /// have to follow.
+    private func watchMouseLeave() {
+        mouseLeaveTask = Task { [weak self] in
+            var hasBeenInside = false
+            var outsideSince: ContinuousClock.Instant?
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.mouseLeavePoll)
+                guard !Task.isCancelled, let self else { return }
+                if self.containsMouse {
+                    hasBeenInside = true
+                    outsideSince = nil
+                } else if hasBeenInside, self.mayCloseOnLeave {
+                    let now = ContinuousClock.now
+                    let since = outsideSince ?? now
+                    outsideSince = since
+                    if now - since >= Self.mouseLeaveGrace {
+                        self.closePanel()
+                        return
+                    }
+                } else {
+                    outsideSince = nil
+                }
+            }
+        }
+    }
+
+    private static let mouseLeavePoll: Duration = .milliseconds(100)
+    private static let mouseLeaveGrace: Duration = .milliseconds(400)
+    /// Slack around the window, so the cursor riding its edge still counts.
+    private static let mouseLeaveSlack: CGFloat = 8
+
+    private var containsMouse: Bool {
+        panel.frame
+            .insetBy(dx: -Self.mouseLeaveSlack, dy: -Self.mouseLeaveSlack)
+            .contains(NSEvent.mouseLocation)
+    }
+
+    /// Not mid-gesture (a grip drag or a text selection may run past the
+    /// window), and nothing of the panel's own floats outside it — a
+    /// sheet, a menu, a popover.
+    private var mayCloseOnLeave: Bool {
+        NSEvent.pressedMouseButtons == 0 && panel.attachedSheet == nil && !panel.hasOwnPopupWindow
     }
 
     /// Settings changed (tabs, panel size, placement, theme) — re-derive the
@@ -243,7 +302,7 @@ final class WidgetWindowController: NSObject {
 
     private func closePanel() {
         guard viewModel.selectedTab != nil else { return }
-        outsideClickMonitors.remove()
+        stopAutoClose()
         openTask?.cancel()
         panel.allowsKeyFocus = false
         if panel.isKeyWindow {
@@ -271,7 +330,7 @@ final class WidgetWindowController: NSObject {
             openTask?.cancel()
             collapseTask?.cancel()
             collapseTask = nil
-            outsideClickMonitors.remove()
+            stopAutoClose()
             withInstantTransaction {
                 viewModel.setSelectedTab(nil)
             }

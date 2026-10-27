@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Playbooks: one press of ▶ and a tiny desktop does the work — the apps
-/// open, the windows snap into three columns, Focus comes on and the
+/// open, the windows snap into left + quarters, Focus comes on and the
 /// timer starts — while the step lights below tick off one by one.
 struct PlaybooksStage: View {
     @State private var running = false
@@ -14,7 +14,7 @@ struct PlaybooksStage: View {
     @State private var stepsDone = 0
     @State private var done = false
 
-    private static let steps = ["macwindow.on.rectangle", WindowLayout.thirds.icon, "moon.fill", "timer"]
+    private static let steps = ["macwindow.on.rectangle", WindowLayout.leftAndQuarters.icon, "moon.fill", "timer"]
     private static let windowColors = [StagePalette.blue, StagePalette.orange, StagePalette.teal]
 
     var body: some View {
@@ -26,7 +26,7 @@ struct PlaybooksStage: View {
                     icon: "sunrise.fill",
                     name: L10n.t(.obMockPlaybook1),
                     summary: [
-                        L10n.f(.playApps, 3), WindowLayout.thirds.title,
+                        L10n.f(.playApps, 3), WindowLayout.leftAndQuarters.title,
                         L10n.t(.playFocus), L10n.f(.ageMin, 25),
                     ].joined(separator: " · "),
                     live: true
@@ -143,12 +143,17 @@ struct PlaybooksStage: View {
         .clipShape(shape)
     }
 
-    /// Scattered as apps open them, then the "three columns" layout.
+    /// Scattered as apps open them, then the "left + quarters" layout.
     private func windowFrame(_ index: Int, in size: CGSize) -> CGRect {
         if arranged {
             let gap: CGFloat = 4
-            let width = (size.width - 2 * gap) / 3
-            return CGRect(x: CGFloat(index) * (width + gap), y: 0, width: width, height: size.height)
+            let width = (size.width - gap) / 2
+            let height = (size.height - gap) / 2
+            return switch index {
+            case 0: CGRect(x: 0, y: 0, width: width, height: size.height)
+            case 1: CGRect(x: width + gap, y: 0, width: width, height: height)
+            default: CGRect(x: width + gap, y: height + gap, width: width, height: height)
+            }
         }
         let scattered: [CGRect] = [
             CGRect(x: 0.06, y: 0.16, width: 0.42, height: 0.66),

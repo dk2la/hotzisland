@@ -210,6 +210,9 @@ private struct OnboardingAction: View {
     let step: OnboardingStep
     var services: ModuleServices
 
+    /// Not observable — read on appearance, set by the guide on success.
+    @State private var accessibilityTrusted = WindowLayoutService.isTrusted
+
     var body: some View {
         switch step {
         case .calendar:
@@ -223,8 +226,20 @@ private struct OnboardingAction: View {
                 }
             }
         case .playbooks:
-            PillButton(L10n.t(.playAdd), systemName: "plus", size: .small) {
-                requestSettings(page: .playbooks)
+            HStack(spacing: 8) {
+                // Playbooks arrange windows, which takes Accessibility.
+                if accessibilityTrusted {
+                    StatusChip(text: L10n.t(.obAccessGranted))
+                } else {
+                    PillButton(L10n.t(.obAllowAccess), systemName: "macwindow", size: .small) {
+                        WindowLayoutService.requestAccess {
+                            accessibilityTrusted = true
+                        }
+                    }
+                }
+                PillButton(L10n.t(.playAdd), systemName: "plus", size: .small) {
+                    requestSettings(page: .playbooks)
+                }
             }
         case .notes:
             notesFolder
@@ -249,7 +264,9 @@ private struct OnboardingAction: View {
             StatusChip(text: L10n.t(.obAccessGranted))
         case .denied:
             PillButton(L10n.t(.obOpenPrivacy), systemName: "lock", size: .small) {
-                NSWorkspace.shared.openPrivacyPane("Calendars")
+                PermissionGuide.shared.show(.calendars) {
+                    Task { await calendar.requestAccess() }
+                }
             }
         case .unknown:
             PillButton(L10n.t(.obAllowAccess), systemName: "calendar", size: .small) {
@@ -275,8 +292,16 @@ private struct OnboardingAction: View {
             .padding(.horizontal, 12)
             .frame(height: 26)
             .background(Capsule().fill(Theme.textPrimary.opacity(0.06)))
-            PillButton(L10n.t(.notesChange), size: .small) {
-                services.notesStore.pickFolder(activating: false)
+            if services.notesStore.isActive {
+                PillButton(L10n.t(.notesChange), size: .small) {
+                    services.notesStore.pickFolder(activating: false)
+                }
+            } else {
+                // The default folder sits in Documents — this is where
+                // macOS asks for it, not at launch.
+                PillButton(L10n.t(.obAllowAccess), systemName: "folder", size: .small) {
+                    services.notesStore.activate()
+                }
             }
         }
     }

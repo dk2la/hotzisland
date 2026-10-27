@@ -58,6 +58,17 @@ final class CapsulePanel: NSPanel {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
     }
+
+    /// A menu, popover or child window of this panel is on screen — it may
+    /// extend past the panel, and interacting with it is not "outside".
+    var hasOwnPopupWindow: Bool {
+        NSApp.windows.contains { window in
+            window !== self && window.isVisible
+                && (window.parent === self || window.sheetParent === self
+                    || window.className.contains("Popup") || window.className.contains("Popover")
+                    || window.className.contains("Menu"))
+        }
+    }
 }
 
 /// Global + local mouse-down monitors that report clicks outside a panel.

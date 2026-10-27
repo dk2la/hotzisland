@@ -55,14 +55,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // wins over the tour; `--onboarding` forces the tour even when the
         // user switched it off.
         if CommandLine.arguments.contains("--settings") {
+            services.beginProtectedAccess()
             showSettings(page: nil)
         } else if settings.showOnboardingAtLaunch || CommandLine.arguments.contains("--onboarding") {
+            deferProtectedAccessUntilTourCloses()
             // A beat after launch, so the capsule visibly drops open instead
             // of appearing already expanded.
             Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(600))
                 self?.capsuleController?.openOnboarding()
             }
+        } else {
+            services.beginProtectedAccess()
+        }
+    }
+
+    /// First launch: no access prompt may pile up on top of the tour. Its
+    /// pages ask for the calendar and the notes folder one by one; the rest
+    /// (clipboard, music players) starts once the capsule closes.
+    private func deferProtectedAccessUntilTourCloses() {
+        guard !settings.onboardingCompleted else {
+            services.beginProtectedAccess()
+            return
+        }
+        capsuleController?.onCollapse = { [weak self] in
+            guard let self else { return }
+            self.capsuleController?.onCollapse = nil
+            self.settings.onboardingCompleted = true
+            self.services.beginProtectedAccess()
         }
     }
 
