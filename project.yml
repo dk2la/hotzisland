@@ -1,4 +1,4 @@
-name: HotzIsland
+name: Pocket
 options:
   bundleIdPrefix: com.dk2la
   deploymentTarget:
@@ -6,7 +6,7 @@ options:
   createIntermediateGroups: true
 
 targets:
-  HotzIsland:
+  Pocket:
     type: application
     platform: macOS
     sources:
@@ -14,16 +14,16 @@ targets:
     info:
       path: Support/Info.plist
       properties:
-        CFBundleDisplayName: HotzIsland
+        CFBundleDisplayName: Pocket
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         NSHumanReadableCopyright: "© 2026 Danila Kozlov"
-        NSAppleEventsUsageDescription: "HotzIsland controls your music players (Spotify, Apple Music) to show and manage playback from the island."
-        NSCalendarsUsageDescription: "HotzIsland shows your upcoming events in the island."
-        NSCalendarsFullAccessUsageDescription: "HotzIsland shows your upcoming events in the island."
-        NSMicrophoneUsageDescription: "HotzIsland records audio only while you dictate a note."
-        NSSpeechRecognitionUsageDescription: "HotzIsland transcribes your dictation into note text."
+        NSAppleEventsUsageDescription: "Pocket controls your music players (Spotify, Apple Music) to show and manage playback from the widget."
+        NSCalendarsUsageDescription: "Pocket shows your upcoming events in the widget."
+        NSCalendarsFullAccessUsageDescription: "Pocket shows your upcoming events in the widget."
+        NSMicrophoneUsageDescription: "Pocket records audio only while you dictate a note."
+        NSSpeechRecognitionUsageDescription: "Pocket transcribes your dictation into note text."
     # Signing lives in the xcconfig: ad-hoc by default, overridable by a
     # gitignored Signing.local.xcconfig (stable cert → keychain stops asking).
     configFiles:
@@ -31,18 +31,18 @@ targets:
       Release: Support/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland
+        PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.pocket
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "6.0"
         ENABLE_HARDENED_RUNTIME: NO
     scheme:
       testTargets:
-        - HotzIslandTests
+        - PocketTests
 
   # Logic-only bundle: it compiles the pure mail parsing sources into itself,
   # so the tests need no app host and never touch Keychain or the network.
-  HotzIslandTests:
+  PocketTests:
     type: bundle.unit-test
     platform: macOS
     configFiles:
@@ -65,6 +65,6 @@ targets:
       - path: Sources/Modules/Email/MailSession.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.hotzisland.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.pocket.tests
         SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES

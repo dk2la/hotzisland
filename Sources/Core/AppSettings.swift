@@ -3,46 +3,55 @@ import Observation
 import OSLog
 import ServiceManagement
 
-/// Island shell appearance.
-enum IslandTheme: String {
+/// Capsule shell appearance.
+enum CapsuleTheme: String {
     case stealth
     case glass
     case glow
 }
 
-/// What the island does when nothing demands attention.
+/// What the capsule does when nothing demands attention.
 enum IdleMode: String {
-    /// Always shrink to the bare notch.
+    /// Always shrink to the bare housing.
     case invisible
     /// Show compact indicators (playing track, running timer).
     case compact
 }
 
 extension Notification.Name {
-    /// Posted by widget UI that wants the settings island opened; the
+    /// Posted by widget UI that wants the settings capsule opened; the
     /// AppDelegate observes it.
-    static let hotzOpenSettings = Notification.Name("hotzOpenSettings")
-    /// Posted with `userInfo["tab"]` (a NotchTab raw value) to open that
+    static let pocketOpenSettings = Notification.Name("pocketOpenSettings")
+    /// Posted with `userInfo["tab"]` (a ModuleTab raw value) to open that
     /// module in the widget — e.g. the assistant handing a form to the
     /// calendar.
-    static let hotzShowModule = Notification.Name("hotzShowModule")
+    static let pocketShowModule = Notification.Name("pocketShowModule")
+    /// Posted by UI that wants the welcome tour on the capsule (settings,
+    /// context menus); the AppDelegate observes it.
+    static let pocketOpenOnboarding = Notification.Name("pocketOpenOnboarding")
 }
 
-/// Asks the AppDelegate for the settings island, optionally on a page.
+/// Asks the AppDelegate for the settings capsule, optionally on a page.
 @MainActor
 func requestSettings(page: SettingsView.Page? = nil) {
     NotificationCenter.default.post(
-        name: .hotzOpenSettings,
+        name: .pocketOpenSettings,
         object: nil,
         userInfo: page.map { ["page": $0.rawValue] }
     )
+}
+
+/// Asks the AppDelegate for the welcome tour, from its first page.
+@MainActor
+func requestOnboarding() {
+    NotificationCenter.default.post(name: .pocketOpenOnboarding, object: nil)
 }
 
 /// User preferences, persisted to UserDefaults.
 @MainActor
 @Observable
 final class AppSettings {
-    var theme: IslandTheme {
+    var theme: CapsuleTheme {
         didSet { persist(theme.rawValue, Self.themeKey, log: "theme") }
     }
 
@@ -50,12 +59,12 @@ final class AppSettings {
         didSet { persist(idleMode.rawValue, Self.idleKey, log: "idleMode") }
     }
 
-    /// Widget glass appearance (the island is always dark glass).
+    /// Widget glass appearance (the capsule is always dark glass).
     var glassAppearance: GlassAppearance {
         didSet { persist(glassAppearance.rawValue, Self.glassAppearanceKey, log: "glassAppearance") }
     }
 
-    /// Interface language — translates the widget, island and settings.
+    /// Interface language — translates the widget, capsule and settings.
     var language: AppLanguage {
         didSet {
             L10n.shared.language = language
@@ -73,8 +82,9 @@ final class AppSettings {
         didSet { persist(widgetOffset, Self.widgetOffsetKey) }
     }
 
-    /// Clicking anywhere outside the widget closes the open panel. Off =
-    /// the panel stays pinned until closed explicitly. ⌃⌥P flips it.
+    /// Clicking anywhere outside the widget, or the cursor leaving it,
+    /// closes the open panel. Off = the panel stays pinned until closed
+    /// explicitly. ⌃⌥P flips it.
     var closeOnOutsideClick: Bool {
         didSet { persist(closeOnOutsideClick, Self.outsideClickKey, log: "closeOnOutsideClick") }
     }
@@ -85,8 +95,20 @@ final class AppSettings {
         didSet { persist(widgetMinimized, Self.widgetMinimizedKey, log: "widgetMinimized") }
     }
 
+    /// The welcome tour opens on the capsule at every launch until switched
+    /// off — from the tour's own footer or Settings → General.
+    var showOnboardingAtLaunch: Bool {
+        didSet { persist(showOnboardingAtLaunch, Self.onboardingAtLaunchKey, log: "showOnboardingAtLaunch") }
+    }
+
+    /// The first welcome tour has been closed. Until then nothing asks
+    /// macOS for access on its own — the tour asks, page by page.
+    var onboardingCompleted: Bool {
+        didSet { persist(onboardingCompleted, Self.onboardingCompletedKey, log: "onboardingCompleted") }
+    }
+
     /// Size of the widget-mode panel, each axis dragged by its own grip.
-    /// Separate from the island's `expandedPanelSize` — the two surfaces
+    /// Separate from the capsule's `expandedPanelSize` — the two surfaces
     /// have different geometry.
     private(set) var widgetPanelWidth: CGFloat {
         didSet { persist(Double(widgetPanelWidth), Self.widgetPanelWidthKey) }
@@ -104,12 +126,12 @@ final class AppSettings {
         }
     }
 
-    private(set) var enabledTabs: Set<NotchTab> {
+    private(set) var enabledTabs: Set<ModuleTab> {
         didSet { persist(enabledTabs.map(\.rawValue).sorted(), Self.tabsKey) }
     }
 
-    /// User-arranged channel order (onboarding step 3 / settings → Модули).
-    private(set) var tabOrder: [NotchTab] {
+    /// User-arranged channel order (Settings → Modules).
+    private(set) var tabOrder: [ModuleTab] {
         didSet { persist(tabOrder.map(\.rawValue), Self.tabOrderKey) }
     }
 
@@ -117,11 +139,11 @@ final class AppSettings {
     private(set) var launchAtLogin: Bool
 
     /// Channels in user order, disabled ones filtered out.
-    var orderedEnabledTabs: [NotchTab] {
+    var orderedEnabledTabs: [ModuleTab] {
         tabOrder.filter { enabledTabs.contains($0) }
     }
 
-    /// Both window controllers react to changes — the notch re-evaluates its
+    /// Both window controllers react to changes — the capsule re-evaluates its
     /// idle state, the widget re-derives its layout. Handlers are append-only.
     @ObservationIgnored private var changeHandlers: [() -> Void] = []
 
@@ -141,18 +163,19 @@ final class AppSettings {
     }
 
     @ObservationIgnored private let defaults = UserDefaults.standard
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "settings")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "settings")
     @ObservationIgnored private static let themeKey = "settings.theme"
     @ObservationIgnored private static let idleKey = "settings.idleMode"
-    // v5: bumped when the assistant tab shipped (v4 = email, v3 = notes,
-    // v2 = playbooks) — a stored older set would silently hide new tabs,
-    // since "missing" is indistinguishable from "disabled by the user".
-    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v5"
+    // v6: bumped when the hotkeys tab shipped (v5 = assistant, v4 = email,
+    // v3 = notes, v2 = playbooks) — a stored older set would silently hide
+    // new tabs, since "missing" is indistinguishable from "disabled by the user".
+    @ObservationIgnored private static let tabsKey = "settings.enabledTabs.v6"
     /// (legacy key, tabs to surface when migrating from it)
-    @ObservationIgnored private static let legacyTabsKeys: [(String, Set<NotchTab>)] = [
-        ("settings.enabledTabs.v4", [.assistant]),
-        ("settings.enabledTabs.v3", [.email, .assistant]),
-        ("settings.enabledTabs.v2", [.notes, .email, .assistant]),
+    @ObservationIgnored private static let legacyTabsKeys: [(String, Set<ModuleTab>)] = [
+        ("settings.enabledTabs.v5", [.hotkeys]),
+        ("settings.enabledTabs.v4", [.assistant, .hotkeys]),
+        ("settings.enabledTabs.v3", [.email, .assistant, .hotkeys]),
+        ("settings.enabledTabs.v2", [.notes, .email, .assistant, .hotkeys]),
     ]
     @ObservationIgnored private static let panelWidthKey = "settings.panelWidth"
     @ObservationIgnored private static let panelHeightKey = "settings.panelHeight"
@@ -163,6 +186,8 @@ final class AppSettings {
     @ObservationIgnored private static let widgetOffsetKey = "settings.widgetOffset"
     @ObservationIgnored private static let outsideClickKey = "settings.closeOnOutsideClick"
     @ObservationIgnored private static let widgetMinimizedKey = "settings.widgetMinimized"
+    @ObservationIgnored private static let onboardingAtLaunchKey = "settings.showOnboardingAtLaunch"
+    @ObservationIgnored private static let onboardingCompletedKey = "settings.onboardingCompleted"
     @ObservationIgnored private static let widgetPanelWidthKey = "settings.widgetPanelWidth"
     @ObservationIgnored private static let widgetPanelHeightKey = "settings.widgetPanelHeight"
 
@@ -171,8 +196,8 @@ final class AppSettings {
         let storedWidth = defaults.double(forKey: Self.panelWidthKey)
         let storedHeight = defaults.double(forKey: Self.panelHeightKey)
         expandedPanelSize = Self.clampPanelSize(CGSize(
-            width: storedWidth > 0 ? storedWidth : NotchMetrics.expandedMinSize.width,
-            height: storedHeight > 0 ? storedHeight : NotchMetrics.expandedMinSize.height
+            width: storedWidth > 0 ? storedWidth : CapsuleMetrics.expandedMinSize.width,
+            height: storedHeight > 0 ? storedHeight : CapsuleMetrics.expandedMinSize.height
         ))
         let storedPanelWidth = defaults.double(forKey: Self.widgetPanelWidthKey)
         widgetPanelWidth = Self.clampWidgetPanelWidth(
@@ -183,7 +208,7 @@ final class AppSettings {
             storedPanelHeight > 0 ? storedPanelHeight : WidgetMetrics.panelDefaultHeight
         )
         theme = defaults.string(forKey: Self.themeKey)
-            .flatMap(IslandTheme.init(rawValue:)) ?? .stealth
+            .flatMap(CapsuleTheme.init(rawValue:)) ?? .stealth
         idleMode = defaults.string(forKey: Self.idleKey)
             .flatMap(IdleMode.init(rawValue:)) ?? .compact
         glassAppearance = defaults.string(forKey: Self.glassAppearanceKey)
@@ -197,10 +222,13 @@ final class AppSettings {
         // Absent key = default ON: auto-close is the expected light behaviour.
         closeOnOutsideClick = (defaults.object(forKey: Self.outsideClickKey) as? Bool) ?? true
         widgetMinimized = defaults.bool(forKey: Self.widgetMinimizedKey)
+        // Absent key = on: the tour shows until the user turns it off.
+        showOnboardingAtLaunch = (defaults.object(forKey: Self.onboardingAtLaunchKey) as? Bool) ?? true
+        onboardingCompleted = defaults.bool(forKey: Self.onboardingCompletedKey)
         // Coming-soon modules stay off until their services land.
-        let defaultEnabled = Set(NotchTab.allCases).subtracting(NotchTab.comingSoon)
+        let defaultEnabled = Set(ModuleTab.allCases).subtracting(ModuleTab.comingSoon)
         if let stored = defaults.stringArray(forKey: Self.tabsKey) {
-            let tabs = Set(stored.compactMap(NotchTab.init(rawValue:)))
+            let tabs = Set(stored.compactMap(ModuleTab.init(rawValue:)))
             enabledTabs = tabs.isEmpty ? defaultEnabled : tabs
         } else if let (legacy, extras) = Self.legacyTabsKeys
             .compactMap({ key, extras in
@@ -209,15 +237,15 @@ final class AppSettings {
             .first {
             // Migration: keep the user's choices, surface freshly shipped
             // tabs they could not have known about.
-            let tabs = Set(legacy.compactMap(NotchTab.init(rawValue:))).union(extras)
+            let tabs = Set(legacy.compactMap(ModuleTab.init(rawValue:))).union(extras)
             enabledTabs = tabs.isEmpty ? defaultEnabled : tabs
         } else {
             enabledTabs = defaultEnabled
         }
         // Stored order, with any newly introduced tabs appended at the end.
         var order = (defaults.stringArray(forKey: Self.tabOrderKey) ?? [])
-            .compactMap(NotchTab.init(rawValue:))
-        for tab in NotchTab.allCases where !order.contains(tab) {
+            .compactMap(ModuleTab.init(rawValue:))
+        for tab in ModuleTab.allCases where !order.contains(tab) {
             order.append(tab)
         }
         tabOrder = order
@@ -246,7 +274,7 @@ final class AppSettings {
 
     private static func clampWidgetPanelWidth(_ width: CGFloat) -> CGFloat {
         var maxWidth = WidgetMetrics.panelMaxWidth
-        if let screen = NotchGeometry.targetScreen {
+        if let screen = CapsuleGeometry.targetScreen {
             maxWidth = min(maxWidth, screen.frame.width - 80)
         }
         return min(max(width, WidgetMetrics.panelMinWidth), maxWidth)
@@ -260,7 +288,7 @@ final class AppSettings {
 
     private static func clampWidgetPanelHeight(_ height: CGFloat) -> CGFloat {
         var maxHeight = WidgetMetrics.panelMaxHeight
-        if let screen = NotchGeometry.targetScreen {
+        if let screen = CapsuleGeometry.targetScreen {
             maxHeight = min(maxHeight, screen.visibleFrame.height - 2 * WidgetMetrics.edgeInset)
         }
         return min(max(height, WidgetMetrics.panelMinHeight), maxHeight)
@@ -275,18 +303,18 @@ final class AppSettings {
 
     /// The single authority on panel size limits. The screen bound lives
     /// here too: if the window were clamped separately from the stored size,
-    /// SwiftUI would draw an island larger than its window and the bottom
+    /// SwiftUI would draw a capsule larger than its window and the bottom
     /// strip — including the resize grip — would be clipped into
     /// unreachability.
     private static func clampPanelSize(_ size: CGSize) -> CGSize {
-        var maxSize = NotchMetrics.expandedMaxSize
-        if let screen = NotchGeometry.targetScreen {
+        var maxSize = CapsuleMetrics.expandedMaxSize
+        if let screen = CapsuleGeometry.targetScreen {
             maxSize.width = min(maxSize.width, screen.frame.width - 40)
             maxSize.height = min(maxSize.height, screen.frame.height * 2 / 3)
         }
         return CGSize(
-            width: min(max(size.width, NotchMetrics.expandedMinSize.width), maxSize.width),
-            height: min(max(size.height, NotchMetrics.expandedMinSize.height), maxSize.height)
+            width: min(max(size.width, CapsuleMetrics.expandedMinSize.width), maxSize.width),
+            height: min(max(size.height, CapsuleMetrics.expandedMinSize.height), maxSize.height)
         )
     }
 
@@ -314,12 +342,12 @@ final class AppSettings {
         }
     }
 
-    func isEnabled(_ tab: NotchTab) -> Bool {
+    func isEnabled(_ tab: ModuleTab) -> Bool {
         enabledTabs.contains(tab)
     }
 
     /// The last enabled tab cannot be disabled — the panel needs content.
-    func toggle(_ tab: NotchTab) {
+    func toggle(_ tab: ModuleTab) {
         if enabledTabs.contains(tab) {
             guard enabledTabs.count > 1 else { return }
             enabledTabs.remove(tab)

@@ -3,13 +3,13 @@ import Observation
 
 /// State of the edge widget that SwiftUI animates on. Frames are set by the
 /// controller in window-local SwiftUI coordinates, in the same runloop tick
-/// as the window frame — the two must never disagree (see the notch's
-/// two-phase dance in NotchWindowController.requestState).
+/// as the window frame — the two must never disagree (see the capsule's
+/// two-phase dance in CapsuleWindowController.requestState).
 @MainActor
 @Observable
 final class WidgetViewModel {
     /// Open module panel; nil = collapsed to the icon strip.
-    private(set) var selectedTab: NotchTab?
+    private(set) var selectedTab: ModuleTab?
     /// Widget rolled up to its grip plus the first module button (⌃⌥H);
     /// no panel. See WidgetGeometry.stripLength.
     var isMinimized = false
@@ -18,7 +18,7 @@ final class WidgetViewModel {
     var stripFrame: CGRect = .zero
     var panelFrame: CGRect = .zero
 
-    @ObservationIgnored var onTabTapped: ((NotchTab) -> Void)?
+    @ObservationIgnored var onTabTapped: ((ModuleTab) -> Void)?
     @ObservationIgnored var onClose: (() -> Void)?
     @ObservationIgnored var onRestore: (() -> Void)?
     /// Drag reads the global cursor itself (NSEvent.mouseLocation) — the
@@ -32,7 +32,7 @@ final class WidgetViewModel {
     @ObservationIgnored var onHeightResizeChanged: (() -> Void)?
     @ObservationIgnored var onHeightResizeEnded: (() -> Void)?
 
-    func setSelectedTab(_ tab: NotchTab?) {
+    func setSelectedTab(_ tab: ModuleTab?) {
         guard tab != selectedTab else { return }
         selectedTab = tab
     }

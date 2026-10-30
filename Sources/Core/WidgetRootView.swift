@@ -80,6 +80,9 @@ struct WidgetRootView: View {
                 Button(L10n.t(.menuSettings)) {
                     requestSettings()
                 }
+                Button(L10n.t(.obTour)) {
+                    requestOnboarding()
+                }
                 Divider()
                 Button(L10n.t(.menuQuit)) {
                     NSApplication.shared.terminate(nil)
@@ -110,7 +113,7 @@ struct WidgetRootView: View {
 
     /// Minimized the strip keeps its first module button — the widget still
     /// reads as itself, and that one button unfolds it.
-    private var visibleTabs: [NotchTab] {
+    private var visibleTabs: [ModuleTab] {
         let tabs = settings.orderedEnabledTabs
         return viewModel.isMinimized ? Array(tabs.prefix(1)) : tabs
     }
@@ -143,7 +146,7 @@ struct WidgetRootView: View {
 
     // MARK: - Panel window
 
-    private func panel(for tab: NotchTab) -> some View {
+    private func panel(for tab: ModuleTab) -> some View {
         GlassSurface(shape: panelShape, dark: darkGlass)
             .overlay {
                 VStack(spacing: 0) {
@@ -210,7 +213,7 @@ struct WidgetRootView: View {
     /// One rail cell. A struct, not a builder func — hover feedback needs
     /// its own state per cell.
     private struct RailIconButton: View {
-        let tab: NotchTab
+        let tab: ModuleTab
         let isActive: Bool
         let showsBadge: Bool
         let action: () -> Void

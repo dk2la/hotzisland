@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Widget material appearance. The island is always dark glass — this only
+/// Widget material appearance. The capsule is always dark glass — this only
 /// affects the edge widget; `.auto` follows the system appearance.
 enum GlassAppearance: String {
     case light
@@ -189,7 +189,7 @@ struct GlassProgressBar: View {
 /// only Chats). Ships disabled by default; the tile explains itself when
 /// enabled.
 struct ComingSoonModuleView: View {
-    let tab: NotchTab
+    let tab: ModuleTab
 
     var body: some View {
         VStack(spacing: 10) {

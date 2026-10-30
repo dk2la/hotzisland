@@ -8,7 +8,7 @@ import OSLog
 actor IMAPClient {
     private let transport: any MailLineTransport
     private var tagCounter = 0
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "email")
     /// Cap for the structure-free body fetch (256 KB).
     private static let bodyByteLimit = 262_144
     /// What the server advertised: the greeting's `[CAPABILITY …]` code, an

@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// "Assistant" module: chat transcript over the widget's modules. User turns
-/// sit right on raised glass, assistant turns left, tool calls render as a
-/// mono "⚙ set_timer(25)" line.
+/// sit right on raised glass, assistant turns as plain text on the left,
+/// tool calls as small chips with a check ("✓ set_timer(25)").
 struct AssistantModuleView: View {
     var assistant: AssistantService
     var speech: SpeechCaptureService
@@ -23,7 +23,7 @@ struct AssistantModuleView: View {
     }
 
     private var chat: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             if assistant.transcript.isEmpty {
                 // Same register as the Notes empty state: short caps label,
                 // the hint as the quiet subline.
@@ -60,7 +60,7 @@ struct AssistantModuleView: View {
     private var transcript: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 6) {
+                VStack(spacing: 10) {
                     ForEach(assistant.transcript) { message in
                         row(message)
                     }
@@ -93,90 +93,114 @@ struct AssistantModuleView: View {
         switch message.role {
         case .user:
             HStack {
-                Spacer(minLength: 40)
-                bubble(message.text, color: Theme.textPrimary, fill: Theme.raisedFill.opacity(0.8))
+                Spacer(minLength: 48)
+                Text(message.text)
+                    .font(Theme.bodyFont)
+                    .lineSpacing(2)
+                    .foregroundStyle(Theme.textPrimary)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: 14,
+                            bottomLeadingRadius: 14,
+                            bottomTrailingRadius: 4,
+                            topTrailingRadius: 14,
+                            style: .continuous
+                        )
+                        .fill(Theme.raisedFill)
+                    )
             }
         case .assistant:
             HStack {
-                bubble(message.text, color: message.isError ? Theme.critical : Theme.textSecondary, fill: Theme.cardFill)
-                Spacer(minLength: 40)
+                Text(message.text)
+                    .font(Theme.bodyFont)
+                    .lineSpacing(3)
+                    .foregroundStyle(message.isError ? Theme.critical : Theme.textSecondary)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, 2)
+                Spacer(minLength: 32)
             }
         case .tool:
-            HStack(spacing: 6) {
-                Text("⚙ \(message.toolLabel ?? "")")
-                    .font(Theme.readoutSFont)
-                    .foregroundStyle(message.isError ? Theme.critical : Theme.textQuaternary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+            HStack {
+                HStack(spacing: 7) {
+                    Image(systemName: message.isError ? "exclamationmark.triangle" : "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(message.isError ? Theme.critical : Theme.accent)
+                    Text(message.toolLabel ?? "")
+                        .font(Theme.subFont)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 26)
+                .background(Theme.cardFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Theme.hairlineSoft, lineWidth: 1)
+                )
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 4)
         }
     }
 
-    private func bubble(_ text: String, color: Color, fill: Color) -> some View {
-        Text(text)
-            .font(Theme.bodyFont)
-            .foregroundStyle(color)
-            .textSelection(.enabled)
-            .padding(.horizontal, 11)
-            .padding(.vertical, 7)
-            .background(fill, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-    }
-
+    /// A playbook closes apps, so the model only asks — this card runs it.
     private func playbookConfirmation(_ playbook: Playbook) -> some View {
-        HStack(spacing: 8) {
-            Text(L10n.f(.asstPlaybookConfirm, playbook.name))
-                .font(Theme.subFont)
-                .foregroundStyle(Theme.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer(minLength: 0)
-            GlassCapsuleButton(label: L10n.t(.mailCancel)) {
-                assistant.cancelPendingPlaybook()
+        let shape = RoundedRectangle(cornerRadius: Theme.groupRadius, style: .continuous)
+        return VStack(alignment: .trailing, spacing: 12) {
+            HStack(spacing: 12) {
+                IconTile(systemName: playbook.icon)
+                Text(L10n.f(.asstPlaybookConfirm, playbook.name))
+                    .font(Theme.bodyFont)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer(minLength: 0)
             }
-            GlassCapsuleButton(label: L10n.t(.asstPlaybookRun), isPrimary: true) {
-                assistant.confirmPendingPlaybook()
+            HStack(spacing: 8) {
+                ModuleButton(label: L10n.t(.mailCancel)) {
+                    assistant.cancelPendingPlaybook()
+                }
+                ModuleButton(label: L10n.t(.asstPlaybookRun), systemName: "play.fill", kind: .accent) {
+                    assistant.confirmPendingPlaybook()
+                }
             }
         }
-        .padding(.horizontal, 4)
+        .padding(14)
+        .background(Theme.cardFill, in: shape)
+        .overlay(shape.stroke(Theme.hairlineSoft, lineWidth: 1))
     }
 
     private var composer: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                TextField(L10n.t(.asstPlaceholder), text: Bindable(assistant).draft)
-                    .textFieldStyle(.plain)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary)
-                    .focused($composerFocused)
-                    .onSubmit { assistant.send() }
-                if !assistant.draft.isEmpty, !assistant.isThinking {
-                    CircleGlassButton(systemName: "arrow.up", size: 24, solid: true) {
-                        assistant.send()
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
-            }
-            .padding(.leading, 12)
-            .padding(.trailing, 4)
-            .padding(.vertical, 4)
-            .frame(minHeight: Theme.inputHeight)
-            .background(Theme.raisedFill.opacity(0.7), in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .animation(Theme.stateSpring, value: assistant.draft.isEmpty)
-            SpeechMicControl(speech: speech) { text in
+        ComposerBar {
+            SpeechMicControl(speech: speech, size: 30) { text in
                 voice.stop() // barge-in: speaking over the answer replaces it
                 assistant.acceptDictation(text)
             }
+            TextField(L10n.t(.asstPlaceholder), text: Bindable(assistant).draft)
+                .textFieldStyle(.plain)
+                .font(Theme.bodyFont)
+                .foregroundStyle(Theme.textPrimary)
+                .focused($composerFocused)
+                .onSubmit { assistant.send() }
             // Voice-mode toggle and transcript clearing live in the panel
             // header; only the in-the-moment mute belongs down here.
             if voice.isSpeaking {
-                CircleGlassButton(systemName: "speaker.slash", size: Theme.inputHeight) {
+                ModuleButton(systemName: "speaker.slash", height: 30) {
                     voice.stop()
                 }
                 .transition(.opacity)
             }
+            if !assistant.draft.isEmpty, !assistant.isThinking {
+                ModuleButton(systemName: "arrow.up", kind: .light, height: 30) {
+                    assistant.send()
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
         }
+        .animation(Theme.stateSpring, value: assistant.draft.isEmpty)
         .animation(Theme.stateSpring, value: voice.isSpeaking)
     }
 }

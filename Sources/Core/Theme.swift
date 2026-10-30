@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Design tokens — "HotzIsland V3" design system, visionOS material language.
+/// Design tokens — "Pocket V3" design system, visionOS material language.
 /// Glass surfaces over the desktop, a white vibrancy ramp for text, rounded
 /// rectangles (never full capsules), SF Pro with monospace readouts. The one
 /// chromatic accent is acid green (`accent`, with `inkOnAccent` glyphs on
@@ -11,8 +11,8 @@ import SwiftUI
 enum Theme {
     // MARK: - Colors
 
-    /// shell/void — the notch housing itself stays hardware black.
-    static let islandFill = Color.black
+    /// shell/void — the camera housing itself stays hardware black.
+    static let capsuleFill = Color.black
     /// Inner cells and cards: raised glass on top of the window material.
     static let cardFill = Color.white.opacity(0.06)
     /// Opaque surface for forms that sit over content (the reply sheet):
@@ -30,6 +30,9 @@ enum Theme {
 
     /// Dark glyph sitting on a solid accent control.
     static let inkOnAccent = Color(red: 0.043, green: 0.043, blue: 0.039) // #0B0B0A
+    /// The one bright neutral surface: today's tile, the selected mailbox,
+    /// Send. Carries `inkOnAccent` glyphs, like the accent does.
+    static let lightFill = Color(red: 0.914, green: 0.906, blue: 0.886) // #E9E7E2
 
     static let hairline = textPrimary.opacity(0.12)
     static let hairlineSoft = textPrimary.opacity(0.08)
@@ -57,6 +60,9 @@ enum Theme {
     static let glassTintDark = Color.black.opacity(0.52)
     static let glassStrokeLight = Color.white.opacity(0.20)
     static let glassStrokeDark = Color.white.opacity(0.14)
+    /// The expanded capsule is the widget's dark glass, a touch denser:
+    /// it carries whole pages of text.
+    static let capsuleGlassTint = Color.black.opacity(0.6)
 
     // MARK: - Severity
 
@@ -76,6 +82,10 @@ enum Theme {
     static let windowRadius: CGFloat = 18
     /// Inner elements (cards, rows, tiles).
     static let cardRadius: CGFloat = 12
+    /// Grouped lists and the input bar.
+    static let groupRadius: CGFloat = 14
+    /// The hero card on top of a module.
+    static let heroRadius: CGFloat = 16
     /// Buttons and key caps.
     static let controlRadius: CGFloat = 9
     /// Uniform inner inset of the expanded panel.
@@ -85,8 +95,10 @@ enum Theme {
     static let inputHeight: CGFloat = 36
 
     // MARK: - Typography
-    // Rule: anything that changes over time — time, percentages, rates,
-    // countdowns — is monospace. Prose is the system face.
+    // Instrument modules (metrics, media, timer): anything that changes over
+    // time is monospace. The everyday modules (calendar, mail, notes,
+    // clipboard, playbooks, assistant) stay in the system face throughout and
+    // use `.monospacedDigit()` for times instead.
 
     static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .monospaced)
@@ -103,6 +115,12 @@ enum Theme {
     // size may not — no raw .system(size:) in module views. Brightness comes
     // from the four text* levels above, never from .opacity() on text.
     static let titleFont = Font.system(size: 15, weight: .semibold)
+    /// The hero card's headline — the one large line on a module.
+    static let heroFont = Font.system(size: 19, weight: .semibold)
+    /// Digits of the hero countdown ("in 12 min").
+    static let countdownFont = Font.system(size: 30, weight: .semibold)
+    /// Section captions over grouped lists — use with `.kerning(0.8)`.
+    static let sectionFont = Font.system(size: 11, weight: .semibold)
     static let headlineFont = Font.system(size: 13, weight: .semibold)
     static let bodyFont = Font.system(size: 13)
     static let subFont = Font.system(size: 12)
@@ -125,7 +143,7 @@ enum Theme {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
-    /// Island open/close, panel open/close.
+    /// Capsule open/close, panel open/close.
     static var stateSpring: Animation {
         reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.30, dampingFraction: 0.82)
     }

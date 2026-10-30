@@ -21,7 +21,7 @@ struct KeychainStore {
         case status(OSStatus)
     }
 
-    private static let log = Logger(subsystem: "com.dk2la.hotzisland", category: "keychain")
+    private static let log = Logger(subsystem: "com.dk2la.pocket", category: "keychain")
 
     /// Stores or replaces the secret for `account`. The value itself is
     /// never logged. Replacement is delete + add, NOT SecItemUpdate: update

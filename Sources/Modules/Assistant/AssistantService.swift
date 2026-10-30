@@ -35,7 +35,7 @@ final class AssistantService {
     }
     @ObservationIgnored private var parked: ParkedState?
 
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "assistant")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "assistant")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private let vault = SecretVault(service: AssistantConfig.keychainService)
     @ObservationIgnored private var toolbox: AssistantToolbox?
@@ -267,7 +267,7 @@ final class AssistantService {
     /// own tool-usage contract.
     private func basePrompt() -> String {
         """
-        You are the assistant inside HotzIsland, a macOS desktop widget with modules: \
+        You are the assistant inside Pocket, a macOS desktop widget with modules: \
         timer, playbooks (app workspaces), music, calendar, notes and email. \
         Be brief — answers render in a small panel. Reply in \(L10n.shared.language.title).
         """

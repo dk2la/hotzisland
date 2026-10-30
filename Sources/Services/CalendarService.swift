@@ -59,7 +59,7 @@ final class CalendarService {
     @ObservationIgnored private var parkedEnabledIDs: Set<String> = []
 
     @ObservationIgnored private let store = EKEventStore()
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "calendar")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "calendar")
     @ObservationIgnored private let defaults = UserDefaults.standard
     @ObservationIgnored private static let enabledKey = "calendar.enabledIDs"
     @ObservationIgnored private static let modeKey = "calendar.displayMode"
@@ -90,7 +90,19 @@ final class CalendarService {
             }
         }
 
-        Task { await requestAccess() }
+        readAuthorizationStatus()
+    }
+
+    /// The current answer, without asking: the question itself is put by
+    /// the welcome tour's calendar page or the module's own button.
+    private func readAuthorizationStatus() {
+        realAccess = switch EKEventStore.authorizationStatus(for: .event) {
+        case .fullAccess: .granted
+        case .notDetermined: .unknown
+        default: .denied
+        }
+        access = realAccess
+        if access == .granted { reload() }
     }
 
     func requestAccess() async {

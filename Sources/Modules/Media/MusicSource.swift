@@ -149,7 +149,7 @@ final class MusicSource: AppleScriptPlayer {
     /// was far slower), which we read back and delete.
     func fetchArtwork(for track: MediaTrack) async -> NSImage? {
         let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("hotzisland-artwork-\(UUID().uuidString)")
+            .appendingPathComponent("pocket-artwork-\(UUID().uuidString)")
         let script = """
         if application id "com.apple.Music" is running then
         	tell application id "com.apple.Music"

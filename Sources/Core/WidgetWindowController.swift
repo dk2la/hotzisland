@@ -3,11 +3,12 @@ import OSLog
 import SwiftUI
 
 /// Owns the edge-docked widget window (widget display mode). Click-driven:
-/// unlike the notch it tracks no hover — its only mouse monitors are the
-/// optional close-on-outside-click ones, installed while a panel is open.
+/// a panel opens on a click, never on hover. While one is open and
+/// close-on-outside-click is on, a click elsewhere or the cursor leaving
+/// the widget closes it.
 @MainActor
 final class WidgetWindowController: NSObject {
-    private let panel = NotchPanel()
+    private let panel = CapsulePanel()
     private let viewModel = WidgetViewModel()
     private let settings: AppSettings
     private let services: ModuleServices
@@ -23,14 +24,16 @@ final class WidgetWindowController: NSObject {
     /// Mouse monitors active only while the panel is open and the
     /// close-on-outside-click setting is on.
     private let outsideClickMonitors = OutsideClickMonitors()
+    /// Cursor watch, alive under the same conditions as the monitors.
+    private var mouseLeaveTask: Task<Void, Never>?
     /// Set while a minimize/restore is mid-flight: the settings write it
     /// makes would otherwise bounce back through settingsDidChange and
     /// stomp the running animation.
     private var isTogglingMinimize = false
-    /// Screen the widget currently lives on. Reset to the island's target
+    /// Screen the widget currently lives on. Reset to the capsule's target
     /// screen on display changes; updated when a drag ends elsewhere.
     private var screen: NSScreen?
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "widget")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "widget")
 
     init(settings: AppSettings, services: ModuleServices) {
         self.settings = settings
@@ -57,7 +60,7 @@ final class WidgetWindowController: NSObject {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(showModuleRequested(_:)),
-            name: .hotzShowModule,
+            name: .pocketShowModule,
             object: nil
         )
 
@@ -68,7 +71,7 @@ final class WidgetWindowController: NSObject {
     /// handing a prefilled form to the calendar).
     @objc private func showModuleRequested(_ notification: Notification) {
         guard let raw = notification.userInfo?["tab"] as? String,
-              let tab = NotchTab(rawValue: raw), settings.isEnabled(tab) else { return }
+              let tab = ModuleTab(rawValue: raw), settings.isEnabled(tab) else { return }
         if viewModel.isMinimized {
             setMinimized(false)
         }
@@ -95,7 +98,7 @@ final class WidgetWindowController: NSObject {
         openTask?.cancel()
         collapseTask?.cancel()
         collapseTask = nil
-        outsideClickMonitors.remove()
+        stopAutoClose()
         panel.allowsKeyFocus = false
 
         let full = stripFrame(minimized: false, on: screen)
@@ -111,7 +114,7 @@ final class WidgetWindowController: NSObject {
         }
         if minimized {
             collapseTask = Task { [weak self] in
-                try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+                try? await Task.sleep(for: .milliseconds(CapsuleMetrics.windowCollapseDelayMilliseconds))
                 guard !Task.isCancelled, let self else { return }
                 self.collapseTask = nil
                 self.panel.setFrame(target, display: true)
@@ -134,12 +137,68 @@ final class WidgetWindowController: NSObject {
     // MARK: - Outside click (close-on-click-away)
 
     private func installOutsideClickMonitors() {
-        outsideClickMonitors.remove()
+        stopAutoClose()
         guard settings.closeOnOutsideClick else { return }
         outsideClickMonitors.install(
             isOutside: { [weak self] event in self.map { event.window !== $0.panel } ?? false },
             onClick: { [weak self] in self?.closePanel() }
         )
+        watchMouseLeave()
+    }
+
+    private func stopAutoClose() {
+        outsideClickMonitors.remove()
+        mouseLeaveTask?.cancel()
+        mouseLeaveTask = nil
+    }
+
+    /// Leaving the widget closes the panel too — once the cursor has been
+    /// over it (a panel opened by a hotkey or another module must not shut
+    /// before the user gets there), and only after a grace period, so an
+    /// overshoot past the edge does not count. Polled: the window's frame
+    /// changes on every open, resize and drag, which a tracking area would
+    /// have to follow.
+    private func watchMouseLeave() {
+        mouseLeaveTask = Task { [weak self] in
+            var hasBeenInside = false
+            var outsideSince: ContinuousClock.Instant?
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.mouseLeavePoll)
+                guard !Task.isCancelled, let self else { return }
+                if self.containsMouse {
+                    hasBeenInside = true
+                    outsideSince = nil
+                } else if hasBeenInside, self.mayCloseOnLeave {
+                    let now = ContinuousClock.now
+                    let since = outsideSince ?? now
+                    outsideSince = since
+                    if now - since >= Self.mouseLeaveGrace {
+                        self.closePanel()
+                        return
+                    }
+                } else {
+                    outsideSince = nil
+                }
+            }
+        }
+    }
+
+    private static let mouseLeavePoll: Duration = .milliseconds(100)
+    private static let mouseLeaveGrace: Duration = .milliseconds(400)
+    /// Slack around the window, so the cursor riding its edge still counts.
+    private static let mouseLeaveSlack: CGFloat = 8
+
+    private var containsMouse: Bool {
+        panel.frame
+            .insetBy(dx: -Self.mouseLeaveSlack, dy: -Self.mouseLeaveSlack)
+            .contains(NSEvent.mouseLocation)
+    }
+
+    /// Not mid-gesture (a grip drag or a text selection may run past the
+    /// window), and nothing of the panel's own floats outside it — a
+    /// sheet, a menu, a popover.
+    private var mayCloseOnLeave: Bool {
+        NSEvent.pressedMouseButtons == 0 && panel.attachedSheet == nil && !panel.hasOwnPopupWindow
     }
 
     /// Settings changed (tabs, panel size, placement, theme) — re-derive the
@@ -173,7 +232,7 @@ final class WidgetWindowController: NSObject {
     // MARK: - Window lifecycle
 
     private func attach() {
-        screen = NotchGeometry.targetScreen
+        screen = CapsuleGeometry.targetScreen
         viewModel.edge = settings.widgetEdge
 
         let rootView = WidgetRootView(
@@ -181,10 +240,10 @@ final class WidgetWindowController: NSObject {
             services: services,
             settings: settings
         )
-        let hostingView = NotchHostingView(rootView: rootView)
+        let hostingView = CapsuleHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
-        panel.contentView = hostingView
+        panel.contentView = hostingView.makeWindowContentView()
 
         applyDockedFrame()
         panel.orderFrontRegardless()
@@ -192,7 +251,7 @@ final class WidgetWindowController: NSObject {
     }
 
     @objc private func screenParametersDidChange() {
-        screen = NotchGeometry.targetScreen
+        screen = CapsuleGeometry.targetScreen
         openTask?.cancel()
         collapseTask?.cancel()
         collapseTask = nil
@@ -204,7 +263,7 @@ final class WidgetWindowController: NSObject {
 
     // MARK: - Panel open/close
 
-    private func toggleTab(_ tab: NotchTab) {
+    private func toggleTab(_ tab: ModuleTab) {
         log.info("tab -> \(tab.rawValue, privacy: .public)")
         if viewModel.isMinimized {
             // The lone visible button unfolds the widget and opens itself.
@@ -222,14 +281,14 @@ final class WidgetWindowController: NSObject {
         }
     }
 
-    private func openPanel(_ tab: NotchTab) {
+    private func openPanel(_ tab: ModuleTab) {
         guard currentScreen != nil, !viewModel.isMinimized else { return }
         collapseTask?.cancel()
         collapseTask = nil
         // Module panels host text input — let the panel take key status
         // without activating the app.
         panel.allowsKeyFocus = true
-        // Two-phase, same as the notch: grow the window silently first (the
+        // Two-phase, same as the capsule: grow the window silently first (the
         // strip's local frame shifts in the same tick, so it does not move
         // on screen), animate the panel in on the next tick once the
         // window's coordinate space is stable.
@@ -243,7 +302,7 @@ final class WidgetWindowController: NSObject {
 
     private func closePanel() {
         guard viewModel.selectedTab != nil else { return }
-        outsideClickMonitors.remove()
+        stopAutoClose()
         openTask?.cancel()
         panel.allowsKeyFocus = false
         if panel.isKeyWindow {
@@ -253,7 +312,7 @@ final class WidgetWindowController: NSObject {
         // Shrink the window only after the close animation has finished,
         // otherwise it would clip the panel mid-flight.
         collapseTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+            try? await Task.sleep(for: .milliseconds(CapsuleMetrics.windowCollapseDelayMilliseconds))
             guard !Task.isCancelled, let self else { return }
             self.collapseTask = nil
             self.applyDockedFrame()
@@ -271,7 +330,7 @@ final class WidgetWindowController: NSObject {
             openTask?.cancel()
             collapseTask?.cancel()
             collapseTask = nil
-            outsideClickMonitors.remove()
+            stopAutoClose()
             withInstantTransaction {
                 viewModel.setSelectedTab(nil)
             }
@@ -312,7 +371,7 @@ final class WidgetWindowController: NSObject {
     }
 
     private var currentScreen: NSScreen? {
-        screen ?? NotchGeometry.targetScreen
+        screen ?? CapsuleGeometry.targetScreen
     }
 
     /// The window's resting frame — the strip alone, sized for the current

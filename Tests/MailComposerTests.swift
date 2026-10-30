@@ -11,7 +11,7 @@ final class MailComposerTests: XCTestCase {
     )
 
     private func compose(_ mail: OutgoingMail) -> String {
-        MailComposer.rfc5322(mail, messageID: "<fixed@hotzisland>", date: Date(timeIntervalSince1970: 1_787_653_804))
+        MailComposer.rfc5322(mail, messageID: "<fixed@pocket>", date: Date(timeIntervalSince1970: 1_787_653_804))
     }
 
     private func headerBlock(_ message: String) -> [String: String] {
@@ -23,7 +23,7 @@ final class MailComposerTests: XCTestCase {
         XCTAssertEqual(headers["in-reply-to"], "<parent@acme.io>")
         // The parent joins the chain it inherited, in order.
         XCTAssertEqual(headers["references"], "<root@acme.io> <parent@acme.io>")
-        XCTAssertEqual(headers["message-id"], "<fixed@hotzisland>")
+        XCTAssertEqual(headers["message-id"], "<fixed@pocket>")
         XCTAssertEqual(headers["content-transfer-encoding"], "base64")
     }
 

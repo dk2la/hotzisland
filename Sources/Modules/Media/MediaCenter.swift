@@ -34,7 +34,7 @@ final class MediaCenter {
     @ObservationIgnored private var demoSource: DemoMediaSource?
 
     /// Fired when playback starts/stops — the window controller uses it to
-    /// flip the island between closed and compact.
+    /// flip the capsule between closed and compact.
     @ObservationIgnored var onPlaybackChanged: (() -> Void)?
 
     @ObservationIgnored private let spotify = SpotifySource()
@@ -59,7 +59,7 @@ final class MediaCenter {
     /// Dedicated players currently running, kept current by NSWorkspace
     /// launch/quit notifications instead of a scan per refresh.
     @ObservationIgnored private var runningPlayers: Set<String> = []
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "media")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "media")
     @ObservationIgnored private var lastLoggedSources: [String] = []
     /// Last known automation-permission statuses, refreshed off-thread.
     @ObservationIgnored private var permissionCache: [String: AutomationPermission.Status] = [:]
@@ -69,6 +69,10 @@ final class MediaCenter {
     @ObservationIgnored private var permissionProbeStarted: [String: Date] = [:]
     /// Players whose latest probe has not returned yet.
     @ObservationIgnored private var permissionProbesInFlight: Set<String> = []
+    /// Off until the welcome tour is over: reading Spotify or Music through
+    /// AppleScript raises the Automation prompt. Meanwhile MediaRemote data
+    /// stands in; a user command may still ask.
+    @ObservationIgnored private var playerScriptsAllowed = false
     /// Bumped by every `refresh()` call — see there.
     @ObservationIgnored private var refreshGeneration = 0
 
@@ -146,6 +150,21 @@ final class MediaCenter {
         case .client: break
         }
         scheduleRefresh()
+    }
+
+    func allowPlayerScripts() {
+        guard !playerScriptsAllowed else { return }
+        playerScriptsAllowed = true
+        scheduleRefresh()
+    }
+
+    /// Passive reads of a dedicated player go through AppleScript only once
+    /// allowed, or when Automation was granted already (nothing to prompt).
+    private func mayScript(_ kind: MediaSourceKind) -> Bool {
+        switch kind {
+        case .spotify, .appleMusic: playerScriptsAllowed || permissionCache[kind.id] == .granted
+        case .client: true
+        }
     }
 
     func select(_ kind: MediaSourceKind) {
@@ -315,6 +334,10 @@ final class MediaCenter {
         var newTrack: MediaTrack?
         switch activeSource {
         case .spotify, .appleMusic:
+            guard mayScript(activeSource) else {
+                newTrack = activeClientBundleID == activeSource.id ? systemTrack : nil
+                break
+            }
             let source = source(for: activeSource)
             // The player's own notification may be unavailable (permission
             // pending, no notification yet) — fall back to system data when
@@ -480,6 +503,7 @@ final class MediaCenter {
            let image = await system.fetchArtwork(for: track) {
             return image
         }
+        guard mayScript(track.source) else { return nil }
         return await source(for: track.source).fetchArtwork(for: track)
     }
 }

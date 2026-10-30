@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// "Notes" module: list of Markdown files with quick capture at the bottom;
+/// "Notes" module: the last edited note as a hero card with its opening
+/// lines, the rest as one grouped list, quick capture at the bottom;
 /// opening a note switches to the inline editor.
 struct NotesModuleView: View {
     var store: NotesStore
@@ -19,84 +20,90 @@ struct NotesModuleView: View {
     }
 
     private var list: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if store.notes.isEmpty {
+        VStack(alignment: .leading, spacing: 10) {
+            if let latest = store.notes.first {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        hero(latest)
+                        let rest = Array(store.notes.dropFirst())
+                        if !rest.isEmpty {
+                            GroupedCard {
+                                ForEach(Array(rest.enumerated()), id: \.element.id) { index, note in
+                                    NoteRow(note: note, age: Self.age(of: note), isLast: index == rest.count - 1) {
+                                        store.open(note)
+                                    } onDelete: {
+                                        store.delete(note)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
                 EmptyStateZone(
                     label: L10n.t(.notesEmptyTitle),
                     sublabel: L10n.t(.notesEmptySub)
                 )
                 .frame(maxHeight: 100)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 6) {
-                        ForEach(store.notes) { note in
-                            row(note)
-                        }
-                    }
-                }
             }
             SpeechStatusRow(speech: speech)
             captureBar
         }
         .animation(Theme.stateSpring, value: speech.isRecording)
+        // Opening the module is consent enough to read the folder.
+        .onAppear { store.activate() }
     }
 
-    private func row(_ note: NoteFile) -> some View {
+    private func hero(_ note: NoteFile) -> some View {
         Button {
             store.open(note)
         } label: {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(note.title)
-                        .font(Theme.bodyFont)
-                        .fontWeight(.medium)
+            HeroCard {
+                HStack(spacing: 0) {
+                    Text(L10n.t(.notesContinue))
+                        .heroCaption()
+                    Text(" · \(Self.age(of: note))")
+                        .font(Theme.subFont)
                         .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundStyle(Theme.textPrimary)
-                    Text(Self.age(of: note))
-                        .font(Theme.captionFont)
-                        .foregroundStyle(Theme.textQuaternary)
+                        .foregroundStyle(Theme.textTertiary)
                 }
-                Spacer(minLength: 0)
-                RowRemoveButton { store.delete(note) }
+                Text(note.title)
+                    .font(Theme.heroFont)
+                    .lineLimit(2)
+                    .foregroundStyle(Theme.textPrimary)
+                NotePreview(note: note)
             }
-            .cardRow()
         }
         .buttonStyle(PressableStyle())
     }
 
     private var captureBar: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                TextField(L10n.t(.notesQuickPlaceholder), text: $captureText)
-                    .textFieldStyle(.plain)
-                    .font(Theme.bodyFont)
-                    .foregroundStyle(Theme.textPrimary)
-                    .focused($captureFocused)
-                    .onSubmit(submitCapture)
-                if !captureText.isEmpty {
-                    // Visible send affordance — Enter works too, but the
-                    // button removes any guesswork.
-                    CircleGlassButton(systemName: "arrow.up", size: 24, solid: true) {
-                        submitCapture()
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
-            }
-            .padding(.leading, 12)
-            .padding(.trailing, 4)
-            .padding(.vertical, 4)
-            .frame(minHeight: Theme.inputHeight)
-            .background(Theme.raisedFill.opacity(0.7), in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .animation(Theme.stateSpring, value: captureText.isEmpty)
-            SpeechMicControl(speech: speech) { text in
+        ComposerBar {
+            SpeechMicControl(speech: speech, size: 30) { text in
                 captureText = captureText.isEmpty ? text : captureText + " " + text
             }
-            CircleGlassButton(systemName: "folder", size: Theme.inputHeight) {
-                store.pickFolder(activating: true)
+            TextField(L10n.t(.notesQuickPlaceholder), text: $captureText)
+                .textFieldStyle(.plain)
+                .font(Theme.bodyFont)
+                .foregroundStyle(Theme.textPrimary)
+                .focused($captureFocused)
+                .onSubmit(submitCapture)
+            if captureText.isEmpty {
+                ModuleButton(systemName: "folder", height: 30) {
+                    store.pickFolder(activating: true)
+                }
+                .help(L10n.t(.notesFolder))
+            } else {
+                // Visible send affordance — Enter works too, but the button
+                // removes any guesswork.
+                ModuleButton(systemName: "arrow.up", kind: .light, height: 30) {
+                    submitCapture()
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
+        .animation(Theme.stateSpring, value: captureText.isEmpty)
     }
 
     private func submitCapture() {
@@ -114,6 +121,81 @@ struct NotesModuleView: View {
         formatter.timeStyle = .none
         return formatter
     }()
+}
+
+/// One note in the grouped list; the remove button shows on hover only.
+private struct NoteRow: View {
+    let note: NoteFile
+    let age: String
+    let isLast: Bool
+    let onOpen: () -> Void
+    let onDelete: () -> Void
+
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(note.title)
+                    .font(Theme.bodyFont)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer(minLength: 0)
+                if hovered {
+                    RowRemoveButton(action: onDelete)
+                        .transition(.opacity)
+                } else {
+                    Text(age)
+                        .font(Theme.subFont)
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.textTertiary)
+                }
+            }
+            .frame(minHeight: 24)
+            .groupedRow(isLast: isLast)
+        }
+        .buttonStyle(PressableStyle())
+        .onHover { hovered = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovered)
+    }
+}
+
+/// The opening lines of a note, read off disk once per note and modification.
+private struct NotePreview: View {
+    let note: NoteFile
+
+    @State private var text = ""
+
+    var body: some View {
+        Text(text)
+            .font(Theme.bodyFont)
+            .lineSpacing(3)
+            .lineLimit(3)
+            .truncationMode(.tail)
+            .foregroundStyle(Theme.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .opacity(text.isEmpty ? 0 : 1)
+            .task(id: "\(note.id)|\(note.modifiedAt.timeIntervalSince1970)") {
+                text = await Self.load(note.url)
+            }
+    }
+
+    /// Body text without Markdown headings, flattened to one paragraph.
+    private static func load(_ url: URL) async -> String {
+        await Task.detached(priority: .utility) {
+            guard let handle = try? FileHandle(forReadingFrom: url) else { return "" }
+            defer { try? handle.close() }
+            let data = (try? handle.read(upToCount: 2048)) ?? Data()
+            let raw = String(decoding: data, as: UTF8.self)
+            return raw
+                .split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+                .joined(separator: " ")
+        }.value
+    }
 }
 
 /// Inline Markdown editor: editable title (rename on commit), body with
@@ -188,6 +270,8 @@ struct NoteEditorView: View {
 /// stop). `onFinish` receives the final transcript.
 struct SpeechMicControl: View {
     var speech: SpeechCaptureService
+    /// Height of the idle button and the recording chip.
+    var size: CGFloat = Theme.inputHeight
     let onFinish: (String) -> Void
 
     var body: some View {
@@ -201,7 +285,7 @@ struct SpeechMicControl: View {
                             .foregroundStyle(Theme.textSecondary)
                     }
                 }
-                CircleGlassButton(systemName: "stop.fill", size: 26, solid: true) {
+                CircleGlassButton(systemName: "stop.fill", size: size - 10, solid: true) {
                     Task {
                         let text = await speech.stop()
                         if !text.isEmpty {
@@ -211,11 +295,11 @@ struct SpeechMicControl: View {
                 }
             }
             .padding(.horizontal, 10)
-            .frame(height: Theme.inputHeight)
+            .frame(height: size)
             .background(Theme.cardFill, in: Capsule())
             .transition(.opacity.combined(with: .scale(scale: 0.9)))
         } else {
-            CircleGlassButton(systemName: "mic", size: Theme.inputHeight) {
+            CircleGlassButton(systemName: "mic", size: size) {
                 Task {
                     await speech.start(locale: L10n.shared.language.speechLocale)
                 }

@@ -13,7 +13,7 @@ final class SpeechSynthesisService {
 
     @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
     @ObservationIgnored private var watchTask: Task<Void, Never>?
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "speech")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "speech")
 
     /// Nothing is written to disk and no network is involved — macOS speaks
     /// locally from the installed voices.

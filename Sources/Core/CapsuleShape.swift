@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The island capsule: top corners flare outward (concave arcs continuing the
+/// The capsule: top corners flare outward (concave arcs continuing the
 /// screen edge), bottom corners are regular convex roundings.
-struct NotchShape: Shape {
+struct CapsuleShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
 
@@ -41,11 +41,11 @@ struct NotchShape: Shape {
     }
 }
 
-/// The expanded island as a drop hanging from the notch: a neck exactly as
+/// The expanded capsule as a drop hanging from the camera housing: a neck exactly as
 /// wide as the housing passes through the menu bar, then the body widens
 /// into a rounded rectangle below it. The menu bar on both sides of the
 /// neck stays uncovered. `neckHeight` is the menu-bar / housing height.
-struct NotchDropShape: Shape {
+struct CapsuleDropShape: Shape {
     var neckWidth: CGFloat
     var neckHeight: CGFloat
     var cornerRadius: CGFloat = Theme.windowRadius

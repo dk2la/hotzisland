@@ -25,7 +25,7 @@ final class AssistantToolbox {
     // strong back-reference would cycle.
     private unowned let services: ModuleServices
     private var playbooks: PlaybookStore { services.playbookStore }
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "assistant")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "assistant")
 
     init(services: ModuleServices) {
         self.services = services
@@ -293,7 +293,7 @@ final class AssistantToolbox {
             calendarService.pendingDraft = draft
             calendarService.startCreating(on: start)
             // Bring the calendar module forward so the form is actually seen.
-            NotificationCenter.default.post(name: .hotzShowModule, object: nil, userInfo: ["tab": NotchTab.calendar.rawValue])
+            NotificationCenter.default.post(name: .pocketShowModule, object: nil, userInfo: ["tab": ModuleTab.calendar.rawValue])
             return ToolOutcome(text: "Opened a new event \"\(title)\" at \(Self.dateTimeFormatter.string(from: start)) for the user to confirm. Do not claim it is saved.")
 
         case "now_playing":
@@ -331,7 +331,7 @@ final class AssistantToolbox {
             }
             let hits = Self.matches(query, in: mail.cachedMessages).prefix(10)
             mail.search(query)
-            NotificationCenter.default.post(name: .hotzShowModule, object: nil, userInfo: ["tab": NotchTab.email.rawValue])
+            NotificationCenter.default.post(name: .pocketShowModule, object: nil, userInfo: ["tab": ModuleTab.email.rawValue])
             if hits.isEmpty {
                 return ToolOutcome(text: "Nothing cached matches \"\(query)\"; a server search is running in the Mail module.")
             }
@@ -347,7 +347,7 @@ final class AssistantToolbox {
                 return ToolOutcome(text: "No email matches \"\(query)\".")
             }
             mail.open(match)
-            NotificationCenter.default.post(name: .hotzShowModule, object: nil, userInfo: ["tab": NotchTab.email.rawValue])
+            NotificationCenter.default.post(name: .pocketShowModule, object: nil, userInfo: ["tab": ModuleTab.email.rawValue])
             return ToolOutcome(text: "Opened: \(Self.describe(match))")
 
         case "open_note":
@@ -362,7 +362,7 @@ final class AssistantToolbox {
                 return ToolOutcome(text: names.isEmpty ? "There are no notes yet." : "No note matches \"\(title)\". Notes: \(names).")
             }
             notes.open(match)
-            NotificationCenter.default.post(name: .hotzShowModule, object: nil, userInfo: ["tab": NotchTab.notes.rawValue])
+            NotificationCenter.default.post(name: .pocketShowModule, object: nil, userInfo: ["tab": ModuleTab.notes.rawValue])
             return ToolOutcome(text: "Opened note \"\(match.title)\".")
 
         case "append_note":

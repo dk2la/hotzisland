@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build, test and launch HotzIsland. See ./run.sh --help.
+# Build, test and launch Pocket. See ./run.sh --help.
 # test
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -17,7 +17,7 @@ Build
 
 Launch
   -d, --demo         sample data in every module
-  -s, --settings     open the settings island at launch
+  -s, --settings     open the settings capsule at launch
   -o, --onboarding   show the first-launch onboarding again
   -n, --no-run       build / test only, do not launch
   -l, --logs         stream the app's logs after launching (Ctrl-C to stop)
@@ -63,7 +63,7 @@ for arg in "$@"; do
   -n | --no-run) run=0 ;;
   -l | --logs) logs=1 ;;
   -k | --stop)
-    pkill -x HotzIsland 2>/dev/null && echo "stopped" || echo "not running"
+    pkill -x Pocket 2>/dev/null && echo "stopped" || echo "not running"
     exit 0
     ;;
   -h | --help)
@@ -78,16 +78,16 @@ for arg in "$@"; do
   esac
 done
 
-app="build/Build/Products/$config/HotzIsland.app"
+app="build/Build/Products/$config/Pocket.app"
 
 # Runs xcodebuild; quiet mode keeps errors, warnings and the verdict only.
 xcb() {
   local status=0
   if [[ $verbose == 1 ]]; then
-    xcodebuild -project HotzIsland.xcodeproj -scheme HotzIsland \
+    xcodebuild -project Pocket.xcodeproj -scheme Pocket \
       -configuration "$config" -derivedDataPath build "$@" || status=$?
   else
-    xcodebuild -project HotzIsland.xcodeproj -scheme HotzIsland \
+    xcodebuild -project Pocket.xcodeproj -scheme Pocket \
       -configuration "$config" -derivedDataPath build "$@" 2>&1 |
       grep -E "error:|warning: [^M]|Executed [0-9]+ tests|\*\* " || true
     status=${PIPESTATUS[0]}
@@ -117,11 +117,11 @@ if [[ $test == 1 ]]; then
 fi
 [[ $run == 1 ]] || exit 0
 
-pkill -x HotzIsland 2>/dev/null && sleep 0.5 || true
+pkill -x Pocket 2>/dev/null && sleep 0.5 || true
 echo "==> launch ${app_args[*]-}"
 open "$app" --args ${app_args[@]+"${app_args[@]}"}
 
 if [[ $logs == 1 ]]; then
   echo "==> logs (Ctrl-C to stop)"
-  log stream --style compact --predicate 'subsystem == "com.dk2la.hotzisland"'
+  log stream --style compact --predicate 'subsystem == "com.dk2la.pocket"'
 fi

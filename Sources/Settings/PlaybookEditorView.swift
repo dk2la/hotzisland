@@ -115,8 +115,9 @@ struct PlaybookEditorView: View {
                     onMoveDown: { move(step.id, by: 1) },
                     onRemove: { draft.steps.removeAll { $0.id == step.id } },
                     onGrantAccess: {
-                        WindowLayoutService.requestAccess()
-                        accessibilityTrusted = WindowLayoutService.isTrusted
+                        WindowLayoutService.requestAccess {
+                            accessibilityTrusted = true
+                        }
                     }
                 )
             }

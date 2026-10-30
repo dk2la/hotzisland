@@ -13,15 +13,15 @@ import OSLog
 final class DemoMode {
     private(set) var isActive = false
 
-    /// Shows a live event on the island — wired by the AppDelegate, which
-    /// owns the notch controller.
+    /// Shows a live event on the capsule — wired by the AppDelegate, which
+    /// owns the capsule controller.
     @ObservationIgnored var presentEvent: ((LiveEvent) -> Void)?
 
     @ObservationIgnored private weak var services: ModuleServices?
     @ObservationIgnored private var scratchFolder: URL?
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "demo")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "demo")
 
-    /// Sample events for the "island events" buttons in settings, in the
+    /// Sample events for the "capsule events" buttons in settings, in the
     /// order they are shown.
     static let sampleEvents: [(label: String, event: LiveEvent)] = [
         ("pwr", .charging(percent: 82, plugged: true)),
@@ -91,7 +91,7 @@ final class DemoMode {
         log.info("demo mode off")
     }
 
-    /// Flashes a sample event on the island.
+    /// Flashes a sample event on the capsule.
     func fire(_ event: LiveEvent) {
         presentEvent?(event)
     }

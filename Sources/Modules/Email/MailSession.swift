@@ -52,7 +52,7 @@ actor MailSession {
     private var client: IMAPClient?
     private var openedAt = Date.distantPast
     private var lastUsedAt = Date.distantPast
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "email")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "email")
 
     /// Servers drop idle IMAP connections (Gmail after ~30 min). Well before
     /// that we reconnect rather than discover it mid-command.
