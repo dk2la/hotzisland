@@ -12,26 +12,37 @@ enum SetupCheckState: Equatable {
     case failed(String)
 }
 
+/// Runs a form's connectivity probe and mirrors its progress into `state`.
+@MainActor
+func probeSetup(_ state: Binding<SetupCheckState>, _ probe: @escaping @Sendable () async -> Result<Void, Error>) {
+    state.wrappedValue = .checking
+    Task {
+        switch await probe() {
+        case .success: state.wrappedValue = .ok
+        case .failure(let error): state.wrappedValue = .failed(error.localizedDescription)
+        }
+    }
+}
+
 /// A SettingRow whose control is a fixed-width "input box" of text fields.
 struct SetupFieldRow<Fields: View>: View {
     let title: String
     var subtitle: String?
-    let palette: WindowPalette
     var width: CGFloat = 260
     @ViewBuilder var fields: () -> Fields
 
     var body: some View {
-        SettingRow(title: title, subtitle: subtitle, palette: palette) {
+        SettingRow(title: title, subtitle: subtitle) {
             HStack(spacing: 6) {
                 fields()
             }
             .textFieldStyle(.plain)
             .font(Theme.bodyFont)
-            .foregroundStyle(palette.ink)
+            .foregroundStyle(Palette.ink)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .frame(width: width)
-            .background(palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(Palette.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
     }
 }
@@ -39,7 +50,6 @@ struct SetupFieldRow<Fields: View>: View {
 /// Check (with inline result/error text) · Remove (only when something is
 /// saved) · Save.
 struct SetupActionRow: View {
-    let palette: WindowPalette
     let checkState: SetupCheckState
     let canCheck: Bool
     let canSave: Bool
@@ -62,24 +72,9 @@ struct SetupActionRow: View {
             .disabled(checkState == .checking || !canCheck)
             Spacer(minLength: 0)
             if showRemove {
-                Button(action: onRemove) {
-                    Text(L10n.t(.mailRemove))
-                        .font(Theme.subFont)
-                        .foregroundStyle(Theme.critical.opacity(0.9))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(PressableStyle())
+                PaletteButton(L10n.t(.mailRemove), color: Theme.critical.opacity(0.9), action: onRemove)
             }
-            Button(action: onSave) {
-                Text(L10n.t(.mailSave))
-                    .font(Theme.subFont)
-                    .foregroundStyle(palette.accent)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(palette.accentWash, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressableStyle())
+            PaletteButton(L10n.t(.calSave), filled: true, action: onSave)
             .disabled(!canSave)
         }
         .padding(.top, 12)
@@ -97,8 +92,8 @@ struct SetupActionRow: View {
     private var checkColor: Color {
         switch checkState {
         case .failed: Theme.critical.opacity(0.9)
-        case .ok: palette.accent
-        case .idle, .checking: palette.ink60
+        case .ok: Palette.accent
+        case .idle, .checking: Palette.ink60
         }
     }
 }

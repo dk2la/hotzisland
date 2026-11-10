@@ -1,0 +1,77 @@
+import SwiftUI
+
+/// Content of the expanded capsule: the app's settings, under the camera
+/// housing, with a close button and a corner resize grip. The capsule is
+/// the settings surface — modules live in the edge widget.
+struct CapsuleSettingsView: View {
+    var viewModel: CapsuleViewModel
+    var services: ModuleServices
+    var settings: AppSettings
+    let housingHeight: CGFloat
+
+    @State private var resizeStartSize: CGSize?
+    @State private var resizeStartGlobal: CGPoint?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: housingHeight)
+            SettingsView(
+                settings: settings,
+                services: services,
+                pageSelection: viewModel.pageSelection,
+                // A detour out of the tour (connecting an account) keeps
+                // the way back to the page it left.
+                onBack: viewModel.cameFromOnboarding ? { viewModel.onResumeOnboarding?() } : nil
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .overlay(alignment: .topTrailing) {
+            GlassCloseButton {
+                viewModel.onClose?()
+            }
+            .keyboardShortcut(.cancelAction)
+            .padding(.top, housingHeight + 18)
+            .padding(.trailing, 18)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            resizeGrip
+                // Kept clear of the drop's rounded corner: clipShape also
+                // clips hit-testing.
+                .padding(.trailing, 20)
+                .padding(.bottom, 10)
+        }
+    }
+
+    /// Corner grip: drag to resize the panel like an app window. Tracking
+    /// uses the global cursor position — the window moves mid-drag, so local
+    /// gesture coordinates would feed back into themselves.
+    private var resizeGrip: some View {
+        Image(systemName: "arrow.up.left.and.arrow.down.right")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(Theme.textFaint)
+            .frame(width: 22, height: 22)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { _ in
+                        let now = NSEvent.mouseLocation
+                        guard let start = resizeStartGlobal, let startSize = resizeStartSize else {
+                            resizeStartGlobal = now
+                            resizeStartSize = settings.expandedPanelSize
+                            viewModel.isResizingPanel = true
+                            return
+                        }
+                        // Cocoa coordinates: dragging down means decreasing y.
+                        settings.setPanelSize(CGSize(
+                            width: startSize.width + (now.x - start.x) * 2,
+                            height: startSize.height + (start.y - now.y)
+                        ))
+                    }
+                    .onEnded { _ in
+                        resizeStartGlobal = nil
+                        resizeStartSize = nil
+                        viewModel.isResizingPanel = false
+                    }
+            )
+    }
+}

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Compact event presentation: instrument caption on the left of the notch,
+/// Compact event presentation: instrument caption on the left of the camera housing,
 /// mono readout on the right (the middle is the camera housing).
 struct LiveEventView: View {
     let event: LiveEvent
@@ -8,10 +8,10 @@ struct LiveEventView: View {
     var body: some View {
         HStack(spacing: 0) {
             leading
-                .frame(width: NotchMetrics.eventSideWidth - 24, alignment: .leading)
+                .frame(width: CapsuleMetrics.eventSideWidth - 24, alignment: .leading)
             Spacer(minLength: 0)
             trailing
-                .frame(width: NotchMetrics.eventSideWidth - 24, alignment: .trailing)
+                .frame(width: CapsuleMetrics.eventSideWidth - 24, alignment: .trailing)
         }
         .padding(.horizontal, 14)
     }
@@ -34,7 +34,7 @@ struct LiveEventView: View {
                 InstrumentLabel("out", color: Theme.accent)
             }
         case .volume:
-            InstrumentLabel("vol", color: Theme.textPrimary.opacity(0.45))
+            InstrumentLabel("vol", color: Theme.textQuaternary)
         case .timerFinished:
             HStack(spacing: 6) {
                 BlinkingDot(size: 5)
@@ -54,21 +54,21 @@ struct LiveEventView: View {
         case .charging(let percent, let plugged):
             Text(plugged ? "\(percent)% charging" : "\(percent)%")
                 .font(Theme.readoutSFont)
-                .foregroundStyle(plugged ? Theme.accent : Theme.textPrimary.opacity(0.8))
+                .foregroundStyle(plugged ? Theme.accent : Theme.textSecondary)
                 .lineLimit(1)
         case .audioDevice(let name):
             Text(name)
                 .font(Theme.readoutSFont)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .foregroundStyle(Theme.textPrimary.opacity(0.8))
+                .foregroundStyle(Theme.textSecondary)
         case .volume(let level):
             HStack(spacing: 6) {
-                SegmentBar(fraction: level, segments: 8, fillColor: Theme.textPrimary.opacity(0.7))
+                SegmentBar(fraction: level, segments: 8, fillColor: Theme.segmentOn)
                     .frame(width: 48)
                 Text("\(Int(level * 100))")
                     .font(Theme.readoutSFont)
-                    .foregroundStyle(Theme.textPrimary.opacity(0.8))
+                    .foregroundStyle(Theme.textSecondary)
                     .frame(width: 20, alignment: .trailing)
             }
         case .timerFinished:
@@ -79,7 +79,7 @@ struct LiveEventView: View {
             Text(name)
                 .font(Theme.readoutSFont)
                 .lineLimit(1)
-                .foregroundStyle(Theme.textPrimary.opacity(0.8))
+                .foregroundStyle(Theme.textSecondary)
         }
     }
 }

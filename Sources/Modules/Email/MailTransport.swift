@@ -1,9 +1,22 @@
 import Foundation
 import Network
 
+/// The slice of a transport that `IMAPClient` drives: connect, write a
+/// command, read CRLF lines and raw literal bytes, close. Production uses
+/// `TLSTransport`; tests substitute a scripted fake.
+protocol MailLineTransport: Sendable {
+    func connect() async throws
+    func send(_ data: Data) async throws
+    /// One CRLF-terminated line, terminator included.
+    func readLine(timeout: Duration) async throws -> Data
+    /// Exactly `count` raw bytes — the payload of a `{n}` literal.
+    func read(exactly count: Int) async throws -> Data
+    func close() async
+}
+
 /// Buffered TLS connection for mail protocols. Implicit TLS only (IMAP 993,
 /// SMTP 465) — STARTTLS lands with the send phase. No plaintext mode exists.
-actor TLSTransport {
+actor TLSTransport: MailLineTransport {
     private let host: String
     private let port: UInt16
     private var connection: NWConnection?
@@ -15,7 +28,7 @@ actor TLSTransport {
         self.port = port
     }
 
-    func connect(timeout: Duration = .seconds(15)) async throws {
+    func connect() async throws {
         let options = NWProtocolTLS.Options()
         let parameters = NWParameters(tls: options)
         let connection = NWConnection(
@@ -25,7 +38,7 @@ actor TLSTransport {
         )
         self.connection = connection
 
-        try await withTimeout(timeout) {
+        try await withTimeout(.seconds(15)) {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 let resumed = ResumeGuard()
                 connection.stateUpdateHandler = { @Sendable state in
@@ -70,8 +83,8 @@ actor TLSTransport {
         try await withTimeout(timeout) { try await self.readLineLoop() }
     }
 
-    func read(exactly count: Int, timeout: Duration = .seconds(30)) async throws -> Data {
-        try await withTimeout(timeout) { try await self.readExactLoop(count) }
+    func read(exactly count: Int) async throws -> Data {
+        try await withTimeout(.seconds(30)) { try await self.readExactLoop(count) }
     }
 
     private func readLineLoop() async throws -> Data {

@@ -22,7 +22,10 @@ final class ClipboardStore {
     private static let concealedType = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
     private static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
 
-    init() {
+    /// Reading another app's copy may raise macOS's paste-access prompt, so
+    /// watching starts only once the welcome tour is out of the way.
+    func startWatching() {
+        guard pollTask == nil else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 self?.poll()
@@ -31,7 +34,30 @@ final class ClipboardStore {
         }
     }
 
+    // MARK: - Demo mode
+
+    /// Scripted history; the pasteboard is not watched while it is shown,
+    /// so a stray copy during recording never lands in the list.
+    private(set) var isDemo = false
+    @ObservationIgnored private var parkedEntries: [Entry] = []
+
+    func enterDemo(entries demoEntries: [Entry]) {
+        guard !isDemo else { return }
+        isDemo = true
+        parkedEntries = entries
+        entries = demoEntries
+    }
+
+    func exitDemo() {
+        guard isDemo else { return }
+        isDemo = false
+        entries = parkedEntries
+        parkedEntries = []
+        lastChangeCount = NSPasteboard.general.changeCount
+    }
+
     private func poll() {
+        guard !isDemo else { return }
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != lastChangeCount else { return }
         lastChangeCount = pasteboard.changeCount

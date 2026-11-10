@@ -3,36 +3,41 @@ import OSLog
 import SwiftUI
 
 /// Owns the edge-docked widget window (widget display mode). Click-driven:
-/// unlike the notch it registers no mouse monitors and never touches
-/// NotchWindowControllerRegistry — that slot belongs to the notch.
+/// a panel opens on a click, never on hover. While one is open and
+/// close-on-outside-click is on, a click elsewhere or the cursor leaving
+/// the widget closes it.
 @MainActor
 final class WidgetWindowController: NSObject {
-    private let panel = NotchPanel()
+    private let panel = CapsulePanel()
     private let viewModel = WidgetViewModel()
     private let settings: AppSettings
     private let services: ModuleServices
-    private let playbookStore: PlaybookStore
     private var collapseTask: Task<Void, Never>?
     private var openTask: Task<Void, Never>?
     private var dragStartMouse: CGPoint?
     private var dragStartOrigin: CGPoint?
     private var isDragging = false
+    private var resizeStartMouseX: CGFloat?
+    private var resizeStartWidth: CGFloat?
+    private var resizeStartMouseY: CGFloat?
+    private var resizeStartHeight: CGFloat?
     /// Mouse monitors active only while the panel is open and the
     /// close-on-outside-click setting is on.
-    private var outsideClickMonitors: [Any] = []
+    private let outsideClickMonitors = OutsideClickMonitors()
+    /// Cursor watch, alive under the same conditions as the monitors.
+    private var mouseLeaveTask: Task<Void, Never>?
     /// Set while a minimize/restore is mid-flight: the settings write it
     /// makes would otherwise bounce back through settingsDidChange and
     /// stomp the running animation.
     private var isTogglingMinimize = false
-    /// Screen the widget currently lives on. Reset to the island's target
+    /// Screen the widget currently lives on. Reset to the capsule's target
     /// screen on display changes; updated when a drag ends elsewhere.
     private var screen: NSScreen?
-    private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "widget")
+    private let log = Logger(subsystem: "com.dk2la.pocket", category: "widget")
 
-    init(settings: AppSettings, services: ModuleServices, playbooks: PlaybookStore) {
+    init(settings: AppSettings, services: ModuleServices) {
         self.settings = settings
         self.services = services
-        self.playbookStore = playbooks
         super.init()
 
         viewModel.onTabTapped = { [weak self] tab in self?.toggleTab(tab) }
@@ -40,6 +45,10 @@ final class WidgetWindowController: NSObject {
         viewModel.onRestore = { [weak self] in self?.setMinimized(false) }
         viewModel.onDragChanged = { [weak self] in self?.dragChanged() }
         viewModel.onDragEnded = { [weak self] in self?.dragEnded() }
+        viewModel.onResizeChanged = { [weak self] in self?.resizeChanged() }
+        viewModel.onResizeEnded = { [weak self] in self?.resizeEnded() }
+        viewModel.onHeightResizeChanged = { [weak self] in self?.heightResizeChanged() }
+        viewModel.onHeightResizeEnded = { [weak self] in self?.heightResizeEnded() }
         viewModel.isMinimized = settings.widgetMinimized
 
         NotificationCenter.default.addObserver(
@@ -48,24 +57,32 @@ final class WidgetWindowController: NSObject {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(showModuleRequested(_:)),
+            name: .pocketShowModule,
+            object: nil
+        )
 
         attach()
     }
 
-    func tearDown() {
-        openTask?.cancel()
-        collapseTask?.cancel()
-        removeOutsideClickMonitors()
-        NotificationCenter.default.removeObserver(self)
-        panel.orderOut(nil)
-        log.info("torn down")
+    /// Another module asked for this one to come forward (the assistant
+    /// handing a prefilled form to the calendar).
+    @objc private func showModuleRequested(_ notification: Notification) {
+        guard let raw = notification.userInfo?["tab"] as? String,
+              let tab = ModuleTab(rawValue: raw), settings.isEnabled(tab) else { return }
+        if viewModel.isMinimized {
+            setMinimized(false)
+        }
+        if viewModel.selectedTab == nil {
+            openPanel(tab)
+        } else if viewModel.selectedTab != tab {
+            viewModel.setSelectedTab(tab)
+        }
     }
 
     // MARK: - Minimize (⌃⌥H)
-
-    func toggleMinimized() {
-        setMinimized(!viewModel.isMinimized)
-    }
 
     /// Rolls the strip up into its first button (or back down). The window
     /// stays at full size for the length of the animation — it is
@@ -81,7 +98,7 @@ final class WidgetWindowController: NSObject {
         openTask?.cancel()
         collapseTask?.cancel()
         collapseTask = nil
-        removeOutsideClickMonitors()
+        stopAutoClose()
         panel.allowsKeyFocus = false
 
         let full = stripFrame(minimized: false, on: screen)
@@ -97,7 +114,7 @@ final class WidgetWindowController: NSObject {
         }
         if minimized {
             collapseTask = Task { [weak self] in
-                try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+                try? await Task.sleep(for: .milliseconds(CapsuleMetrics.windowCollapseDelayMilliseconds))
                 guard !Task.isCancelled, let self else { return }
                 self.collapseTask = nil
                 self.panel.setFrame(target, display: true)
@@ -120,35 +137,68 @@ final class WidgetWindowController: NSObject {
     // MARK: - Outside click (close-on-click-away)
 
     private func installOutsideClickMonitors() {
-        removeOutsideClickMonitors()
+        stopAutoClose()
         guard settings.closeOnOutsideClick else { return }
-        // Global = clicks in other apps; local = clicks in our own windows
-        // (settings, onboarding) that are not the widget panel. Mouse
-        // monitors need no permissions, unlike keyboard ones.
-        if let global = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] _ in
-            self?.closePanel()
-        } {
-            outsideClickMonitors.append(global)
-        }
-        if let local = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] event in
-            if let self, event.window !== self.panel {
-                self.closePanel()
+        outsideClickMonitors.install(
+            isOutside: { [weak self] event in self.map { event.window !== $0.panel } ?? false },
+            onClick: { [weak self] in self?.closePanel() }
+        )
+        watchMouseLeave()
+    }
+
+    private func stopAutoClose() {
+        outsideClickMonitors.remove()
+        mouseLeaveTask?.cancel()
+        mouseLeaveTask = nil
+    }
+
+    /// Leaving the widget closes the panel too — once the cursor has been
+    /// over it (a panel opened by a hotkey or another module must not shut
+    /// before the user gets there), and only after a grace period, so an
+    /// overshoot past the edge does not count. Polled: the window's frame
+    /// changes on every open, resize and drag, which a tracking area would
+    /// have to follow.
+    private func watchMouseLeave() {
+        mouseLeaveTask = Task { [weak self] in
+            var hasBeenInside = false
+            var outsideSince: ContinuousClock.Instant?
+            while !Task.isCancelled {
+                try? await Task.sleep(for: Self.mouseLeavePoll)
+                guard !Task.isCancelled, let self else { return }
+                if self.containsMouse {
+                    hasBeenInside = true
+                    outsideSince = nil
+                } else if hasBeenInside, self.mayCloseOnLeave {
+                    let now = ContinuousClock.now
+                    let since = outsideSince ?? now
+                    outsideSince = since
+                    if now - since >= Self.mouseLeaveGrace {
+                        self.closePanel()
+                        return
+                    }
+                } else {
+                    outsideSince = nil
+                }
             }
-            return event
-        } {
-            outsideClickMonitors.append(local)
         }
     }
 
-    private func removeOutsideClickMonitors() {
-        for monitor in outsideClickMonitors {
-            NSEvent.removeMonitor(monitor)
-        }
-        outsideClickMonitors.removeAll()
+    private static let mouseLeavePoll: Duration = .milliseconds(100)
+    private static let mouseLeaveGrace: Duration = .milliseconds(400)
+    /// Slack around the window, so the cursor riding its edge still counts.
+    private static let mouseLeaveSlack: CGFloat = 8
+
+    private var containsMouse: Bool {
+        panel.frame
+            .insetBy(dx: -Self.mouseLeaveSlack, dy: -Self.mouseLeaveSlack)
+            .contains(NSEvent.mouseLocation)
+    }
+
+    /// Not mid-gesture (a grip drag or a text selection may run past the
+    /// window), and nothing of the panel's own floats outside it — a
+    /// sheet, a menu, a popover.
+    private var mayCloseOnLeave: Bool {
+        NSEvent.pressedMouseButtons == 0 && panel.attachedSheet == nil && !panel.hasOwnPopupWindow
     }
 
     /// Settings changed (tabs, panel size, placement, theme) — re-derive the
@@ -182,19 +232,18 @@ final class WidgetWindowController: NSObject {
     // MARK: - Window lifecycle
 
     private func attach() {
-        screen = NotchGeometry.targetScreen
+        screen = CapsuleGeometry.targetScreen
         viewModel.edge = settings.widgetEdge
 
         let rootView = WidgetRootView(
             viewModel: viewModel,
             services: services,
-            settings: settings,
-            playbooks: playbookStore
+            settings: settings
         )
-        let hostingView = NotchHostingView(rootView: rootView)
+        let hostingView = CapsuleHostingView(rootView: rootView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = .clear
-        panel.contentView = hostingView
+        panel.contentView = hostingView.makeWindowContentView()
 
         applyDockedFrame()
         panel.orderFrontRegardless()
@@ -202,7 +251,7 @@ final class WidgetWindowController: NSObject {
     }
 
     @objc private func screenParametersDidChange() {
-        screen = NotchGeometry.targetScreen
+        screen = CapsuleGeometry.targetScreen
         openTask?.cancel()
         collapseTask?.cancel()
         collapseTask = nil
@@ -214,7 +263,7 @@ final class WidgetWindowController: NSObject {
 
     // MARK: - Panel open/close
 
-    private func toggleTab(_ tab: NotchTab) {
+    private func toggleTab(_ tab: ModuleTab) {
         log.info("tab -> \(tab.rawValue, privacy: .public)")
         if viewModel.isMinimized {
             // The lone visible button unfolds the widget and opens itself.
@@ -232,24 +281,18 @@ final class WidgetWindowController: NSObject {
         }
     }
 
-    private func openPanel(_ tab: NotchTab) {
-        guard let screen = currentScreen, !viewModel.isMinimized else { return }
+    private func openPanel(_ tab: ModuleTab) {
+        guard currentScreen != nil, !viewModel.isMinimized else { return }
         collapseTask?.cancel()
         collapseTask = nil
         // Module panels host text input — let the panel take key status
         // without activating the app.
         panel.allowsKeyFocus = true
-        // Two-phase, same as the notch: grow the window silently first (the
+        // Two-phase, same as the capsule: grow the window silently first (the
         // strip's local frame shifts in the same tick, so it does not move
         // on screen), animate the panel in on the next tick once the
         // window's coordinate space is stable.
-        applyLayout(WidgetGeometry.expandedLayout(
-            edge: settings.widgetEdge,
-            offset: settings.widgetOffset,
-            iconCount: iconCount,
-            panelSize: settings.expandedPanelSize,
-            on: screen
-        ))
+        applyExpandedFrame()
         openTask = Task { [weak self] in
             guard !Task.isCancelled else { return }
             self?.viewModel.setSelectedTab(tab)
@@ -259,7 +302,7 @@ final class WidgetWindowController: NSObject {
 
     private func closePanel() {
         guard viewModel.selectedTab != nil else { return }
-        removeOutsideClickMonitors()
+        stopAutoClose()
         openTask?.cancel()
         panel.allowsKeyFocus = false
         if panel.isKeyWindow {
@@ -269,7 +312,7 @@ final class WidgetWindowController: NSObject {
         // Shrink the window only after the close animation has finished,
         // otherwise it would clip the panel mid-flight.
         collapseTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(NotchMetrics.windowCollapseDelayMilliseconds))
+            try? await Task.sleep(for: .milliseconds(CapsuleMetrics.windowCollapseDelayMilliseconds))
             guard !Task.isCancelled, let self else { return }
             self.collapseTask = nil
             self.applyDockedFrame()
@@ -287,7 +330,7 @@ final class WidgetWindowController: NSObject {
             openTask?.cancel()
             collapseTask?.cancel()
             collapseTask = nil
-            removeOutsideClickMonitors()
+            stopAutoClose()
             withInstantTransaction {
                 viewModel.setSelectedTab(nil)
             }
@@ -328,7 +371,7 @@ final class WidgetWindowController: NSObject {
     }
 
     private var currentScreen: NSScreen? {
-        screen ?? NotchGeometry.targetScreen
+        screen ?? CapsuleGeometry.targetScreen
     }
 
     /// The window's resting frame — the strip alone, sized for the current
@@ -352,9 +395,65 @@ final class WidgetWindowController: NSObject {
             edge: settings.widgetEdge,
             offset: settings.widgetOffset,
             iconCount: iconCount,
-            panelSize: settings.expandedPanelSize,
+            panelSize: widgetPanelSize(on: screen),
             on: screen
         ))
+    }
+
+    /// User-sized in both axes, clamped to the screen.
+    private func widgetPanelSize(on screen: NSScreen) -> CGSize {
+        CGSize(
+            width: settings.widgetPanelWidth,
+            height: min(
+                settings.widgetPanelHeight,
+                screen.visibleFrame.height - 2 * WidgetMetrics.edgeInset
+            )
+        )
+    }
+
+    // MARK: - Panel resize
+
+    private func resizeChanged() {
+        let mouseX = NSEvent.mouseLocation.x
+        guard let startX = resizeStartMouseX, let startWidth = resizeStartWidth else {
+            resizeStartMouseX = mouseX
+            resizeStartWidth = settings.widgetPanelWidth
+            return
+        }
+        // The grip sits on the panel's outer edge; on a right-docked widget
+        // the panel grows leftwards, so the axis flips.
+        let sign: CGFloat = settings.widgetEdge == .right ? -1 : 1
+        settings.setWidgetPanelWidth(startWidth + sign * (mouseX - startX))
+    }
+
+    private func resizeEnded() {
+        resizeStartMouseX = nil
+        resizeStartWidth = nil
+        log.info("panel width -> \(Int(self.settings.widgetPanelWidth), privacy: .public)")
+    }
+
+    private func heightResizeChanged() {
+        let mouseY = NSEvent.mouseLocation.y
+        guard let startY = resizeStartMouseY, let startHeight = resizeStartHeight else {
+            resizeStartMouseY = mouseY
+            resizeStartHeight = settings.widgetPanelHeight
+            return
+        }
+        // Side docks keep the panel centered on the strip, so both ends move
+        // by half the height change — double the delta to keep the dragged
+        // bottom edge under the cursor. Top/bottom docks grow one-way, 1:1.
+        let delta: CGFloat = switch settings.widgetEdge {
+        case .bottom: mouseY - startY // grip on the top edge, grows upward
+        case .top: startY - mouseY // grip on the bottom edge, grows downward
+        case .left, .right: (startY - mouseY) * 2
+        }
+        settings.setWidgetPanelHeight(startHeight + delta)
+    }
+
+    private func heightResizeEnded() {
+        resizeStartMouseY = nil
+        resizeStartHeight = nil
+        log.info("panel height -> \(Int(self.settings.widgetPanelHeight), privacy: .public)")
     }
 
     private func applyLayout(_ layout: WidgetGeometry.ExpandedLayout) {

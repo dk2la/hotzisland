@@ -11,13 +11,13 @@ final class TimerService {
     private(set) var remaining: TimeInterval = 25 * 60
     private(set) var isRunning = false
 
-    /// The island flips between closed and compact on these.
+    /// The capsule flips between closed and compact on these.
     @ObservationIgnored var onRunningChanged: (() -> Void)?
     @ObservationIgnored var onFinished: (() -> Void)?
 
     @ObservationIgnored private var endDate: Date?
     @ObservationIgnored private var tickTask: Task<Void, Never>?
-    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.hotzisland", category: "timer")
+    @ObservationIgnored private let log = Logger(subsystem: "com.dk2la.pocket", category: "timer")
 
     static let presets: [TimeInterval] = [5 * 60, 10 * 60, 25 * 60, 45 * 60]
 

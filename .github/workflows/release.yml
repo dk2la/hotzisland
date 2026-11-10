@@ -1,0 +1,83 @@
+name: Release
+
+# Every push to master: run all checks, then publish v<MARKETING_VERSION>.
+# If that tag already exists the release is skipped — bump MARKETING_VERSION
+# in project.yml to ship a new one.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  release:
+    needs: ci
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        run: |
+          version=$(sed -nE 's/^ *MARKETING_VERSION: *"?([0-9.]+)"?.*/\1/p' project.yml | head -1)
+          [[ -n "$version" ]] || { echo "::error::MARKETING_VERSION not found in project.yml"; exit 1; }
+          tag="v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$tag already released — bump MARKETING_VERSION in project.yml to publish a new version"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Release
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          rm -rf build
+          xcodegen generate
+          xcodebuild -project Pocket.xcodeproj -scheme Pocket -configuration Release \
+            -derivedDataPath build CURRENT_PROJECT_VERSION=${{ github.run_number }} build \
+            | grep -E "error:|warning: [^M]|\*\* " || true
+          test "${PIPESTATUS[0]}" -eq 0
+
+      - name: Package
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          app=build/Build/Products/Release/Pocket.app
+          name="Pocket-${{ steps.version.outputs.version }}"
+          mkdir -p dist
+          ditto -c -k --keepParent "$app" "dist/$name.zip"
+          staging=$(mktemp -d)
+          cp -R "$app" "$staging/"
+          ln -s /Applications "$staging/Applications"
+          hdiutil create -volname Pocket -srcfolder "$staging" -ov -format UDZO "dist/$name.dmg"
+          rm -rf "$staging"
+          (cd dist && shasum -a 256 ./*.zip ./*.dmg > SHA256SUMS.txt)
+
+      - name: Publish GitHub release
+        if: steps.version.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "Pocket ${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            --notes "Unsigned build (ad-hoc signature): right-click → Open on first launch."

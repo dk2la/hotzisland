@@ -5,65 +5,101 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let services = ModuleServices()
     private var statusItem: NSStatusItem?
-    private var notchController: NotchWindowController?
+    private var capsuleController: CapsuleWindowController?
     private var widgetController: WidgetWindowController?
-    private var settingsWindow: SettingsWindowController?
-    private let onboarding = OnboardingWindowController()
-    private let hotkeys = HotkeyService()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
         registerHotkeys()
-        notchController = NotchWindowController(
-            settings: settings,
-            services: services,
-            playbooks: services.playbookStore
-        )
+        capsuleController = CapsuleWindowController(settings: settings, services: services)
 
-        // The widget window lives only in widget mode; the notch window
-        // always exists (live events stay on the notch in both modes).
-        settings.onDisplayModeChange = { [weak self] mode in
-            self?.applyDisplayMode(mode)
-        }
+        // Modules live in the edge widget; the capsule shows live
+        // events and, when opened, the settings.
+        widgetController = WidgetWindowController(settings: settings, services: services)
         settings.addChangeHandler { [weak self] in
             self?.widgetController?.settingsDidChange()
         }
-        applyDisplayMode(settings.displayMode)
 
-        // Island UI (e.g. the "+ new" playbook card) asks for the settings
-        // window through this notification.
+        // Widget UI (e.g. the "+ new" playbook card) asks for the settings
+        // capsule through this notification.
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleOpenSettings(_:)),
-            name: .hotzOpenSettings,
+            name: .pocketOpenSettings,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(openOnboarding),
+            name: .pocketOpenOnboarding,
             object: nil
         )
 
-        // Developer convenience: `open HotzIsland.app --args --settings`.
-        if CommandLine.arguments.contains("--settings") {
-            showSettings(page: nil)
+        // A demo event is asked for from the settings capsule, which sits
+        // where the event would show — close it first, then flash the event.
+        services.demo.presentEvent = { [weak self] event in
+            guard let capsule = self?.capsuleController else { return }
+            capsule.closeSettings()
+            Task {
+                try? await Task.sleep(for: .milliseconds(700))
+                capsule.present(event)
+            }
         }
 
-        let defaults = UserDefaults.standard
-        if !defaults.bool(forKey: "onboarding.completed")
-            || CommandLine.arguments.contains("--onboarding") {
-            onboarding.show(settings: settings) {
-                defaults.set(true, forKey: "onboarding.completed")
+        // `--demo`: scripted data in every module from the first frame.
+        if CommandLine.arguments.contains("--demo") {
+            services.demo.activate()
+        }
+
+        // Developer convenience: `open Pocket.app --args --settings`
+        // wins over the tour; `--onboarding` forces the tour even when the
+        // user switched it off.
+        if CommandLine.arguments.contains("--settings") {
+            services.beginProtectedAccess()
+            showSettings(page: nil)
+        } else if settings.showOnboardingAtLaunch || CommandLine.arguments.contains("--onboarding") {
+            deferProtectedAccessUntilTourCloses()
+            // A beat after launch, so the capsule visibly drops open instead
+            // of appearing already expanded.
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(600))
+                self?.capsuleController?.openOnboarding()
             }
+        } else {
+            services.beginProtectedAccess()
         }
     }
 
-    /// Global shortcuts (Carbon — no permissions needed). Both act on the
-    /// widget surface; in island mode they are inert by design.
+    /// First launch: no access prompt may pile up on top of the tour. Its
+    /// pages ask for the calendar and the notes folder one by one; the rest
+    /// (clipboard, music players) starts once the capsule closes.
+    private func deferProtectedAccessUntilTourCloses() {
+        guard !settings.onboardingCompleted else {
+            services.beginProtectedAccess()
+            return
+        }
+        capsuleController?.onCollapse = { [weak self] in
+            guard let self else { return }
+            self.capsuleController?.onCollapse = nil
+            self.settings.onboardingCompleted = true
+            self.services.beginProtectedAccess()
+        }
+    }
+
+    /// Global shortcuts (Carbon — no permissions needed). H and P act on
+    /// the widget; M opens or closes the settings capsule.
     private func registerHotkeys() {
+        let hotkeys = services.hotkeys
         hotkeys.register(.toggleWidgetHidden) { [weak self] in
-            guard let self, self.settings.displayMode == .widget else { return }
             // The controller reconciles through settingsDidChange, so the
             // hotkey works even while the widget window is being rebuilt.
-            self.settings.widgetMinimized.toggle()
+            self?.settings.widgetMinimized.toggle()
         }
         hotkeys.register(.togglePanelPin) { [weak self] in
             self?.settings.closeOnOutsideClick.toggle()
+        }
+        hotkeys.register(.toggleSettings) { [weak self] in
+            self?.capsuleController?.toggleSettings()
         }
     }
 
@@ -71,7 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(
             systemSymbolName: "capsule.portrait.fill",
-            accessibilityDescription: "HotzIsland"
+            accessibilityDescription: "Pocket"
         )
 
         let menu = NSMenu()
@@ -82,10 +118,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         settingsItem.target = self
         menu.addItem(settingsItem)
+        let tourItem = NSMenuItem(
+            title: "Welcome Tour…",
+            action: #selector(openOnboarding),
+            keyEquivalent: ""
+        )
+        tourItem.target = self
+        menu.addItem(tourItem)
         menu.addItem(.separator())
         menu.addItem(
             NSMenuItem(
-                title: "Quit HotzIsland",
+                title: "Quit Pocket",
                 action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q"
             )
@@ -95,23 +138,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
-    private func applyDisplayMode(_ mode: DisplayMode) {
-        switch mode {
-        case .island:
-            widgetController?.tearDown()
-            widgetController = nil
-        case .widget:
-            guard widgetController == nil else { return }
-            widgetController = WidgetWindowController(
-                settings: settings,
-                services: services,
-                playbooks: services.playbookStore
-            )
-        }
-    }
-
     @objc private func openSettings() {
         showSettings(page: nil)
+    }
+
+    @objc private func openOnboarding() {
+        capsuleController?.openOnboarding()
     }
 
     @objc private func handleOpenSettings(_ notification: Notification) {
@@ -121,13 +153,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showSettings(page: SettingsView.Page?) {
-        if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(
-                settings: settings,
-                playbooks: services.playbookStore,
-                services: services
-            )
-        }
-        settingsWindow?.show(page: page)
+        capsuleController?.openSettings(page: page)
     }
 }
