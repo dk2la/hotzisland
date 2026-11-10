@@ -1,0 +1,16 @@
+name = "pocket-trial"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# KV namespace that maps a hashed Mac ID to its Trial start date.
+# Create it once with:
+#   npx wrangler kv namespace create TRIALS
+# then replace the placeholder below with the "id" that command prints.
+[[kv_namespaces]]
+binding = "TRIALS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Privacy: keep no request logs.
+[observability]
+enabled = false

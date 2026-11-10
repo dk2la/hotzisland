@@ -16,7 +16,7 @@ struct CapsuleRootView: View {
         if viewModel.activeEvent != nil {
             return CapsuleGeometry.capsule(closedSize, side: CapsuleMetrics.eventSideWidth)
         }
-        if viewModel.state == .compact,
+        if viewModel.state == .compact, !services.isLocked,
            services.timerService.isRunning || services.mediaCenter.track != nil {
             return CapsuleGeometry.capsule(closedSize, side: CapsuleMetrics.compactSideWidth)
         }
