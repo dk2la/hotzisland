@@ -1,0 +1,47 @@
+name: CI
+
+# Runs on the self-hosted Mac runner (free; GitHub's macOS minutes are not).
+# Runner prerequisites: Xcode, `brew install xcodegen swiftlint gitleaks semgrep actionlint`.
+on:
+  pull_request:
+    branches: [develop, master]
+  push:
+    branches: [develop]
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+jobs:
+  checks:
+    # Never run code from forks on the self-hosted machine.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the full history
+
+      - name: Workflow lint (actionlint)
+        run: actionlint
+
+      - name: SwiftLint
+        run: swiftlint lint --quiet --reporter github-actions-logging
+
+      - name: Secret scan (gitleaks)
+        run: gitleaks detect --no-banner --redact --config .gitleaks.toml
+
+      - name: Security scan (semgrep)
+        run: semgrep scan --config p/swift --config p/secrets --metrics off --error Sources Tests
+
+      - name: Build and test
+        run: ./run.sh --clean --test --no-run

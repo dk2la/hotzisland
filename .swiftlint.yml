@@ -1,0 +1,52 @@
+# CI fails on errors only; warnings are visible tech debt to burn down.
+included:
+  - Sources
+  - Tests
+excluded:
+  - build
+
+disabled_rules:
+  - trailing_comma # SwiftUI builders read better with trailing commas
+
+opt_in_rules:
+  - empty_count
+  - first_where
+  - contains_over_filter_count
+  - unused_optional_binding
+
+line_length:
+  warning: 160
+  error: 300
+  ignores_comments: true
+  ignores_urls: true
+
+identifier_name:
+  min_length: 1 # x, y, i, id are fine in geometry/IMAP code
+  allowed_symbols: ["_"] # charset names like iso8859_5
+  max_length: 60
+
+type_name:
+  max_length: 60
+
+file_length:
+  warning: 800
+  error: 2000
+
+type_body_length:
+  warning: 400
+  error: 1500
+
+function_body_length:
+  warning: 80
+  error: 250
+
+cyclomatic_complexity:
+  warning: 15
+  error: 60
+  ignores_case_statements: true
+
+large_tuple:
+  warning: 3
+  error: 6
+
+force_cast: warning
