@@ -57,6 +57,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--settings") {
             services.beginProtectedAccess()
             showSettings(page: nil)
+        } else if let tab = Self.launchTab() {
+            // `--tab <module>`: open that module's panel, skip the tour —
+            // for screenshots and promo recordings.
+            services.beginProtectedAccess()
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                NotificationCenter.default.post(name: .pocketShowModule, object: nil, userInfo: ["tab": tab.rawValue])
+            }
         } else if settings.showOnboardingAtLaunch || CommandLine.arguments.contains("--onboarding") {
             deferProtectedAccessUntilTourCloses()
             // A beat after launch, so the capsule visibly drops open instead
@@ -68,6 +76,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             services.beginProtectedAccess()
         }
+    }
+
+    /// Module named by `--tab <name>` at launch, if any.
+    private static func launchTab() -> ModuleTab? {
+        let args = CommandLine.arguments
+        guard let index = args.firstIndex(of: "--tab"), index + 1 < args.count else { return nil }
+        return ModuleTab(rawValue: args[index + 1])
     }
 
     /// First launch: no access prompt may pile up on top of the tour. Its
