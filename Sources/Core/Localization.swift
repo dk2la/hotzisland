@@ -1,3 +1,5 @@
+// Translation tables keep one key per line across ten languages.
+// swiftlint:disable line_length
 import Foundation
 import Observation
 

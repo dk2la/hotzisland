@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+# Keychain service identifiers are bundle-style names, not secrets.
+[[allowlists]]
+description = "Keychain service identifiers"
+regexTarget = "line"
+regexes = ['''keychainService\s*=\s*"com\.dk2la\.[a-z.]+"''']
