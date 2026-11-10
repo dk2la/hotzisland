@@ -63,6 +63,10 @@ targets:
       - path: Sources/Modules/Email/MailTransport.swift
       - path: Sources/Modules/Email/IMAPClient.swift
       - path: Sources/Modules/Email/MailSession.swift
+      - path: Sources/Licensing/AccessPorts.swift
+      - path: Sources/Licensing/Access.swift
+      - path: Sources/Licensing/MacID.swift
+      - path: Sources/Licensing/LemonSqueezyLicenseAPI.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dk2la.pocket.tests

@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var capsuleController: CapsuleWindowController?
     private var widgetController: WidgetWindowController?
+    private var licensingTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setUpStatusItem()
@@ -34,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .pocketOpenOnboarding,
             object: nil
         )
+
+        startLicensing()
 
         // A demo event is asked for from the settings capsule, which sits
         // where the event would show — close it first, then flash the event.
@@ -76,6 +79,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             services.beginProtectedAccess()
         }
+    }
+
+    /// Refreshes the Access module at launch, every hour after that and on
+    /// wake. The module itself decides what is due (the License key is
+    /// re-validated once a day), so over-calling is harmless.
+    private func startLicensing() {
+        guard services.licensingEnforced else { return }
+        let access = services.access
+        licensingTask = Task {
+            while !Task.isCancelled {
+                await access.refresh()
+                try? await Task.sleep(for: .seconds(3600))
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(refreshAccess),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func refreshAccess() {
+        let access = services.access
+        Task { await access.refresh() }
     }
 
     /// Module named by `--tab <name>` at launch, if any.

@@ -221,7 +221,8 @@ final class CapsuleWindowController: NSObject {
     /// is playing, fully closed otherwise. "Invisible" idle mode always
     /// closes fully.
     private var idleState: CapsuleState {
-        guard settings.idleMode == .compact else { return .closed }
+        // Locked, the capsule shows nothing of the modules.
+        guard settings.idleMode == .compact, !services.isLocked else { return .closed }
         if services.timerService.isRunning || services.mediaCenter.track?.isPlaying == true {
             return .compact
         }
@@ -240,7 +241,7 @@ final class CapsuleWindowController: NSObject {
     /// (e.g. a volume sweep) update the content in place and restart the
     /// dismiss timer.
     func present(_ event: LiveEvent) {
-        guard targetState != .expanded,
+        guard targetState != .expanded, !services.isLocked,
               let screen = CapsuleGeometry.targetScreen else { return }
         log.info("event \(String(describing: event), privacy: .public)")
         collapseTask?.cancel()

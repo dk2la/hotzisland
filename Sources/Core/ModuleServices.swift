@@ -25,8 +25,18 @@ final class ModuleServices {
     /// Global shortcuts — the AppDelegate binds their actions, Settings →
     /// Hotkeys rebinds their keys.
     let hotkeys = HotkeyService()
+    /// Trial / License gate. `licensingEnforced` is false in debug builds,
+    /// where the gate exists but never locks anything.
+    let access: Access
+    let licensingEnforced = LicensingConfig.isEnforced
+
+    /// Pocket is locked: surfaces show the lock screen instead of modules.
+    var isLocked: Bool {
+        licensingEnforced && access.state.isLocked
+    }
 
     init() {
+        access = Access.live(enforced: licensingEnforced)
         playbookRunner = PlaybookRunner(timer: timerService)
         // The toolbox needs the fully built container, so it attaches last.
         assistantService.attachToolbox(services: self)
