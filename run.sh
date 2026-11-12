@@ -19,6 +19,7 @@ Launch
   -d, --demo         sample data in every module
   -s, --settings     open the settings capsule at launch
   -o, --onboarding   show the first-launch onboarding again
+  -L, --licensing    enforce Trial / License checks (debug builds skip them)
   -n, --no-run       build / test only, do not launch
   -l, --logs         stream the app's logs after launching (Ctrl-C to stop)
 
@@ -60,6 +61,7 @@ for arg in "$@"; do
   -d | --demo) app_args+=(--demo) ;;
   -s | --settings) app_args+=(--settings) ;;
   -o | --onboarding) app_args+=(--onboarding) ;;
+  -L | --licensing) app_args+=(--licensing) ;;
   -n | --no-run) run=0 ;;
   -l | --logs) logs=1 ;;
   -k | --stop)

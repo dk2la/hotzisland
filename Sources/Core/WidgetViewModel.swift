@@ -14,6 +14,10 @@ final class WidgetViewModel {
     /// no panel. See WidgetGeometry.stripLength.
     var isMinimized = false
 
+    /// Pocket is locked: the strip is one lock button and the panel is the
+    /// lock screen.
+    var isLocked = false
+
     var edge: WidgetEdge = .right
     var stripFrame: CGRect = .zero
     var panelFrame: CGRect = .zero

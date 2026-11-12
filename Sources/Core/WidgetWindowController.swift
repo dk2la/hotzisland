@@ -33,6 +33,8 @@ final class WidgetWindowController: NSObject {
     /// Screen the widget currently lives on. Reset to the capsule's target
     /// screen on display changes; updated when a drag ends elsewhere.
     private var screen: NSScreen?
+    /// The lock screen was opened by itself for the current lock.
+    private var didPresentLockScreen = false
     private let log = Logger(subsystem: "com.dk2la.pocket", category: "widget")
 
     init(settings: AppSettings, services: ModuleServices) {
@@ -50,6 +52,7 @@ final class WidgetWindowController: NSObject {
         viewModel.onHeightResizeChanged = { [weak self] in self?.heightResizeChanged() }
         viewModel.onHeightResizeEnded = { [weak self] in self?.heightResizeEnded() }
         viewModel.isMinimized = settings.widgetMinimized
+        viewModel.isLocked = services.isLocked
 
         NotificationCenter.default.addObserver(
             self,
@@ -65,13 +68,62 @@ final class WidgetWindowController: NSObject {
         )
 
         attach()
+        observeAccess()
+    }
+
+    // MARK: - Lock (Trial ended, License invalid…)
+
+    /// Re-arms itself: Observation reports one change per registration.
+    private func observeAccess() {
+        withObservationTracking {
+            _ = services.isLocked
+            _ = services.access.isRefreshing
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.accessDidChange()
+                self?.observeAccess()
+            }
+        }
+    }
+
+    /// Locking swaps the strip for one lock button and the panel for the
+    /// lock screen; unlocking brings the modules back, no restart needed.
+    private func accessDidChange() {
+        let locked = services.isLocked
+        if viewModel.isLocked != locked {
+            log.info("locked -> \(locked, privacy: .public)")
+            viewModel.isLocked = locked
+            if !locked {
+                closePanel()
+            }
+            if viewModel.selectedTab != nil {
+                applyExpandedFrame()
+            } else if collapseTask == nil, !isDragging {
+                applyDockedFrame()
+            }
+        }
+        // Show the lock screen once the verdict is final, so it is obvious
+        // what to do next. While a refresh runs it may still be lifted.
+        if locked, !services.access.isRefreshing, !didPresentLockScreen {
+            // One chance per lock: if the widget is busy or rolled up now,
+            // the lock button is there; never pop open later, unprompted.
+            didPresentLockScreen = true
+            if viewModel.selectedTab == nil, !viewModel.isMinimized,
+               let tab = settings.orderedEnabledTabs.first {
+                openPanel(tab)
+            }
+        }
+        if !locked {
+            didPresentLockScreen = false
+        }
     }
 
     /// Another module asked for this one to come forward (the assistant
     /// handing a prefilled form to the calendar).
     @objc private func showModuleRequested(_ notification: Notification) {
         guard let raw = notification.userInfo?["tab"] as? String,
-              let tab = ModuleTab(rawValue: raw), settings.isEnabled(tab) else { return }
+              let tab = ModuleTab(rawValue: raw), settings.isEnabled(tab),
+              !viewModel.isLocked else { return }
         if viewModel.isMinimized {
             setMinimized(false)
         }
@@ -367,7 +419,8 @@ final class WidgetWindowController: NSObject {
     // MARK: - Frames
 
     private var iconCount: Int {
-        max(settings.orderedEnabledTabs.count, 1)
+        // Locked, the strip holds the lock button alone.
+        viewModel.isLocked ? 1 : max(settings.orderedEnabledTabs.count, 1)
     }
 
     private var currentScreen: NSScreen? {

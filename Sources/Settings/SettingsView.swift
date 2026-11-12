@@ -21,6 +21,7 @@ struct SettingsView: View {
 
     enum Page: String, CaseIterable, Identifiable {
         case general
+        case license
         case appearance
         case modules
         case accounts
@@ -32,6 +33,7 @@ struct SettingsView: View {
         private var spec: (title: L10nKey, subtitle: L10nKey, icon: String) {
             switch self {
             case .general: (.setGeneral, .setGeneralSub, "gearshape")
+            case .license: (.setLicense, .setLicenseSub, "key")
             case .appearance: (.setAppearance, .setAppearanceSub, "circle.lefthalf.filled")
             case .modules: (.setModules, .setModulesSub, "square.grid.2x2")
             case .accounts: (.setAccounts, .setAccountsSub, "at")
@@ -131,6 +133,7 @@ struct SettingsView: View {
     private var content: some View {
         switch pageSelection.page {
         case .general: generalPage
+        case .license: licensePage
         case .appearance: appearancePage
         case .modules: modulesPage
         case .accounts: accountsPage
@@ -263,6 +266,14 @@ struct SettingsView: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+    }
+
+    // MARK: License
+
+    private var licensePage: some View {
+        sections {
+            LicenseSettingsView(access: services.access, isEnforced: services.licensingEnforced)
+        }
     }
 
     // MARK: Appearance

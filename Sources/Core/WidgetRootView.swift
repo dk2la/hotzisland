@@ -98,6 +98,9 @@ struct WidgetRootView: View {
             : AnyLayout(HStackLayout(spacing: WidgetMetrics.spacing))
         return layout {
             gripDots
+            if viewModel.isLocked {
+                lockButton
+            }
             ForEach(visibleTabs) { tab in
                 RailIconButton(
                     tab: tab,
@@ -114,8 +117,27 @@ struct WidgetRootView: View {
     /// Minimized the strip keeps its first module button — the widget still
     /// reads as itself, and that one button unfolds it.
     private var visibleTabs: [ModuleTab] {
+        if viewModel.isLocked { return [] }
         let tabs = settings.orderedEnabledTabs
         return viewModel.isMinimized ? Array(tabs.prefix(1)) : tabs
+    }
+
+    /// Locked, the strip's one button opens the lock screen. It rides the
+    /// first module's panel slot, so opening and closing work as usual.
+    private var lockButton: some View {
+        Button {
+            if let tab = settings.orderedEnabledTabs.first {
+                viewModel.onTabTapped?(tab)
+            }
+        } label: {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+                .frame(width: WidgetMetrics.cell, height: WidgetMetrics.cell)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle())
+        .help(L10n.t(.licLockedTooltip))
     }
 
     /// Drag handle at the strip's leading end. Dots run across the strip's
@@ -149,15 +171,19 @@ struct WidgetRootView: View {
     private func panel(for tab: ModuleTab) -> some View {
         GlassSurface(shape: panelShape, dark: darkGlass)
             .overlay {
-                VStack(spacing: 0) {
-                    PanelHeaderView(tab: tab, services: services) {
-                        viewModel.onClose?()
+                if viewModel.isLocked {
+                    LockScreenView(access: services.access)
+                } else {
+                    VStack(spacing: 0) {
+                        PanelHeaderView(tab: tab, services: services) {
+                            viewModel.onClose?()
+                        }
+                        ModuleContentView(tab: tab, services: services)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(.horizontal, Theme.panelInset)
+                            .padding(.top, Theme.panelInset)
+                            .padding(.bottom, 10)
                     }
-                    ModuleContentView(tab: tab, services: services)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.horizontal, Theme.panelInset)
-                        .padding(.top, Theme.panelInset)
-                        .padding(.bottom, 10)
                 }
             }
             .clipShape(panelShape)
