@@ -56,7 +56,8 @@ Subscription feature) are defined in [GLOSSARY.md](../GLOSSARY.md).
 
 ## Website
 
-- Hosted on Cloudflare Pages, on its own domain (not chosen yet).
+- Hosted on Cloudflare Workers (static assets), on its own domain (not chosen
+  yet).
 - Pages: landing with Buy and Download, Terms, Privacy, Refund Policy.
 - Design: custom, with animations, in the style of the current widget. The
   design isn't discussed yet; a mockup comes later.
