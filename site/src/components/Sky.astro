@@ -1,0 +1,200 @@
+---
+// "There when you click, gone when you're done": a halftone picture of the
+// sky with three widget screenshots over it. Each screenshot is its own
+// image: they rise in one after another when the picture is first seen and
+// drift a few pixels at different speeds while the page scrolls
+// (src/scripts/motion.ts sets `data-wait` and `--p`).
+//
+// On phones the picture keeps its place and the screenshots sit in a row
+// that scrolls sideways inside it.
+import { Picture } from 'astro:assets';
+import Marker from './Marker.astro';
+import sky from '../assets/pictures/sky.png';
+import email from '../assets/screens/email.png';
+import calendar from '../assets/screens/calendar.png';
+import notes from '../assets/screens/notes.png';
+
+const widgets = [
+  { src: email, alt: 'The Pocket widget, open on an inbox.' },
+  { src: calendar, alt: 'The Pocket widget, open on a calendar.' },
+  { src: notes, alt: 'The Pocket widget, open on notes.' },
+];
+---
+
+<section class="section container">
+  <Marker shape="triangle" />
+  <h2 class="h indent">there when you click<br />gone when you’re done</h2>
+  <p class="lede indent section__lede">
+    it opens beside whatever you’re working on and closes without taking you out of it.
+  </p>
+
+  <div class="indent">
+    <div class="sky" id="sky">
+      <Picture
+        src={sky}
+        formats={['avif', 'webp']}
+        fallbackFormat="jpg"
+        widths={[640, 832, 1024, 1376]}
+        sizes="(max-width: 699px) 803px, (max-width: 1151px) calc(100vw - 128px), 1024px"
+        alt="A halftone print of clouds in a pale sky above the sea."
+        loading="lazy"
+        class="sky__bg"
+      />
+      <div class="sky__row">
+        <div class="sky__track">
+          {
+            widgets.map((widget, i) => (
+              <div class="sky__w" style={`--i:${i}`}>
+                <Picture
+                  src={widget.src}
+                  formats={['avif', 'webp']}
+                  widths={[264, 528]}
+                  sizes="(max-width: 699px) 231px, 264px"
+                  alt={widget.alt}
+                  loading="lazy"
+                />
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+    <p class="label muted sky__hint" aria-hidden="true">swipe →</p>
+  </div>
+</section>
+
+<style>
+  .sky {
+    position: relative;
+    aspect-ratio: 1024 / 576;
+    background: var(--paper);
+    overflow: hidden;
+    overflow: clip;
+  }
+
+  .sky :global(.sky__bg) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .sky__row,
+  .sky__track {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Places are fractions of the 1024×576 picture. `--k` is how far (px) the
+     widget drifts over a full pass through the viewport. */
+  .sky__w {
+    position: absolute;
+    width: 25.781%;
+    aspect-ratio: 565 / 900;
+    transform: translate3d(0, calc(var(--p, 0) * var(--k) * 1px), 0);
+  }
+
+  .sky__w:nth-child(1) {
+    left: 7.031%;
+    top: 16.667%;
+    --k: 10;
+  }
+
+  .sky__w:nth-child(2) {
+    left: 37.109%;
+    top: 8.333%;
+    --k: -8;
+  }
+
+  .sky__w:nth-child(3) {
+    left: 67.188%;
+    top: 19.444%;
+    --k: 16;
+  }
+
+  .sky__w :global(img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transition:
+      opacity 500ms ease-out,
+      transform 800ms var(--ease-soft);
+    transition-delay: calc(var(--i) * 80ms);
+  }
+
+  .sky[data-wait] .sky__w :global(img) {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0);
+  }
+
+  .sky__hint {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sky__w {
+      transform: none;
+    }
+
+    .sky__w :global(img) {
+      transition: opacity 300ms ease-out;
+      transition-delay: 0s;
+    }
+
+    .sky[data-wait] .sky__w :global(img) {
+      transform: none;
+    }
+  }
+
+  /* Phone: a fixed-height picture; the widgets scroll sideways inside it. */
+  @media (max-width: 699px) {
+    .sky {
+      aspect-ratio: auto;
+      height: 448px;
+    }
+
+    .sky__row {
+      overflow-x: auto;
+      overflow-y: hidden;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .sky__row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .sky__track {
+      position: relative;
+      inset: auto;
+      width: 811px;
+      height: 100%;
+    }
+
+    .sky__w {
+      width: 231px;
+    }
+
+    .sky__w:nth-child(1) {
+      left: 32px;
+      top: 40px;
+    }
+
+    .sky__w:nth-child(2) {
+      left: 290px;
+      top: 72px;
+    }
+
+    .sky__w:nth-child(3) {
+      left: 548px;
+      top: 48px;
+    }
+
+    .sky__hint {
+      display: block;
+      padding-top: var(--s-2);
+    }
+  }
+</style>

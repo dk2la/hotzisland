@@ -1,206 +1,272 @@
 ---
-// Price section: the License card with the price, the Trial, the number of
-// Macs, and both buttons again.
+// "Pay once, keep it": the Trial and the License as one stack (card, the
+// three days, card, the price band) with a tip and the buttons beside it.
+// The accent colour appears here only on the price band.
+//
+// src/scripts/motion.ts sets `data-wait` on `.plan` while it is below the
+// fold and removes it when it is seen: the days switch on one by one, then
+// the regular price is struck and the launch price takes its place.
+import Marker from './Marker.astro';
 import { checkoutURL, downloadURL, price } from '../config';
 ---
 
-<section class="section">
-  <div class="container buy">
-    <div class="sec-head" data-reveal>
-      <span class="mono eyebrow">Price</span>
-      <h2>Pay once. Keep it.</h2>
-      <p>
-        Use Pocket for 3 days with everything switched on. If it earns its place on your screen,
-        buy it once and it's yours.
-      </p>
+<section class="section container">
+  <Marker shape="diamond" />
+  <h2 class="h indent">pay once<br />keep it</h2>
+  <p class="lede indent section__lede">
+    use pocket for 3 days with everything switched on. if it earns its place on your screen,
+    buy it once and it’s yours.
+  </p>
+
+  <div class="indent price">
+    <div class="plan" id="plan">
+      <div class="plan__card">
+        <h3 class="strong">Trial</h3>
+        <p class="body">3 days, every feature, from the first time you open pocket</p>
+      </div>
+      <div class="days label" aria-hidden="true">
+        <span class="day" style="--i:0">day 1</span>
+        <span class="day" style="--i:1">day 2</span>
+        <span class="day" style="--i:2">day 3</span>
+      </div>
+      <div class="plan__card">
+        <h3 class="strong">License</h3>
+        <p class="body">
+          one payment, no subscription. one License key works on up to 3 of your Macs
+        </p>
+      </div>
+      <div class="band">
+        <p class="band__price">
+          <span class="band__now">{price.launch}</span>
+          <s class="band__was">{price.regular}</s>
+        </p>
+        <span class="label band__label">launch price</span>
+      </div>
     </div>
-    <div class="license" id="license" data-reveal>
-      <div class="l-head">
-        <span class="mono">License</span><span class="dot" aria-hidden="true"></span>
+
+    <div class="side">
+      <div class="tip">
+        <h3 class="tip__title">tip</h3>
+        <p class="label">
+          use the Trial to decide.<br /><br />a refund is possible within 14 days, as long as the
+          License key was never activated.
+        </p>
       </div>
-      <div class="l-price">
-        <span class="now">{price.launch}</span>
-        <span class="was" aria-label={`regular price ${price.regular}`}>{price.regular}</span>
-        <span class="mono tag">Launch price</span>
-      </div>
-      <p class="l-say">One payment, no subscription.</p>
-      <div class="meters">
-        <div class="meter">
-          <div class="cap mono"><span>Trial</span><b>3 days</b></div>
-          <div class="segs" aria-hidden="true"><i></i><i></i><i></i></div>
-          <p>Every feature, from the first time you open Pocket.</p>
-        </div>
-        <div class="meter">
-          <div class="cap mono"><span>Macs</span><b>Up to 3</b></div>
-          <div class="segs" aria-hidden="true"><i></i><i></i><i></i></div>
-          <p>One License key works on three of your Macs.</p>
-        </div>
-      </div>
-      <div class="cta">
-        <a class="btn btn-buy" href={checkoutURL}>
-          Buy Pocket <span class="sep" aria-hidden="true"></span>
-          <span class="price">{price.launch}</span>
+      <div class="side__cta">
+        <a class="btn btn--light btn--wide" href={checkoutURL}>
+          buy pocket <span class="btn__price">{price.launch}</span>
         </a>
-        <a class="btn btn-get" href={downloadURL} download>Download the Trial</a>
+        <a class="btn btn--quiet btn--wide" href={downloadURL} download>
+          download and start the Trial
+        </a>
       </div>
-      <p class="fine">Sold by dk2la. Payment is handled by Lemon Squeezy.</p>
+      <p class="label muted">sold by dk2la. payment is handled by Lemon Squeezy.</p>
     </div>
   </div>
 </section>
 
 <style>
-  .buy {
-    display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-    gap: var(--s-7);
-    align-items: center;
+  .price {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-5);
   }
 
-  /* Dark sheet in both appearances, like the app's own License sheet. */
-  .license {
-    background: var(--sheet);
-    color: var(--w-1);
-    border-radius: var(--r-window);
-    border: 1px solid var(--glass-stroke);
-    padding: var(--s-5);
+  .plan {
     display: flex;
     flex-direction: column;
-    gap: var(--s-5);
-    box-shadow: var(--shadow);
+    flex: 1 1 608px;
     min-width: 0;
   }
 
-  .l-head {
+  .plan__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: var(--s-5);
+    background: var(--card);
+    text-align: center;
+  }
+
+  /* The three days of the Trial, lighter to darker. */
+  .days {
+    display: flex;
+    height: var(--s-8);
+    background: var(--card);
+  }
+
+  .day {
+    display: flex;
+    align-items: flex-end;
+    flex: 1 1 0;
+    padding: var(--s-2) var(--s-3);
+    background: var(--text);
+    color: var(--ground);
+    /* Switched, not faded: the change lands all at once after the delay. */
+    transition: opacity 0s linear calc(var(--i) * 140ms);
+  }
+
+  .day:nth-child(2) {
+    background: var(--tone-2);
+  }
+
+  .day:nth-child(3) {
+    background: var(--tone-3);
+  }
+
+  .plan[data-wait] .day {
+    opacity: 0;
+  }
+
+  .band {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-bottom: var(--s-4);
-    border-bottom: 1px solid var(--w-hair);
-    color: var(--accent);
+    gap: var(--s-3);
+    min-height: var(--s-8);
+    padding-inline: var(--s-5);
+    background: var(--accent);
+    color: var(--on-accent);
+    overflow: hidden;
   }
 
-  .l-price {
+  .band__price {
     display: flex;
     align-items: baseline;
-    flex-wrap: wrap;
+    flex: none;
     gap: var(--s-3);
+    white-space: nowrap;
   }
 
-  .now {
-    font-size: clamp(56px, 8vw, 84px);
-    line-height: 0.9;
+  .band__now {
+    font-size: 60px;
     font-weight: 600;
-    letter-spacing: -0.04em;
+    line-height: 64px;
+    letter-spacing: -0.02em;
+    transition:
+      opacity 300ms ease-out 1100ms,
+      transform 400ms var(--ease-out) 1100ms;
   }
 
-  .l-price .was {
-    font-family: var(--mono);
-    font-size: 20px;
-    color: var(--w-3);
-    text-decoration: line-through;
+  /* The regular price. The strike is a drawn line, so it can be drawn in. */
+  .band__was {
+    position: relative;
+    font-size: 28px;
+    font-weight: 300;
+    line-height: 32px;
+    letter-spacing: 0;
+    text-decoration: none;
+    opacity: 0.55;
+    transform-origin: 0 78%;
+    transition:
+      opacity 450ms ease-out 900ms,
+      transform 450ms var(--ease-out) 900ms;
   }
 
-  .tag {
-    color: var(--on-accent);
-    background: var(--accent);
-    padding: 5px 8px;
-    border-radius: 6px;
+  .band__was::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 49%;
+    height: 1px;
+    background: currentColor;
+    transform-origin: 0 0;
+    transition: transform 250ms var(--ease-out) 600ms;
   }
 
-  .l-say {
-    color: var(--w-2);
-    font-size: 16px;
-    max-width: 34ch;
+  /* Before: the regular price stands, large, where the launch price will be.
+     `--shift` is set by the script (the width of the launch price + the gap). */
+  .plan[data-wait] .band__now {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
   }
 
-  .meters {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--s-3);
+  .plan[data-wait] .band__was {
+    opacity: 1;
+    transform: translate3d(var(--shift, 0px), 0, 0) scale(2.14);
   }
 
-  .meter {
-    background: var(--w-card);
-    border-radius: var(--r-card);
-    padding: var(--s-3);
+  .plan[data-wait] .band__was::after {
+    transform: scaleX(0);
+  }
+
+  .band__label {
+    text-align: right;
+  }
+
+  .side {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    flex: 0 0 384px;
+    gap: var(--s-5);
     min-width: 0;
   }
 
-  .cap {
+  .tip {
     display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    color: var(--w-3);
+    flex-direction: column;
+    gap: var(--s-4);
+    padding: var(--s-5);
+    background: var(--card);
   }
 
-  .cap b {
-    color: var(--w-1);
-    font-weight: 500;
+  .tip__title {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 24px;
   }
 
-  .segs {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
+  .tip .label {
+    line-height: 24px;
   }
 
-  /* A9: segments switch on one at a time (src/scripts/reveal.ts). They jump,
-     like the app's readouts; no fade. */
-  .segs i {
-    height: 4px;
-    border-radius: 2px;
-    background: var(--w-2);
+  .side__cta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-1);
   }
 
-  .segs i:global(.off) {
-    background: var(--w-seg-off);
+  /* Long label: let it wrap on the narrowest phones instead of overflowing. */
+  .side__cta .btn {
+    height: auto;
+    min-height: var(--u);
+    white-space: normal;
   }
 
-  .meter p {
-    font-size: 13px;
-    line-height: 1.4;
-    color: var(--w-2);
-  }
+  @media (max-width: 999px) {
+    .price {
+      flex-direction: column;
+      align-items: stretch;
+    }
 
-  .license .btn-get {
-    background: var(--w-raised);
-    color: var(--w-1);
-  }
-
-  .license .btn {
-    flex: 1 1 auto;
-  }
-
-  /* Focus rings sit on the dark sheet here in both appearances. */
-  .license .btn:focus-visible {
-    outline-color: var(--w-1);
-  }
-
-  .fine {
-    font-size: 12.5px;
-    color: var(--w-3);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .license .btn-get:hover {
-      background: rgba(255, 255, 255, 0.18);
+    .plan,
+    .side {
+      flex: none;
     }
   }
 
-  @media (max-width: 760px) {
-    .buy {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--s-6);
+  /* The narrowest phones: a smaller price, so the band still fits one row. */
+  @media (max-width: 379px) {
+    .band {
+      padding-inline: var(--s-3);
     }
 
-    .meters {
-      grid-template-columns: minmax(0, 1fr);
+    .band__price {
+      gap: var(--s-2);
     }
 
-    .license {
+    .band__now {
+      font-size: 48px;
+    }
+
+    .band__was {
+      font-size: 22px;
+    }
+
+    .plan__card,
+    .tip {
       padding: var(--s-4);
     }
   }

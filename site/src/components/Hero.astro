@@ -1,120 +1,444 @@
 ---
-// First screen: headline, Buy and Download, the Trial and price statement,
-// and the live widget stage.
-import WidgetStage from './WidgetStage.astro';
+// First screen: the copy on the left, and on the right a halftone picture
+// with the widget "selected" on it (blue outline, four handles, size label).
+//
+// The widget is a real screenshot laid over the picture as its own image, so
+// it can move on its own. src/scripts/hero-demo.ts drives it: it writes the
+// custom properties --x, --y, --s (and the derived --dw, --dh, --ex, --ey) on
+// `.sel`, and every piece of the selection follows through `transform`.
+// Without script, or with reduced motion, the defaults below show the resting
+// state from the design.
+import { Picture } from 'astro:assets';
+import Marker from './Marker.astro';
+import room from '../assets/pictures/room.png';
+import calendar from '../assets/screens/calendar.png';
 import { checkoutURL, downloadURL, price } from '../config';
 ---
 
-<div class="container hero">
-  <div class="hero-copy">
-    <h1>One small widget for the whole day.</h1>
-    <p class="lede">
-      Pocket sits at the edge of your screen and opens right where you work. Move it, size it,
-      put it anywhere.
+<section class="section container hero">
+  <div class="hero__copy">
+    <Marker shape="square" play />
+    <h1 class="h indent">one small widget<br />for the whole day</h1>
+    <p class="lede indent hero__lede">
+      it sits at the edge of your screen and opens right where you work. move it, size it, put
+      it anywhere.
     </p>
-    <div class="cta">
-      <a class="btn btn-buy" href={checkoutURL}>
-        Buy Pocket <span class="sep" aria-hidden="true"></span>
-        <span class="price">{price.launch}</span>
-        <span class="was" aria-label={`regular price ${price.regular}`}>{price.regular}</span>
+    <div class="indent hero__cta">
+      <a class="btn btn--buy" href={checkoutURL}>
+        buy pocket
+        <span class="btn__price">{price.launch} <s>{price.regular}</s></span>
       </a>
-      <a class="btn btn-get" href={downloadURL} download>Download</a>
+      <a class="btn btn--quiet" href={downloadURL} download>download</a>
     </div>
-    <p class="terms">
-      <b>3-day Trial, every feature.</b> After that Pocket is a one-time purchase: {price.launch}
-      at the launch price, {price.regular} later. For macOS 14 or later.
+    <p class="label muted indent hero__note">
+      3-day Trial, every feature.<br />
+      then one payment: {price.launch} at launch, {price.regular} later.<br />
+      macOS 14 or later.
     </p>
   </div>
 
-  <div class="stage-col">
-    <WidgetStage />
+  <div class="stage" id="stage">
+    <Picture
+      src={room}
+      formats={['avif', 'webp']}
+      fallbackFormat="jpg"
+      widths={[640, 832, 1024]}
+      sizes="(max-width: 699px) calc(125vw - 40px), 640px"
+      alt="A halftone print of a room: a chair, a table and a plant by a sunlit wall."
+      loading="eager"
+      fetchpriority="high"
+      class="stage__bg"
+    />
+    <div
+      class="sel"
+      id="sel"
+      tabindex="0"
+      role="group"
+      aria-label="Demo: the Pocket widget. Drag it, or move it with the arrow keys."
+    >
+      <Picture
+        src={calendar}
+        formats={['avif', 'webp']}
+        widths={[326, 565]}
+        sizes="(max-width: 699px) 67vw, 326px"
+        alt="The Pocket widget, open on a calendar."
+        loading="eager"
+        draggable="false"
+        class="sel__img"
+      />
+      <i class="sel__edge sel__edge--t"></i>
+      <i class="sel__edge sel__edge--r"></i>
+      <i class="sel__edge sel__edge--b"></i>
+      <i class="sel__edge sel__edge--l"></i>
+      <i class="sel__h sel__h--tl"></i>
+      <i class="sel__h sel__h--tr"></i>
+      <i class="sel__h sel__h--br"></i>
+      <i class="sel__h sel__h--bl"></i>
+      <span class="sel__size" id="sel-size" aria-hidden="true">420 × 640</span>
+    </div>
   </div>
-</div>
+</section>
+
+<script>
+  import { initHeroDemo } from '../scripts/hero-demo';
+
+  initHeroDemo();
+</script>
 
 <style>
   .hero {
-    display: grid;
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    gap: var(--s-7);
-    align-items: center;
-    padding-block: var(--s-6) var(--s-8);
-  }
-
-  .hero-copy {
     display: flex;
-    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: var(--s-5);
+    padding-top: var(--s-7);
+  }
+
+  .hero__copy {
+    flex: 0 0 448px;
     min-width: 0;
   }
 
-  .lede {
-    font-size: clamp(17px, 1.7vw, 20px);
-    line-height: 1.45;
-    color: var(--ink-2);
-    max-width: 34ch;
+  .hero__lede {
+    padding-top: var(--s-8);
   }
 
-  .terms {
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--ink-3);
-    max-width: 40ch;
+  .hero__cta {
+    display: flex;
+    gap: var(--s-1);
+    padding-top: var(--s-7);
   }
 
-  .terms b {
-    color: var(--ink);
-    font-weight: 600;
+  .hero__note {
+    padding-top: var(--s-5);
   }
 
-  /* A1 hero entrance. Keyframes with a `backwards` fill, so the page is
-     visible without script. */
-  .hero-copy > * {
-    animation: rise 520ms var(--ease-out) backwards;
-  }
+  /* ---------- the picture ---------- */
 
-  .hero-copy > :nth-child(2) {
-    animation-delay: 60ms;
-  }
-
-  .hero-copy > :nth-child(3) {
-    animation-delay: 120ms;
-  }
-
-  .hero-copy > :nth-child(4) {
-    animation-delay: 180ms;
-  }
-
-  .stage-col {
-    animation: settle 640ms var(--ease-out) 120ms backwards;
+  .stage {
+    position: relative;
+    flex: 0 1 576px;
     min-width: 0;
+    aspect-ratio: 576 / 640;
+    background: var(--paper);
+    overflow: hidden;
+    overflow: clip;
   }
 
-  @keyframes rise {
+  .stage :global(.stage__bg) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* ---------- the selected widget ---------- */
+
+  /* The box is the screenshot's resting place. It never moves itself: the
+     pieces inside do, so it takes no pointer events of its own. */
+  .sel {
+    --x: 0px; /* offset from the resting place */
+    --y: 0px;
+    --s: 1; /* scale */
+    --dw: 0px; /* how far the outline's right side has moved through scaling */
+    --dh: 0px; /* same for the bottom side */
+    --ex: 1; /* scale of the horizontal outline edges */
+    --ey: 1; /* scale of the vertical outline edges */
+    --panel: 90.8%; /* the panel's share of the screenshot; the rest is the strip */
+    position: absolute;
+    left: 35.764%;
+    top: 10%;
+    width: 56.597%;
+    aspect-ratio: 565 / 900;
+    pointer-events: none;
+    outline: none;
+  }
+
+  .sel :global(.sel__img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform-origin: 0 0;
+    transform: translate3d(var(--x), var(--y), 0) scale(var(--s));
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  .sel.is-held :global(.sel__img) {
+    cursor: grabbing;
+  }
+
+  /* The outline is four 1px edges, 4px outside the panel. Each one is moved
+     and stretched with a transform, so its thickness never scales. */
+  .sel__edge {
+    position: absolute;
+    transform-origin: 0 0;
+    pointer-events: none;
+  }
+
+  .sel__edge::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--select);
+  }
+
+  .sel__edge--t,
+  .sel__edge--b {
+    left: -4px;
+    width: calc(var(--panel) + 8px);
+    height: 1px;
+  }
+
+  .sel__edge--l,
+  .sel__edge--r {
+    top: -4px;
+    width: 1px;
+    height: calc(100% + 8px);
+  }
+
+  .sel__edge--t {
+    top: -4px;
+    transform: translate3d(var(--x), var(--y), 0) scaleX(var(--ex));
+  }
+
+  .sel__edge--b {
+    top: calc(100% + 3px);
+    transform: translate3d(var(--x), calc(var(--y) + var(--dh)), 0) scaleX(var(--ex));
+  }
+
+  .sel__edge--l {
+    left: -4px;
+    transform: translate3d(var(--x), var(--y), 0) scaleY(var(--ey));
+  }
+
+  .sel__edge--r {
+    left: calc(var(--panel) + 3px);
+    transform: translate3d(calc(var(--x) + var(--dw)), var(--y), 0) scaleY(var(--ey));
+  }
+
+  /* Keyboard focus: the outline itself gets heavier. */
+  .sel:focus-visible .sel__edge::before {
+    box-shadow: 0 0 0 1px var(--select);
+  }
+
+  /* Handles: 7px white squares centred on the outline's corners. */
+  .sel__h {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    pointer-events: none;
+  }
+
+  .sel__h::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    border: 1px solid var(--select);
+  }
+
+  .sel__h--tl,
+  .sel__h--tr {
+    top: -7px;
+  }
+
+  .sel__h--bl,
+  .sel__h--br {
+    top: 100%;
+  }
+
+  .sel__h--tl,
+  .sel__h--bl {
+    left: -7px;
+  }
+
+  .sel__h--tr,
+  .sel__h--br {
+    left: var(--panel);
+  }
+
+  .sel__h--tl {
+    transform: translate3d(var(--x), var(--y), 0);
+  }
+
+  .sel__h--tr {
+    transform: translate3d(calc(var(--x) + var(--dw)), var(--y), 0);
+  }
+
+  .sel__h--br {
+    transform: translate3d(calc(var(--x) + var(--dw)), calc(var(--y) + var(--dh)), 0);
+  }
+
+  .sel__h--bl {
+    transform: translate3d(var(--x), calc(var(--y) + var(--dh)), 0);
+  }
+
+  /* Size label, centred under the outline. */
+  .sel__size {
+    position: absolute;
+    left: calc(var(--panel) / 2);
+    top: calc(100% + 12px);
+    padding-inline: 6px;
+    background: var(--select);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 20px;
+    letter-spacing: 0;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translate3d(
+      calc(var(--x) + var(--dw) / 2 - 50%),
+      calc(var(--y) + var(--dh)),
+      0
+    );
+  }
+
+  /* Entrance, once on load: the outline draws clockwise in 300ms, the handles
+     pop in 60ms apart, then the label appears. */
+  .sel__edge::before {
+    animation: draw-x 75ms linear backwards;
+  }
+
+  .sel__edge--t::before {
+    transform-origin: 0 0;
+  }
+
+  .sel__edge--r::before {
+    animation-name: draw-y;
+    animation-delay: 75ms;
+    transform-origin: 0 0;
+  }
+
+  .sel__edge--b::before {
+    animation-delay: 150ms;
+    transform-origin: 100% 0;
+  }
+
+  .sel__edge--l::before {
+    animation-name: draw-y;
+    animation-delay: 225ms;
+    transform-origin: 0 100%;
+  }
+
+  .sel__h::before {
+    animation: pop 160ms var(--ease-out) backwards;
+  }
+
+  .sel__h--tl::before {
+    animation-delay: 300ms;
+  }
+
+  .sel__h--tr::before {
+    animation-delay: 360ms;
+  }
+
+  .sel__h--br::before {
+    animation-delay: 420ms;
+  }
+
+  .sel__h--bl::before {
+    animation-delay: 480ms;
+  }
+
+  .sel__size {
+    animation: fade-in 200ms ease-out 600ms backwards;
+  }
+
+  @keyframes draw-x {
     from {
-      opacity: 0;
-      transform: translateY(10px);
+      transform: scaleX(0);
     }
   }
 
-  @keyframes settle {
+  @keyframes draw-y {
     from {
-      opacity: 0;
-      transform: scale(0.985);
+      transform: scaleY(0);
     }
   }
 
-  @media (max-width: 760px) {
-    .hero {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--s-6);
-      padding-block: var(--s-4) var(--s-7);
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .hero-copy > *,
-    .stage-col {
-      animation: fade 200ms ease-out backwards;
+    .sel__edge::before,
+    .sel__h::before,
+    .sel__size {
+      animation: none;
+    }
+  }
+
+  /* ---------- narrower ---------- */
+
+  /* The picture drops under the copy. */
+  @media (max-width: 899px) {
+    .hero {
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .hero__copy {
+      flex: none;
+      width: 100%;
+      max-width: 448px;
+    }
+
+    .stage {
+      flex: none;
+      width: min(576px, 100% - var(--indent));
+      margin-top: var(--s-6);
+      margin-left: var(--indent);
+    }
+  }
+
+  @media (max-width: 699px) {
+    .hero {
+      padding-top: var(--s-5);
+    }
+
+    .hero__copy {
+      max-width: none;
+    }
+
+    .hero__lede {
+      padding-top: var(--s-5);
+    }
+
+    .hero__cta {
+      flex-direction: column;
+      padding-top: var(--s-5);
+    }
+
+    .hero__cta .btn--buy {
+      justify-content: space-between;
+    }
+
+    .hero__note {
+      padding-top: var(--s-4);
+    }
+
+    /* The widget takes more of the smaller picture. */
+    .stage {
+      width: 100%;
+      aspect-ratio: 358 / 448;
+    }
+
+    .sel {
+      left: 18.436%;
+      top: 6.25%;
+      width: 66.76%;
     }
   }
 </style>

@@ -3,15 +3,18 @@
 // (issue #58). When the app starts sending, storing or receiving anything
 // else, re-run the audit first, then change this page.
 import Base from '../layouts/Base.astro';
+import Marker from '../components/Marker.astro';
 ---
 
 <Base
   title="Privacy"
   description="What data Pocket keeps on your Mac, what it sends, and who receives it."
 >
-  <section class="container prose">
-    <h1>Privacy</h1>
-    <p class="muted">Last updated: November 13, 2026</p>
+  <section class="container page">
+    <Marker shape="square" play />
+    <h1 class="h indent">Privacy</h1>
+    <div class="indent prose">
+    <p class="label muted">Last updated: November 13, 2026</p>
 
     <p>
       This page explains what Pocket, a movable, resizable widget for the Mac, does with your
@@ -285,22 +288,19 @@ import Base from '../layouts/Base.astro';
     <p><a href="mailto:dk2la@icloud.com">dk2la@icloud.com</a></p>
 
     <p>See also the <a href="/terms">Terms</a> and the <a href="/refund">Refund Policy</a>.</p>
+    </div>
   </section>
 </Base>
 
 <style>
   /* Third parties as a definition list: reads the same at any width. */
   .parties {
-    margin: 0 0 var(--s-4);
-  }
-
-  .parties dt {
-    font-weight: 600;
+    margin: 0 0 var(--s-3);
   }
 
   .parties dd {
-    margin: 0 0 var(--s-4);
-    padding-left: var(--s-4);
-    border-left: 2px solid var(--hairline);
+    margin: 0 0 var(--s-3);
+    padding-left: var(--s-3);
+    border-left: 1px solid var(--line-strong);
   }
 </style>
