@@ -1,8 +1,10 @@
 // Scroll-triggered motion on the landing page. Each piece plays once, when
 // it is first seen:
 //
-// - section markers: the corner dots, then the shape (.marker in global.css);
+// - section markers: the corner dots, then the letter (.marker in global.css);
 // - the three figures: one small move each, replayed on hover (Figures.astro);
+// - the laptop picture: the widget is dragged across the screen and selected
+//   (Figures.astro);
 // - the sky picture: the widgets rise in, then drift while the page scrolls
 //   (Sky.astro);
 // - the price: the days switch on, then the price is struck (Price.astro).
@@ -10,7 +12,8 @@
 // The page is complete without this script. Only things that are below the
 // fold at load are hidden first (`data-wait`), so nothing visible ever blinks
 // out. With prefers-reduced-motion the CSS turns every move into a plain
-// fade or nothing at all, and the price and the drift are skipped here.
+// fade or nothing at all, and the laptop, the price and the drift are skipped
+// here.
 
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const canHover = window.matchMedia('(hover: hover) and (pointer: fine)');
@@ -56,6 +59,17 @@ function initFigures(): void {
     fig.addEventListener('mouseenter', () => {
       if (canHover.matches) play(fig);
     });
+  });
+}
+
+function initLaptop(): void {
+  const lap = document.getElementById('lap');
+  if (!lap || reducedMotion.matches || !below(lap)) return;
+  // `data-wait` holds the starting pose; `.play` runs the move from it.
+  lap.dataset.wait = '';
+  whenSeen(lap, 0.5, () => {
+    delete lap.dataset.wait;
+    lap.classList.add('play');
   });
 }
 
@@ -121,6 +135,7 @@ export function initMotion(): void {
   if (!('IntersectionObserver' in window)) return;
   initMarkers();
   initFigures();
+  initLaptop();
   initSky();
   initPrice();
 }
