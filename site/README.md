@@ -57,15 +57,17 @@ npm run preview  # serves the built dist/ as-is, http://localhost:4321
 - `src/components/` — `Marker` (the 64px box with a solid shape that opens
   every section) and the landing page sections in order: `Hero` (first screen
   with the selected widget on a picture), `Figures`, `Sky`, `Price`, `Faq`.
-- `src/scripts/` — plain TypeScript, no framework: `hero-demo.ts` (the loop
-  that drags, resizes and docks the hero widget, and dragging it by hand) and
+- `src/scripts/` — plain TypeScript, no framework: `hero-demo.ts` (the hero
+  widget switching tabs in place, and dragging it by hand) and
   `motion.ts` (everything that plays once when scrolled into view). Both
   honour `prefers-reduced-motion`, and the page is complete without them.
 - `src/assets/pictures/` — the two halftone pictures. `src/assets/screens/` —
   copies of `docs/screenshots/*.png`; update the copies when the screenshots
   change. Astro resizes all of them to AVIF and WebP at build time. The
   screenshots are laid over the pictures as separate images so they can move
-  on their own.
+  on their own. They must all stay the same 565 × 900 frame: the first screen
+  stacks six of them in one box and fades between them, and `Hero.astro`
+  holds the position of the lit strip icon in each.
 - `public/` — files copied to the site root unchanged, including `og.png`,
   the link preview image.
 - `scripts/og.html` — the source of `public/og.png`. Not part of the build;
