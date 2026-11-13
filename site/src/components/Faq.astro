@@ -1,0 +1,92 @@
+---
+// "Before you buy": four questions with their answers always visible, as a
+// definition list. Question left, answer right; stacked on phones.
+import Marker from './Marker.astro';
+
+const questions = [
+  {
+    q: 'what happens when the Trial ends?',
+    a: 'pocket locks until you enter a License key. your settings and data stay as they were. starting the Trial needs an internet connection.',
+  },
+  {
+    q: 'is it a subscription?',
+    a: 'no. you pay once and the License doesn’t expire.',
+  },
+  {
+    q: 'can I get a refund?',
+    a: 'yes, within 14 days, as long as the License key was never activated. after that the sale is final, so use the Trial to decide.',
+  },
+  {
+    q: 'which Macs does it run on?',
+    a: 'any Mac with macOS 14 or later. one License key covers up to 3 Macs.',
+  },
+];
+---
+
+<section class="section container">
+  <Marker shape="plus" />
+  <h2 class="h indent">before you buy</h2>
+  <p class="lede indent section__lede">
+    the short answers. the long ones are in the <a href="/terms">Terms</a> and the
+    <a href="/refund">Refund Policy</a>.
+  </p>
+
+  <div class="indent">
+    <dl class="qa">
+      {
+        questions.map(({ q, a }) => (
+          <div class="qa__row">
+            <dt class="strong">{q}</dt>
+            <dd class="body">{a}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</section>
+
+<style>
+  .section__lede a {
+    text-decoration: underline;
+    text-decoration-color: var(--muted);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 5px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .section__lede a:hover {
+      text-decoration-color: var(--text);
+    }
+  }
+
+  .qa {
+    max-width: 864px;
+  }
+
+  .qa__row {
+    display: flex;
+    gap: var(--s-5);
+    padding-block: var(--s-4);
+    border-top: 1px solid var(--line);
+  }
+
+  .qa__row dt {
+    flex: 0 0 37.04%; /* 320 of 864 */
+  }
+
+  .qa__row dd {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  @media (max-width: 699px) {
+    .qa__row {
+      flex-direction: column;
+      gap: var(--s-1);
+    }
+
+    .qa__row dt {
+      flex: none;
+    }
+  }
+</style>

@@ -1,0 +1,181 @@
+---
+// Shared layout for every page: document head, header, footer, base styles.
+//
+// Usage:
+//   <Base title="Terms" description="...">
+//     <div class="container">...</div>
+//   </Base>
+//
+// The default slot is rendered inside <main>. Wrap content in `.container`
+// to get the page width and gutter.
+import '@fontsource-variable/geist/wght.css';
+import '@fontsource-variable/geist-mono/wght.css';
+import '../styles/global.css';
+// The two font files the first screen needs, preloaded so text does not
+// reflow. Self-hosted: the site makes no request to another origin.
+import geistLatin from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url';
+import geistMonoLatin from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url';
+import { checkoutURL, downloadURL, price } from '../config';
+
+interface Props {
+  /** Page name. Rendered as "<title> — Pocket"; omit on the home page. */
+  title?: string;
+  /** Meta description for search engines and link previews. */
+  description?: string;
+}
+
+const siteName = 'Pocket';
+const tagline = 'One small widget for the whole day';
+const {
+  title,
+  description = 'Pocket is a small widget for your Mac that opens right where you work. Move it, size it, put it anywhere. 3-day Trial, then a one-time purchase.',
+} = Astro.props;
+const pageTitle = title ? `${title} — ${siteName}` : `${siteName} — ${tagline}`;
+const year = new Date().getFullYear();
+
+// Link preview image (public/og.png, 1200×630). Link previews need an
+// absolute URL: it becomes one when SITE_URL is set at build time (see
+// astro.config.mjs). There is deliberately no canonical link and no og:url
+// until the site has its final domain.
+const ogImagePath = '/og.png';
+const ogImage = Astro.site ? new URL(ogImagePath, Astro.site).href : ogImagePath;
+const ogImageAlt = `${tagline}. The Pocket widget on a halftone picture of a room.`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e0d" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" as="font" type="font/woff2" href={geistLatin} crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href={geistMonoLatin} crossorigin />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
+    <slot name="head" />
+  </head>
+  <body>
+    <header class="container top">
+      <a class="brand" href="/" aria-label="Pocket, home">pocket</a>
+      <nav class="top__nav" aria-label="Main">
+        <a class="top__link label" href={downloadURL} download>download</a>
+        <a class="btn btn--light btn--sm" href={checkoutURL}>buy · {price.launch}</a>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="container">
+      <div class="foot label">
+        <span>pocket · &copy; {year} dk2la</span>
+        <nav class="foot__nav" aria-label="Legal">
+          <a href="/terms">terms</a>
+          <a href="/privacy">privacy</a>
+          <a href="/refund">refund policy</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  /* Header: wordmark, download link, small buy button. One grid unit tall,
+     not sticky. */
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    height: var(--u);
+    flex: none;
+  }
+
+  .brand {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 24px;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+
+  .top__nav {
+    display: flex;
+    align-items: center;
+    gap: var(--s-5);
+  }
+
+  .top__link {
+    line-height: 20px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  main {
+    flex: 1;
+  }
+
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3) var(--s-5);
+    min-height: var(--s-9);
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+  }
+
+  .foot__nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-1) var(--s-5);
+  }
+
+  .foot a {
+    text-decoration: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .top__link:hover,
+    .foot a:hover {
+      color: var(--text);
+    }
+  }
+
+  @media (max-width: 699px) {
+    .top__link {
+      display: none;
+    }
+
+    /* Links first, then the copyright line. */
+    .foot {
+      flex-direction: column-reverse;
+      align-items: flex-start;
+      justify-content: flex-end;
+      min-height: 0;
+      padding-block: var(--s-5) var(--s-6);
+    }
+
+    .foot__nav {
+      column-gap: var(--s-4);
+    }
+  }
+</style>

@@ -1,0 +1,509 @@
+/*
+ * Base styles shared by every page. Imported once, by src/layouts/Base.astro.
+ *
+ * Conventions:
+ * - The site is dark only. Colors, type, spacing and motion come from the
+ *   custom properties below; pages use the tokens instead of raw values.
+ * - Everything sits on a 64px grid (--u). The ground carries the grid as a
+ *   tiled image whose vertical lines meet the content column's left edge.
+ * - Corners are square. The only rounded things are the widget screenshots
+ *   and the small widget drawings in the figures.
+ * - Copy is written in lowercase in the markup (never text-transform), so the
+ *   glossary terms Trial, License and License key keep their capitals.
+ * - Breakpoints: below 1152px the column becomes fluid, below 900px the hero
+ *   stacks, below 700px is the phone layout (no text indent, smaller type).
+ * - Only transform and opacity animate, and all of it is switched off or
+ *   reduced to a fade under prefers-reduced-motion.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Palette */
+  --ground: #0e0e0d;
+  --grid: #1e1e1c; /* the grid lines; also drawn into src/assets/grid.svg */
+  --text: #ede6d6;
+  --muted: #9a9484;
+  --card: #181817;
+  --line: #2a2a27; /* hairlines between rows */
+  --line-strong: #2e2e2b; /* outline of the quiet button */
+  --dot: #3a3a36; /* marker corner dots */
+  --tone-2: #a8a292; /* day 2 */
+  --tone-3: #6b665b; /* day 3, dashed ghosts */
+  --accent: #3fff00; /* Buy and the price band only */
+  --on-accent: #0b0b0a;
+  --select: #3685f9; /* selection outline, focus ring, text selection */
+  --paper: #fbfaf5; /* behind the halftone pictures while they load */
+
+  /* Type */
+  --font: 'Geist Variable', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Spacing */
+  --u: 64px; /* the grid unit */
+  --s-1: 8px;
+  --s-2: 12px;
+  --s-3: 16px;
+  --s-4: 24px;
+  --s-5: 32px;
+  --s-6: 48px;
+  --s-7: 64px;
+  --s-8: 96px;
+  --s-9: 128px;
+
+  /* Layout */
+  --page-width: 1088px; /* 17 grid units */
+  --prose-width: 640px;
+  --gutter: 32px;
+  --indent: var(--u); /* text starts one unit right of the section marker */
+  --section-gap: var(--s-9);
+  --lede-gap: var(--s-7);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-soft: cubic-bezier(0.2, 0.9, 0.25, 1); /* soft spring, no overshoot */
+}
+
+@media (max-width: 699px) {
+  :root {
+    --gutter: 16px;
+    --indent: 0px;
+    --section-gap: var(--s-8);
+    --lede-gap: var(--s-5);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: var(--ground);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ground) url('../assets/grid.svg') 50% 0 / var(--u) var(--u);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 26px;
+  font-synthesis: none;
+  overflow-wrap: anywhere;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fluid column: pin the grid to the gutter so a line still meets the text. */
+@media (max-width: 1151px) {
+  body {
+    background-position: var(--gutter) 0;
+  }
+}
+
+::selection {
+  background: var(--select);
+  color: #fff;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+dl,
+dd {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--select);
+  outline-offset: 3px;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+/* ---------- layout ---------- */
+
+/* Centers content and applies the page gutter. */
+.container {
+  width: 100%;
+  max-width: calc(var(--page-width) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+}
+
+/* A landing section: marker, headline, lede, content. */
+.section {
+  padding-bottom: var(--section-gap);
+}
+
+/* Shifts a block one grid unit right of the marker (no shift on phones). */
+.indent {
+  padding-left: var(--indent);
+}
+
+.section__lede {
+  max-width: calc(576px + var(--indent));
+  padding-block: var(--lede-gap);
+}
+
+/* ---------- type ---------- */
+
+/* Headline: lowercase, semibold. */
+.h {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 32px;
+  letter-spacing: -0.01em;
+}
+
+/* Lede: the large light paragraph under a headline. */
+.lede {
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 32px;
+}
+
+/* Body: captions, card text, answers. This is also the body default. */
+.body {
+  font-size: 18px;
+  font-weight: 300;
+  line-height: 26px;
+  letter-spacing: 0.01em;
+}
+
+.strong {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+  letter-spacing: 0;
+}
+
+/* Small labels and notes, in the monospace face. */
+.label {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0.02em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+@media (max-width: 699px) {
+  .h {
+    font-size: 24px;
+    line-height: 28px;
+    padding-top: var(--s-1);
+  }
+
+  .lede {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}
+
+/* ---------- section marker ---------- */
+
+/* A 64px box with a dot on each corner and a solid shape inside. Markup:
+   src/components/Marker.astro. `.play` runs the entrance; src/scripts/motion.ts
+   adds `data-wait` (hidden) to markers below the fold and plays them when
+   they scroll into view. */
+.marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--u);
+  height: var(--u);
+  flex: none;
+}
+
+.marker__shape {
+  display: block;
+  width: 44px;
+  height: 44px;
+  fill: var(--text);
+}
+
+.marker__dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: var(--dot);
+}
+
+.marker__dot:nth-of-type(1) {
+  left: -2px;
+  top: -2px;
+}
+
+.marker__dot:nth-of-type(2) {
+  right: -3px;
+  top: -2px;
+}
+
+.marker__dot:nth-of-type(3) {
+  right: -3px;
+  bottom: -3px;
+}
+
+.marker__dot:nth-of-type(4) {
+  left: -2px;
+  bottom: -3px;
+}
+
+.marker[data-wait] > * {
+  opacity: 0;
+}
+
+.marker.play .marker__dot {
+  animation: switch-on 40ms steps(1, end) backwards;
+}
+
+.marker.play .marker__dot:nth-of-type(2) {
+  animation-delay: 40ms;
+}
+
+.marker.play .marker__dot:nth-of-type(3) {
+  animation-delay: 80ms;
+}
+
+.marker.play .marker__dot:nth-of-type(4) {
+  animation-delay: 120ms;
+}
+
+.marker.play .marker__shape {
+  animation: rise-8 400ms var(--ease-out) 160ms backwards;
+}
+
+/* Hidden for the whole duration, then on at once: nothing fades. */
+@keyframes switch-on {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise-8 {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- buttons ---------- */
+
+/* Square, 64px tall. The fill swaps on hover with no transition; a press
+   scales to 0.97. Variants: --buy (accent), --light (beige), --quiet (card). */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--u);
+  padding-inline: var(--s-4);
+  border: 1px solid transparent;
+  font-family: var(--font);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+  letter-spacing: 0;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 160ms var(--ease-out);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn--buy {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn--light {
+  background: var(--text);
+  color: var(--ground);
+}
+
+.btn--quiet {
+  background: var(--card);
+  border-color: var(--line-strong);
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* Label left, price right. */
+.btn--wide {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Header size. */
+.btn--sm {
+  height: 32px;
+  padding-inline: 14px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.02em;
+}
+
+.btn__price {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.btn__price s {
+  text-decoration-thickness: 1px;
+}
+
+.btn--buy:focus-visible {
+  outline-color: var(--text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn--buy:hover {
+    background: var(--text);
+  }
+
+  .btn--light:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .btn--quiet:hover {
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--ground);
+  }
+}
+
+/* ---------- long-form text (legal pages, 404) ---------- */
+
+.page {
+  padding-top: var(--s-7);
+  padding-bottom: var(--section-gap);
+}
+
+.prose {
+  padding-top: var(--lede-gap);
+  letter-spacing: 0.01em;
+  line-height: 28px;
+}
+
+.prose > * {
+  max-width: var(--prose-width);
+}
+
+.prose h2 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0;
+  margin-top: var(--s-7);
+  margin-bottom: var(--s-3);
+}
+
+.prose h3 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+  letter-spacing: 0;
+  margin-top: var(--s-5);
+  margin-bottom: var(--s-1);
+}
+
+.prose p {
+  margin-bottom: var(--s-3);
+}
+
+.prose ul {
+  margin: 0 0 var(--s-3);
+  padding-left: var(--s-4);
+  list-style: square;
+}
+
+.prose li::marker {
+  color: var(--muted);
+}
+
+.prose li + li {
+  margin-top: var(--s-1);
+}
+
+.prose a {
+  text-decoration: underline;
+  text-decoration-color: var(--muted);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.prose strong,
+.prose b,
+.prose dt {
+  font-weight: 600;
+}
+
+/* "Last updated" line. */
+.prose .label {
+  margin-bottom: var(--s-5);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .prose a:hover {
+    text-decoration-color: var(--text);
+  }
+}
+
+@media (max-width: 699px) {
+  .page {
+    padding-top: var(--s-5);
+  }
+
+  .prose h2 {
+    margin-top: var(--s-6);
+  }
+}
+
+/* ---------- reduced motion: no movement, a plain fade at most ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active {
+    transform: none;
+  }
+
+  .marker.play .marker__dot,
+  .marker.play .marker__shape {
+    animation: fade-in 300ms ease-out backwards;
+  }
+}

@@ -1,0 +1,80 @@
+<!doctype html>
+<!--
+  Source of the link preview image, public/og.png (1200×630).
+  Not part of the build. After changing it, regenerate the PNG from site/
+  (run `npm ci` first: the fonts are read from node_modules):
+
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+      --screenshot=public/og.png --window-size=1200,630 --hide-scrollbars \
+      --force-device-scale-factor=1 --allow-file-access-from-files \
+      --virtual-time-budget=5000 scripts/og.html
+
+  Colours are copied from src/styles/global.css; the picture and the selected
+  widget from src/components/Hero.astro (same proportions).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pocket link preview image</title>
+    <style>
+      @font-face {
+        font-family: 'Geist';
+        font-weight: 100 900;
+        src: url('../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Geist Mono';
+        font-weight: 100 900;
+        src: url('../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2') format('woff2');
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1200px; height: 630px; overflow: hidden; }
+      body {
+        position: relative;
+        font-family: 'Geist', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        color: #ede6d6;
+        /* The grid is shifted so its lines meet the content edges (x = 64). */
+        background: #0e0e0d url('../src/assets/grid.svg') 0 -1px / 64px 64px;
+      }
+      .brand { position: absolute; left: 64px; top: 68px; font-size: 40px; font-weight: 600; line-height: 56px; letter-spacing: -0.01em; }
+      .marker { position: absolute; left: 64px; top: 255px; width: 64px; height: 64px; }
+      .marker b { position: absolute; left: 13px; top: 13px; width: 38px; height: 38px; background: #ede6d6; }
+      .marker i { position: absolute; width: 5px; height: 5px; background: #3a3a36; }
+      .marker i:nth-child(1) { left: -2px; top: -2px; }
+      .marker i:nth-child(2) { right: -3px; top: -2px; }
+      .marker i:nth-child(3) { right: -3px; bottom: -3px; }
+      .marker i:nth-child(4) { left: -2px; bottom: -3px; }
+      h1 { position: absolute; left: 64px; top: 344px; font-size: 62px; line-height: 68px; letter-spacing: -0.02em; font-weight: 600; white-space: nowrap; }
+      .note { position: absolute; left: 64px; top: 524px; font-family: 'Geist Mono', monospace; font-size: 22px; line-height: 40px; letter-spacing: 0.02em; color: #9a9484; }
+
+      /* The hero picture: 576×640 in the design, here 461×512. */
+      .stage { position: absolute; right: 64px; top: 63px; width: 461px; height: 512px; background: #fbfaf5; overflow: hidden; }
+      .stage > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .sel { position: absolute; left: 35.764%; top: 10%; width: 56.597%; aspect-ratio: 565 / 900; }
+      .sel img { display: block; width: 100%; height: 100%; }
+      .outline { position: absolute; left: -4px; top: -4px; width: calc(90.8% + 8px); height: calc(100% + 8px); border: 1px solid #3685f9; }
+      .outline i { position: absolute; width: 7px; height: 7px; background: #fff; border: 1px solid #3685f9; }
+      .outline i:nth-child(1) { left: -4px; top: -4px; }
+      .outline i:nth-child(2) { right: -4px; top: -4px; }
+      .outline i:nth-child(3) { right: -4px; bottom: -4px; }
+      .outline i:nth-child(4) { left: -4px; bottom: -4px; }
+      .size { position: absolute; left: 45.4%; top: calc(100% + 12px); transform: translateX(-50%); padding: 0 6px; background: #3685f9; color: #fff; font-family: 'Geist Mono', monospace; font-size: 11px; line-height: 20px; white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <div class="brand">pocket</div>
+    <div class="marker"><i></i><i></i><i></i><i></i><b></b></div>
+    <h1>one small widget<br />for the whole day</h1>
+    <div class="note">3-day Trial, every feature.</div>
+
+    <div class="stage">
+      <img src="../src/assets/pictures/room.png" alt="" />
+      <div class="sel">
+        <img src="../src/assets/screens/calendar.png" alt="" />
+        <div class="outline"><i></i><i></i><i></i><i></i></div>
+        <span class="size">420 × 640</span>
+      </div>
+    </div>
+  </body>
+</html>

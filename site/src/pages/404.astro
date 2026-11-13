@@ -1,0 +1,16 @@
+---
+// Served by Cloudflare for unknown paths (not_found_handling = "404-page").
+import Base from '../layouts/Base.astro';
+import Marker from '../components/Marker.astro';
+---
+
+<Base title="Page not found">
+  <section class="container page">
+    <Marker shape="square" play />
+    <h1 class="h indent">page not found</h1>
+    <p class="lede indent section__lede">this page doesn’t exist.</p>
+    <div class="indent">
+      <a class="btn btn--quiet" href="/">go to the home page</a>
+    </div>
+  </section>
+</Base>

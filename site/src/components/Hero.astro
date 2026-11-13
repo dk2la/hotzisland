@@ -1,0 +1,543 @@
+---
+// First screen: the copy on the left, and on the right a halftone picture
+// with the widget "selected" on it (blue outline, four handles, size label).
+//
+// The widget is a real screenshot laid over the picture as its own image.
+// It stays where the design puts it and switches tabs: the other screenshots
+// are stacked in the same box and src/scripts/hero-demo.ts fades them in one
+// after another. They are all the same 565 × 900 frame, so nothing shifts.
+//
+// The first screenshot is the static one (and the LCP image). The others are
+// written without `src`: the script fills it in after the page has loaded, so
+// without script, or with reduced motion, they are never downloaded and the
+// first screenshot simply stays.
+//
+// The visitor can also drag the widget: the script writes the offset to the
+// custom properties --x and --y on `.sel`, and every piece of the selection
+// follows through `transform`.
+import { Picture, getImage } from 'astro:assets';
+import Marker from './Marker.astro';
+import room from '../assets/pictures/room.png';
+import calendar from '../assets/screens/calendar.png';
+import email from '../assets/screens/email.png';
+import clipboard from '../assets/screens/clipboard.png';
+import notes from '../assets/screens/notes.png';
+import assistant from '../assets/screens/assistant.png';
+import playbooks from '../assets/screens/playbooks.png';
+import { checkoutURL, downloadURL, price } from '../config';
+
+const widths = [326, 565];
+const sizes = '(max-width: 699px) 67vw, 326px';
+
+// The strip icon that is lit in each screenshot: its centre, in px from the
+// top of the 900px frame. The press cue is placed there. The order is the
+// strip's, top to bottom, starting from the first screenshot and wrapping.
+const firstIcon = 245.5;
+const stacked = [
+  { src: email, icon: 289 },
+  { src: clipboard, icon: 332 },
+  { src: notes, icon: 375 },
+  { src: assistant, icon: 418.5 },
+  { src: playbooks, icon: 202.5 },
+];
+const iconTop = (px: number) => `${((px / 900) * 100).toFixed(2)}%`;
+
+const shots = await Promise.all(
+  stacked.map(async ({ src, icon }) => ({
+    press: iconTop(icon),
+    avif: (await getImage({ src, format: 'avif', widths })).srcSet.attribute,
+    webp: (await getImage({ src, format: 'webp', widths })).srcSet.attribute,
+    fallback: (await getImage({ src, format: 'png' })).src,
+  })),
+);
+---
+
+<section class="section container hero">
+  <div class="hero__copy">
+    <Marker shape="square" play />
+    <h1 class="h indent">one small widget<br />for the whole day</h1>
+    <p class="lede indent hero__lede">
+      it sits at the edge of your screen and opens right where you work. move it, size it, put
+      it anywhere.
+    </p>
+    <div class="indent hero__cta">
+      <a class="btn btn--buy" href={checkoutURL}>
+        buy pocket
+        <span class="btn__price">{price.launch} <s>{price.regular}</s></span>
+      </a>
+      <a class="btn btn--quiet" href={downloadURL} download>download</a>
+    </div>
+    <p class="label muted indent hero__note">
+      3-day Trial, every feature.<br />
+      then one payment: {price.launch} at launch, {price.regular} later.<br />
+      macOS 14 or later.
+    </p>
+  </div>
+
+  <div class="stage" id="stage">
+    <Picture
+      src={room}
+      formats={['avif', 'webp']}
+      fallbackFormat="jpg"
+      widths={[640, 832, 1024]}
+      sizes="(max-width: 699px) calc(125vw - 40px), 640px"
+      alt="A halftone print of a room: a chair, a table and a plant by a sunlit wall."
+      loading="eager"
+      fetchpriority="high"
+      class="stage__bg"
+    />
+    <div
+      class="sel"
+      id="sel"
+      tabindex="0"
+      role="group"
+      aria-label="Demo: the Pocket widget. Drag it, or move it with the arrow keys."
+    >
+      <div class="sel__shots" data-press={iconTop(firstIcon)}>
+        <Picture
+          src={calendar}
+          formats={['avif', 'webp']}
+          widths={widths}
+          sizes={sizes}
+          alt="The Pocket widget, open."
+          loading="eager"
+          draggable="false"
+          class="sel__img"
+        />
+        {
+          shots.map((shot) => (
+            <picture class="sel__shot" data-press={shot.press} aria-hidden="true">
+              <source data-srcset={shot.avif} sizes={sizes} type="image/avif" />
+              <source data-srcset={shot.webp} sizes={sizes} type="image/webp" />
+              <img data-src={shot.fallback} alt="" width="565" height="900" decoding="async" draggable="false" />
+            </picture>
+          ))
+        }
+        <i class="sel__press"></i>
+      </div>
+      <i class="sel__edge sel__edge--t"></i>
+      <i class="sel__edge sel__edge--r"></i>
+      <i class="sel__edge sel__edge--b"></i>
+      <i class="sel__edge sel__edge--l"></i>
+      <i class="sel__h sel__h--tl"></i>
+      <i class="sel__h sel__h--tr"></i>
+      <i class="sel__h sel__h--br"></i>
+      <i class="sel__h sel__h--bl"></i>
+      <span class="sel__size" aria-hidden="true">420 × 640</span>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { initHeroDemo } from '../scripts/hero-demo';
+
+  initHeroDemo();
+</script>
+
+<style>
+  .hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--s-5);
+    padding-top: var(--s-7);
+  }
+
+  .hero__copy {
+    flex: 0 0 448px;
+    min-width: 0;
+  }
+
+  .hero__lede {
+    padding-top: var(--s-8);
+  }
+
+  .hero__cta {
+    display: flex;
+    gap: var(--s-1);
+    padding-top: var(--s-7);
+  }
+
+  .hero__note {
+    padding-top: var(--s-5);
+  }
+
+  /* ---------- the picture ---------- */
+
+  .stage {
+    position: relative;
+    flex: 0 1 576px;
+    min-width: 0;
+    aspect-ratio: 576 / 640;
+    background: var(--paper);
+    overflow: hidden;
+    overflow: clip;
+  }
+
+  .stage :global(.stage__bg) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* ---------- the selected widget ---------- */
+
+  /* The box is the screenshot's resting place. It never moves itself: the
+     pieces inside do, so it takes no pointer events of its own. */
+  .sel {
+    --x: 0px; /* how far the visitor has dragged it from the resting place */
+    --y: 0px;
+    --panel: 90.8%; /* the panel's share of the screenshot; the rest is the strip */
+    position: absolute;
+    left: 35.764%;
+    top: 10%;
+    width: 56.597%;
+    aspect-ratio: 565 / 900;
+    pointer-events: none;
+    outline: none;
+  }
+
+  /* The screenshots, stacked. This is the part the visitor grabs. */
+  .sel__shots {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform: translate3d(var(--x), var(--y), 0);
+    pointer-events: auto;
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+  }
+
+  .sel.is-held .sel__shots {
+    cursor: grabbing;
+  }
+
+  .sel :global(.sel__img),
+  .sel__shot img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* The other tabs lie over the first screenshot, hidden. Switching to one
+     fades it in on top (`is-on`, `is-top`); the one under it is then switched
+     off at once, unseen. Going back to the first screenshot fades the top one
+     out instead (`is-off`). */
+  .sel__shot {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .sel__shot.is-on {
+    opacity: 1;
+    transition: opacity 160ms var(--ease-out);
+  }
+
+  .sel__shot.is-top {
+    z-index: 1;
+  }
+
+  .sel__shot.is-off {
+    transition: opacity 160ms var(--ease-out);
+  }
+
+  /* The press cue: the strip icon about to be "clicked" lights up for a
+     moment. hero-demo.ts sets --press to that icon's place. */
+  .sel__press {
+    position: absolute;
+    z-index: 2;
+    left: 95.93%; /* the strip's centre line */
+    top: var(--press, 0%);
+    width: 6.4%;
+    aspect-ratio: 1;
+    margin: -3.2% 0 0 -3.2%;
+    border-radius: 24%;
+    background: rgb(255 255 255 / 0.18);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .sel__press.is-on {
+    animation: press 400ms var(--ease-out);
+  }
+
+  @keyframes press {
+    0% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+
+    45% {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    100% {
+      opacity: 0;
+      transform: scale(1);
+    }
+  }
+
+  /* The outline is four 1px edges, 4px outside the panel. Like the handles
+     and the label, each follows the screenshot with the same transform. */
+  .sel__edge,
+  .sel__h {
+    transform: translate3d(var(--x), var(--y), 0);
+  }
+
+  .sel__edge {
+    position: absolute;
+    pointer-events: none;
+  }
+
+  .sel__edge::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--select);
+  }
+
+  .sel__edge--t,
+  .sel__edge--b {
+    left: -4px;
+    width: calc(var(--panel) + 8px);
+    height: 1px;
+  }
+
+  .sel__edge--l,
+  .sel__edge--r {
+    top: -4px;
+    width: 1px;
+    height: calc(100% + 8px);
+  }
+
+  .sel__edge--t {
+    top: -4px;
+  }
+
+  .sel__edge--b {
+    top: calc(100% + 3px);
+  }
+
+  .sel__edge--l {
+    left: -4px;
+  }
+
+  .sel__edge--r {
+    left: calc(var(--panel) + 3px);
+  }
+
+  /* Keyboard focus: the outline itself gets heavier. */
+  .sel:focus-visible .sel__edge::before {
+    box-shadow: 0 0 0 1px var(--select);
+  }
+
+  /* Handles: 7px white squares centred on the outline's corners. */
+  .sel__h {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    pointer-events: none;
+  }
+
+  .sel__h::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    border: 1px solid var(--select);
+  }
+
+  .sel__h--tl,
+  .sel__h--tr {
+    top: -7px;
+  }
+
+  .sel__h--bl,
+  .sel__h--br {
+    top: 100%;
+  }
+
+  .sel__h--tl,
+  .sel__h--bl {
+    left: -7px;
+  }
+
+  .sel__h--tr,
+  .sel__h--br {
+    left: var(--panel);
+  }
+
+  /* Size label, centred under the outline. */
+  .sel__size {
+    position: absolute;
+    left: calc(var(--panel) / 2);
+    top: calc(100% + 12px);
+    padding-inline: 6px;
+    background: var(--select);
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 20px;
+    letter-spacing: 0;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translate3d(calc(var(--x) - 50%), var(--y), 0);
+  }
+
+  /* Entrance, once on load: the outline draws clockwise in 300ms, the handles
+     pop in 60ms apart, then the label appears. */
+  .sel__edge::before {
+    animation: draw-x 75ms linear backwards;
+  }
+
+  .sel__edge--t::before {
+    transform-origin: 0 0;
+  }
+
+  .sel__edge--r::before {
+    animation-name: draw-y;
+    animation-delay: 75ms;
+    transform-origin: 0 0;
+  }
+
+  .sel__edge--b::before {
+    animation-delay: 150ms;
+    transform-origin: 100% 0;
+  }
+
+  .sel__edge--l::before {
+    animation-name: draw-y;
+    animation-delay: 225ms;
+    transform-origin: 0 100%;
+  }
+
+  .sel__h::before {
+    animation: pop 160ms var(--ease-out) backwards;
+  }
+
+  .sel__h--tl::before {
+    animation-delay: 300ms;
+  }
+
+  .sel__h--tr::before {
+    animation-delay: 360ms;
+  }
+
+  .sel__h--br::before {
+    animation-delay: 420ms;
+  }
+
+  .sel__h--bl::before {
+    animation-delay: 480ms;
+  }
+
+  .sel__size {
+    animation: fade-in 200ms ease-out 600ms backwards;
+  }
+
+  @keyframes draw-x {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  @keyframes draw-y {
+    from {
+      transform: scaleY(0);
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sel__edge::before,
+    .sel__h::before,
+    .sel__size,
+    .sel__press.is-on {
+      animation: none;
+    }
+
+    .sel__shot.is-on,
+    .sel__shot.is-off {
+      transition: none;
+    }
+  }
+
+  /* ---------- narrower ---------- */
+
+  /* The picture drops under the copy. */
+  @media (max-width: 899px) {
+    .hero {
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .hero__copy {
+      flex: none;
+      width: 100%;
+      max-width: 448px;
+    }
+
+    .stage {
+      flex: none;
+      width: min(576px, 100% - var(--indent));
+      margin-top: var(--s-6);
+      margin-left: var(--indent);
+    }
+  }
+
+  @media (max-width: 699px) {
+    .hero {
+      padding-top: var(--s-5);
+    }
+
+    .hero__copy {
+      max-width: none;
+    }
+
+    .hero__lede {
+      padding-top: var(--s-5);
+    }
+
+    .hero__cta {
+      flex-direction: column;
+      padding-top: var(--s-5);
+    }
+
+    .hero__cta .btn--buy {
+      justify-content: space-between;
+    }
+
+    .hero__note {
+      padding-top: var(--s-4);
+    }
+
+    /* The widget takes more of the smaller picture. */
+    .stage {
+      width: 100%;
+      aspect-ratio: 358 / 448;
+    }
+
+    .sel {
+      left: 18.436%;
+      top: 6.25%;
+      width: 66.76%;
+    }
+  }
+</style>

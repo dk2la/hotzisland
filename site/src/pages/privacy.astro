@@ -1,0 +1,306 @@
+---
+// Privacy Policy. Every statement here mirrors the network audit of the app
+// (issue #58). When the app starts sending, storing or receiving anything
+// else, re-run the audit first, then change this page.
+import Base from '../layouts/Base.astro';
+import Marker from '../components/Marker.astro';
+---
+
+<Base
+  title="Privacy"
+  description="What data Pocket keeps on your Mac, what it sends, and who receives it."
+>
+  <section class="container page">
+    <Marker shape="square" play />
+    <h1 class="h indent">Privacy</h1>
+    <div class="indent prose">
+    <p class="label muted">Last updated: November 13, 2026</p>
+
+    <p>
+      This page explains what Pocket, a movable, resizable widget for the Mac, does with your
+      data: what stays on your Mac, what is sent, and who receives it.
+    </p>
+
+    <h2>In short</h2>
+    <ul>
+      <li>Pocket has no account, no analytics, no ads and no crash reporting.</li>
+      <li>
+        Our own server receives one thing: a hashed ID of your Mac. It stores that hash and the
+        date your Trial started.
+      </li>
+      <li>
+        Lemon Squeezy, which sells Pocket for us, receives your License key and the same hashed
+        Mac ID when you activate a License.
+      </li>
+      <li>
+        Mail goes between your Mac and your own mail provider. The Assistant sends what you ask
+        to the AI provider you connect. Neither passes through our servers.
+      </li>
+      <li>
+        A few features contact other companies: Gravatar for sender pictures, Spotify for album
+        covers, and Apple for dictation in some languages. The details are below.
+      </li>
+    </ul>
+
+    <h2>Who is responsible</h2>
+    <p>
+      Pocket is made and sold by dk2la, an individual based in France, who is the data
+      controller for the data described here. For any privacy question, write to
+      <a href="mailto:dk2la@icloud.com">dk2la@icloud.com</a>.
+    </p>
+
+    <h2>What stays on your Mac</h2>
+    <ul>
+      <li>
+        <strong>Clipboard history</strong> is kept in memory only. It is never written to disk
+        and never sent anywhere.
+      </li>
+      <li>
+        <strong>Calendar.</strong> Pocket reads and edits your calendar through macOS. Pocket
+        does not upload it. An event you create or change is synced by macOS to the calendar
+        accounts you have set up, the same as in the Calendar app.
+      </li>
+      <li>
+        <strong>Notes</strong> are plain files in a folder you choose. Pocket does not upload
+        them. If that folder is inside iCloud Drive or another synced location, that service
+        syncs the files.
+      </li>
+      <li>
+        <strong>Files, timers, system stats, keyboard shortcuts, window layouts and
+        settings</strong> are handled on your Mac and make no network requests.
+      </li>
+      <li>
+        <strong>Music controls</strong> talk to the Spotify and Music apps on your Mac. The one
+        exception is album covers for Spotify, described below.
+      </li>
+    </ul>
+    <p>
+      The Assistant is the exception to this list: when you use it, some of this information
+      can be sent to your AI provider. See <a href="#assistant">Assistant</a>.
+    </p>
+
+    <h2>Our Trial server</h2>
+    <p>
+      To run the 3-day Trial, Pocket sends one value to our Trial server: a hashed ID of your
+      Mac. It is a one-way hash (SHA-256) of your Mac's hardware ID, so the hardware ID cannot
+      be read back from it. It is still a stable identifier for your Mac.
+    </p>
+    <p>
+      The server stores that hash and the date and time your Trial started. Nothing else: no
+      name, no email address, no IP address, and no logs.
+    </p>
+    <p>
+      Pocket contacts the Trial server only while it has no License key: when it starts, then
+      about once an hour and when your Mac wakes until one attempt gets through, and right
+      after you remove an Activation.
+    </p>
+    <p>
+      The Trial server runs on Cloudflare. Cloudflare processes your IP address to deliver the
+      request and keeps its own aggregate metrics.
+    </p>
+
+    <h2 id="lemon-squeezy">Lemon Squeezy: purchase and License</h2>
+    <p>
+      Lemon Squeezy is our payment provider and merchant of record.
+    </p>
+    <ul>
+      <li>
+        <strong>Purchase.</strong> The Buy button opens Lemon Squeezy's checkout page in your
+        browser. Lemon Squeezy collects your email address, name, payment and billing details
+        there, under its own privacy policy. None of that passes through Pocket, and we never
+        see your card details. As the seller, we can see your order in our Lemon Squeezy
+        account, including your name and email address.
+      </li>
+      <li>
+        <strong>Activation.</strong> When you enter a License key and activate it, Pocket sends
+        Lemon Squeezy the License key and your hashed Mac ID, which is used as the name of the
+        Activation. This links the hashed Mac ID to your License in Lemon Squeezy's records.
+      </li>
+      <li>
+        <strong>Daily check.</strong> While Pocket is licensed, it sends the License key and the
+        Activation ID to Lemon Squeezy to check that the key is still valid. In normal use this
+        happens at most once a day.
+      </li>
+      <li>
+        <strong>Removing an Activation.</strong> When an Activation is removed, by you,
+        because you replaced the License key with another one, or because the key turned out
+        to belong to a different product, Pocket sends the License key and
+        the Activation ID to Lemon Squeezy.
+      </li>
+    </ul>
+    <p>
+      Lemon Squeezy's replies include the buyer's name and email address. Pocket does not read
+      or store them. It keeps the License key, the Activation ID and the time of the last check
+      in the macOS Keychain.
+    </p>
+
+    <h2>Connections you set up yourself</h2>
+
+    <h3>Mail</h3>
+    <p>
+      If you add a mail account, Pocket connects directly from your Mac to your own mail
+      provider, over an encrypted (TLS) connection, with the address and password you enter. It
+      sends what a mail client needs to: sign-in, reading and searching your mail (including
+      the text you search for), marking messages as read, archiving, and the messages you
+      write. Your mail does not pass through our servers.
+    </p>
+    <p>
+      Remote content in emails, such as images and tracking pixels, is blocked by default. If
+      you press "Show images" on a message, Pocket loads them from the servers named in that
+      email. Those servers then see your IP address and can tell that you opened the message.
+      The choice applies to that message only.
+    </p>
+
+    <h3 id="assistant">Assistant</h3>
+    <p>
+      The Assistant is optional. It works only after you connect your own AI provider: your own
+      API key for a service such as OpenAI, Anthropic, OpenRouter or Perplexity, a model
+      running on your own Mac, or your own Claude or ChatGPT subscription through their
+      command-line tool.
+    </p>
+    <p>When you send the Assistant a message, your provider receives:</p>
+    <ul>
+      <li>what you typed or dictated, and the recent conversation;</li>
+      <li>
+        the information needed to answer, when your question calls for it: calendar event
+        titles and times, the sender, subject and time of recent or matching emails, note
+        titles, playbook names and steps, the current track, and timer state.
+      </li>
+    </ul>
+    <p>
+      Pocket does not add email bodies, note bodies or clipboard contents. Nothing is sent
+      until you send a message. All of it goes to your provider under your own account and is
+      covered by that provider's privacy policy. We receive none of it.
+    </p>
+    <p>
+      With a Claude or ChatGPT subscription, Pocket runs the provider's command-line tool on
+      your Mac. What that tool itself sends is governed by the tool and its provider.
+    </p>
+
+    <h2>Other companies Pocket contacts</h2>
+    <dl class="parties">
+      <dt>Gravatar</dt>
+      <dd>
+        To show sender pictures in Mail, Pocket asks Gravatar for a picture using an MD5 hash of
+        the email address of each person in your message lists and of the sender of a message
+        you open. This happens automatically and cannot be turned off at the moment. Each
+        address is looked up once and the result is saved on your Mac. An MD5 hash is not strong
+        protection: someone who already knows or guesses an address can match it to its hash.
+      </dd>
+
+      <dt>Spotify</dt>
+      <dd>
+        When Spotify is playing and macOS has not already supplied the album cover, Pocket
+        downloads the cover from Spotify's image servers. The request contains no personal
+        data; the server sees your IP address and which cover was fetched.
+      </dd>
+
+      <dt>Apple</dt>
+      <dd>
+        Dictation uses Apple's speech recognition. Where your language has an on-device model,
+        the audio stays on your Mac. Where it does not, Apple's speech recognition sends the
+        audio to Apple's servers. Audio is captured only while you are dictating.
+      </dd>
+
+      <dt>Servers of remote email images</dt>
+      <dd>Only after you press "Show images" on a message, as described under Mail.</dd>
+    </dl>
+
+    <h2>What every connection reveals</h2>
+    <p>
+      Any server Pocket connects to sees your IP address. Requests to the Trial server, Lemon
+      Squeezy, Gravatar, Spotify's image servers and an AI provider you connect with an API key
+      also carry standard technical headers: the app name and build number, the versions of the
+      macOS networking software and system kernel, and your system languages. If Gravatar, Spotify's image
+      servers or your AI provider set a cookie, macOS keeps it and sends it back to that same
+      service.
+    </p>
+    <p>
+      Links you click in Pocket, such as meeting links, links in emails or the Buy button, open
+      in your browser or another app. A playbook you run can open the links and run the
+      Shortcuts you put in it; what those do is up to them.
+    </p>
+
+    <h2>What Pocket does not contain</h2>
+    <p>
+      Pocket contains no analytics, no advertising, no crash reporting and no third-party
+      software development kits. Crash reports go only to Apple, and only if you have chosen to
+      share them with Apple in System Settings. Pocket writes diagnostic entries to your Mac's
+      system log; nothing sends them anywhere.
+    </p>
+
+    <h2>What Pocket stores on your Mac</h2>
+    <ul>
+      <li>
+        In the macOS Keychain: your mail password, your AI API key, and your License key with
+        its Activation ID.
+      </li>
+      <li>
+        In its cache folder: a list of mail headers (no message bodies) and the sender pictures
+        from Gravatar.
+      </li>
+      <li>Your settings.</li>
+      <li>Your notes, as files in the folder you chose.</li>
+    </ul>
+
+    {/* Statements about the site itself. Re-check the build output (external
+        URLs, scripts, fonts, storage) before changing this section. */}
+    <h2>This website</h2>
+    <p>
+      This website is a set of static pages served by Cloudflare. Cloudflare processes your IP
+      address to deliver them. The site has no analytics, sets no cookies, and loads no
+      scripts or fonts from other companies.
+    </p>
+    <p>
+      The Download button fetches the Pocket installer from Cloudflare R2, Cloudflare's file
+      storage. The Buy button opens Lemon Squeezy's checkout page; what Lemon Squeezy collects
+      there is described under
+      <a href="#lemon-squeezy">Lemon Squeezy: purchase and License</a>.
+    </p>
+
+    <h2>How long data is kept</h2>
+    <p>
+      The Trial entry on our server (the hashed Mac ID and the Trial start date) has no
+      automatic expiry. It is kept until we delete it. You can ask us to delete it at any time
+      by writing to <a href="mailto:dk2la@icloud.com">dk2la@icloud.com</a>.
+    </p>
+    <p>
+      Order and License records are kept by Lemon Squeezy under its own privacy policy.
+      Everything listed under "What Pocket stores on your Mac" stays there until you delete it.
+    </p>
+
+    <h2>Your rights</h2>
+    <p>
+      If you are in the European Union, the GDPR gives you the right to ask for a copy of the
+      data we hold about you and to have it corrected or deleted. Write to
+      <a href="mailto:dk2la@icloud.com">dk2la@icloud.com</a>. You can also lodge a complaint
+      with your data protection authority. In France, this is the
+      <a href="https://www.cnil.fr">CNIL</a>.
+    </p>
+
+    <h2>Changes</h2>
+    <p>
+      If Pocket starts to handle data differently, we will update this page. The date at the
+      top shows the latest version.
+    </p>
+
+    <h2>Contact</h2>
+    <p><a href="mailto:dk2la@icloud.com">dk2la@icloud.com</a></p>
+
+    <p>See also the <a href="/terms">Terms</a> and the <a href="/refund">Refund Policy</a>.</p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  /* Third parties as a definition list: reads the same at any width. */
+  .parties {
+    margin: 0 0 var(--s-3);
+  }
+
+  .parties dd {
+    margin: 0 0 var(--s-3);
+    padding-left: var(--s-3);
+    border-left: 1px solid var(--line-strong);
+  }
+</style>
