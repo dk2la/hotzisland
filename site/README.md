@@ -31,20 +31,41 @@ npm run preview  # serves the built dist/ as-is, http://localhost:4321
   header, footer). Every page wraps its content in it. Props: `title`
   (optional, rendered as "Title — Pocket") and `description` (optional meta
   description). A named `head` slot accepts extra `<head>` tags.
-- `src/styles/global.css` — design tokens (colors, radii, spacing, motion) as
-  CSS custom properties, plus the shared pieces: `.container`, `.btn`,
-  `.mono`, `.prose` for the legal pages, scroll reveal. Dark appearance
-  follows the system setting through `prefers-color-scheme`. Use the tokens
-  instead of raw values. The phone layout is `@media (max-width: 760px)`.
+- `src/styles/global.css` — design tokens as CSS custom properties (palette,
+  the two font stacks, spacing, layout, easings), plus the shared pieces:
+  `.container`, `.section`, `.indent`, the type classes (`.h`, `.lede`,
+  `.body`, `.label`), `.marker`, `.btn` and `.prose` for the legal pages. Use
+  the tokens instead of raw values. The design rules:
+  - Dark only (`color-scheme: dark`); there is no light theme.
+  - Everything sits on a 64px grid (`--u`). The ground carries the grid as a
+    tiled image, `src/assets/grid.svg`. The content column is 1088px
+    (17 units) and text starts one unit (`--indent`) right of the section
+    marker.
+  - Square corners everywhere except the widget screenshots.
+  - The accent green is only for Buy buttons and the price band.
+  - Copy is typed in lowercase in the markup, never with `text-transform`, so
+    the glossary terms Trial, License and License key keep their capitals.
+  - Breakpoints: below 1152px the column is fluid, below 900px the first
+    screen stacks, below 700px is the phone layout.
+  - Only `transform` and `opacity` animate, and every animation is switched
+    off or reduced to a fade under `prefers-reduced-motion`.
+- Fonts — Geist and Geist Mono (OFL), self-hosted from the
+  `@fontsource-variable/*` packages and imported in `Base.astro`. The site
+  must not load anything from another origin: the Privacy page says so.
 - `src/pages/` — one file per page. `index.astro` is the landing page;
   `404.astro` is served for unknown paths.
-- `src/components/` — the landing page sections: `Hero` (first screen),
-  `WidgetStage` (the live widget demo inside it), `Screens`, `Price`, `Faq`.
-- `src/scripts/` — plain TypeScript, no framework: `widget-demo.ts` (demo
-  loop, dragging, docking, the panel) and `reveal.ts` (scroll reveal and the
-  License meters). Both honour `prefers-reduced-motion`.
-- `src/assets/screens/` — copies of `docs/screenshots/*.png`. Astro resizes
-  them to WebP at build time; update the copies when the screenshots change.
+- `src/components/` — `Marker` (the 64px box with a solid shape that opens
+  every section) and the landing page sections in order: `Hero` (first screen
+  with the selected widget on a picture), `Figures`, `Sky`, `Price`, `Faq`.
+- `src/scripts/` — plain TypeScript, no framework: `hero-demo.ts` (the loop
+  that drags, resizes and docks the hero widget, and dragging it by hand) and
+  `motion.ts` (everything that plays once when scrolled into view). Both
+  honour `prefers-reduced-motion`, and the page is complete without them.
+- `src/assets/pictures/` — the two halftone pictures. `src/assets/screens/` —
+  copies of `docs/screenshots/*.png`; update the copies when the screenshots
+  change. Astro resizes all of them to AVIF and WebP at build time. The
+  screenshots are laid over the pictures as separate images so they can move
+  on their own.
 - `public/` — files copied to the site root unchanged, including `og.png`,
   the link preview image.
 - `scripts/og.html` — the source of `public/og.png`. Not part of the build;

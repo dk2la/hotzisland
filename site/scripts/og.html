@@ -1,86 +1,79 @@
 <!doctype html>
 <!--
   Source of the link preview image, public/og.png (1200×630).
-  Not part of the build. After changing it, regenerate the PNG from site/:
+  Not part of the build. After changing it, regenerate the PNG from site/
+  (run `npm ci` first: the fonts are read from node_modules):
 
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
       --screenshot=public/og.png --window-size=1200,630 --hide-scrollbars \
-      --force-device-scale-factor=1 scripts/og.html
+      --force-device-scale-factor=1 --allow-file-access-from-files \
+      --virtual-time-budget=5000 scripts/og.html
 
-  Tokens are copied from src/styles/global.css; the widget from
-  src/components/WidgetStage.astro.
+  Colours are copied from src/styles/global.css; the picture and the selected
+  widget from src/components/Hero.astro (same proportions).
 -->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Pocket link preview image</title>
     <style>
+      @font-face {
+        font-family: 'Geist';
+        font-weight: 100 900;
+        src: url('../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Geist Mono';
+        font-weight: 100 900;
+        src: url('../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2') format('woff2');
+      }
       * { box-sizing: border-box; margin: 0; }
       html, body { width: 1200px; height: 630px; overflow: hidden; }
       body {
         position: relative;
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+        font-family: 'Geist', system-ui, sans-serif;
         -webkit-font-smoothing: antialiased;
-        color: #0b0b0a;
-        background:
-          radial-gradient(42% 56% at 80% 28%, rgba(63, 255, 0, 0.3), transparent 70%),
-          radial-gradient(40% 56% at 12% 92%, rgba(255, 158, 51, 0.28), transparent 70%),
-          linear-gradient(155deg, #e9e7e2 30%, #bfc6cf);
+        color: #ede6d6;
+        /* The grid is shifted so its lines meet the content edges (x = 64). */
+        background: #0e0e0d url('../src/assets/grid.svg') 0 -1px / 64px 64px;
       }
-      .copy { position: absolute; left: 72px; top: 72px; width: 520px; }
-      .brand { display: flex; align-items: center; gap: 14px; font-size: 30px; font-weight: 600; letter-spacing: -0.01em; }
-      .mark { width: 22px; height: 38px; border-radius: 8px; background: #0b0b0a; display: grid; place-content: center; gap: 5px; }
-      .mark i { width: 6px; height: 6px; border-radius: 2px; background: #e9e7e2; }
-      .mark i:first-child { background: #3fff00; }
-      h1 { margin-top: 96px; font-size: 88px; line-height: 1; letter-spacing: -0.04em; font-weight: 600; }
-      .widget { position: absolute; right: 56px; top: 84px; display: flex; align-items: flex-start; gap: 12px; }
-      .glass { background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 28px 60px -18px rgba(0, 0, 0, 0.5), 0 3px 9px rgba(0, 0, 0, 0.25); color: #fff; }
-      .panel { width: 428px; border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
-      .head { display: flex; align-items: baseline; gap: 14px; }
-      .head b { font-size: 22px; font-weight: 600; }
-      .head span { font-size: 17px; color: rgba(255, 255, 255, 0.5); }
-      .sec { display: flex; justify-content: space-between; padding: 0 6px; font-size: 15px; font-weight: 600; letter-spacing: 0.07em; color: rgba(255, 255, 255, 0.5); }
-      .group { border-radius: 20px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.05); }
-      .row { display: grid; grid-template-columns: 58px 4px 1fr; gap: 14px; align-items: center; padding: 13px 17px; }
-      .row + .row { border-top: 1px solid rgba(255, 255, 255, 0.12); }
-      .row time { font-size: 17px; color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
-      .bar { width: 4px; height: 38px; border-radius: 2px; background: #4c7dff; }
-      .bar.g { background: #5fd068; }
-      .row b { display: block; font-size: 19px; font-weight: 600; white-space: nowrap; }
-      .row small { display: block; font-size: 17px; color: rgba(255, 255, 255, 0.5); white-space: nowrap; }
-      .strip { width: 64px; border-radius: 20px; padding: 9px 6px; display: flex; flex-direction: column; align-items: center; gap: 9px; background: rgba(0, 0, 0, 0.52); }
-      .grip { height: 20px; display: flex; align-items: center; gap: 3px; }
-      .grip i { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, 0.5); }
-      .cell { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; color: rgba(255, 255, 255, 0.72); position: relative; }
-      .cell svg { width: 24px; height: 24px; }
-      .cell.active { background: rgba(63, 255, 0, 0.1); color: #3fff00; }
-      .cell.badge::after { content: ''; position: absolute; top: 9px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: #ff454a; }
+      .brand { position: absolute; left: 64px; top: 68px; font-size: 40px; font-weight: 600; line-height: 56px; letter-spacing: -0.01em; }
+      .marker { position: absolute; left: 64px; top: 255px; width: 64px; height: 64px; }
+      .marker b { position: absolute; left: 13px; top: 13px; width: 38px; height: 38px; background: #ede6d6; }
+      .marker i { position: absolute; width: 5px; height: 5px; background: #3a3a36; }
+      .marker i:nth-child(1) { left: -2px; top: -2px; }
+      .marker i:nth-child(2) { right: -3px; top: -2px; }
+      .marker i:nth-child(3) { right: -3px; bottom: -3px; }
+      .marker i:nth-child(4) { left: -2px; bottom: -3px; }
+      h1 { position: absolute; left: 64px; top: 344px; font-size: 62px; line-height: 68px; letter-spacing: -0.02em; font-weight: 600; white-space: nowrap; }
+      .note { position: absolute; left: 64px; top: 524px; font-family: 'Geist Mono', monospace; font-size: 22px; line-height: 40px; letter-spacing: 0.02em; color: #9a9484; }
+
+      /* The hero picture: 576×640 in the design, here 461×512. */
+      .stage { position: absolute; right: 64px; top: 63px; width: 461px; height: 512px; background: #fbfaf5; overflow: hidden; }
+      .stage > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .sel { position: absolute; left: 35.764%; top: 10%; width: 56.597%; aspect-ratio: 565 / 900; }
+      .sel img { display: block; width: 100%; height: 100%; }
+      .outline { position: absolute; left: -4px; top: -4px; width: calc(90.8% + 8px); height: calc(100% + 8px); border: 1px solid #3685f9; }
+      .outline i { position: absolute; width: 7px; height: 7px; background: #fff; border: 1px solid #3685f9; }
+      .outline i:nth-child(1) { left: -4px; top: -4px; }
+      .outline i:nth-child(2) { right: -4px; top: -4px; }
+      .outline i:nth-child(3) { right: -4px; bottom: -4px; }
+      .outline i:nth-child(4) { left: -4px; bottom: -4px; }
+      .size { position: absolute; left: 45.4%; top: calc(100% + 12px); transform: translateX(-50%); padding: 0 6px; background: #3685f9; color: #fff; font-family: 'Geist Mono', monospace; font-size: 11px; line-height: 20px; white-space: nowrap; }
     </style>
   </head>
   <body>
-    <div class="copy">
-      <div class="brand"><span class="mark"><i></i><i></i><i></i></span>Pocket</div>
-      <h1>One small widget for the whole day.</h1>
-    </div>
+    <div class="brand">pocket</div>
+    <div class="marker"><i></i><i></i><i></i><i></i><b></b></div>
+    <h1>one small widget<br />for the whole day</h1>
+    <div class="note">3-day Trial, every feature.</div>
 
-    <div class="widget">
-      <div class="panel glass">
-        <div class="head"><b>Calendar</b><span>Tue, 10 Nov</span></div>
-        <div class="sec"><span>TODAY</span><span>4</span></div>
-        <div class="group">
-          <div class="row"><time>09:30</time><span class="bar"></span><div><b>Marketing standup</b><small>15m</small></div></div>
-          <div class="row"><time>13:00</time><span class="bar"></span><div><b>Campaign review: Fall Launch</b><small>1h00 · Room 2A</small></div></div>
-          <div class="row"><time>15:30</time><span class="bar"></span><div><b>1:1 with Jess</b><small>30m</small></div></div>
-          <div class="row"><time>19:00</time><span class="bar g"></span><div><b>Yoga</b><small>1h00 · Flow Studio, Alameda</small></div></div>
-        </div>
-      </div>
-      <div class="strip glass">
-        <span class="grip"><i></i><i></i><i></i></span>
-        <span class="cell"><svg viewBox="0 0 16 16"><path fill="currentColor" d="M9.3 1.2 3.4 9h3.9l-.6 5.8L12.6 7H8.7l.6-5.8Z" /></svg></span>
-        <span class="cell active"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4" /><path d="M2.5 6.6h11" stroke="currentColor" stroke-width="1.4" /><path d="M5 9.2h1.4M7.3 9.2h1.4M9.6 9.2H11M5 11.4h1.4M7.3 11.4h1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg></span>
-        <span class="cell badge"><svg viewBox="0 0 16 16"><rect x="1.6" y="3.4" width="12.8" height="9.2" rx="2" fill="none" stroke="currentColor" stroke-width="1.4" /><path d="m2.4 4.6 5.6 4.3 5.6-4.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg></span>
-        <span class="cell"><svg viewBox="0 0 16 16"><rect x="2.4" y="2.8" width="11.2" height="10.4" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.4" /><path d="M2.6 5.8h10.8M5 8.6h6M5 10.8h3.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" /></svg></span>
-        <span class="cell"><svg viewBox="0 0 16 16"><path fill="currentColor" d="M7 3.2 8.2 7l3.8 1.2L8.2 9.4 7 13.2 5.8 9.4 2 8.2 5.8 7 7 3.2ZM12.4 1.6l.5 1.7 1.7.5-1.7.5-.5 1.7-.5-1.7-1.7-.5 1.7-.5.5-1.7Z" /></svg></span>
+    <div class="stage">
+      <img src="../src/assets/pictures/room.png" alt="" />
+      <div class="sel">
+        <img src="../src/assets/screens/calendar.png" alt="" />
+        <div class="outline"><i></i><i></i><i></i><i></i></div>
+        <span class="size">420 × 640</span>
       </div>
     </div>
   </body>

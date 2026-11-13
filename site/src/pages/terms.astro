@@ -2,15 +2,18 @@
 // Terms of sale and use. The rules mirror docs/release-and-licensing.md and
 // the vocabulary in GLOSSARY.md; change those first, then this page.
 import Base from '../layouts/Base.astro';
+import Marker from '../components/Marker.astro';
 ---
 
 <Base
   title="Terms"
   description="The terms for buying and using Pocket: the License, Activations, the Trial, and who sells it."
 >
-  <section class="container prose">
-    <h1>Terms</h1>
-    <p class="muted">Last updated: November 13, 2026</p>
+  <section class="container page">
+    <Marker shape="square" play />
+    <h1 class="h indent">Terms</h1>
+    <div class="indent prose">
+    <p class="label muted">Last updated: November 13, 2026</p>
 
     <p>
       These terms apply when you download, try, buy or use Pocket, a movable, resizable widget
@@ -132,5 +135,6 @@ import Base from '../layouts/Base.astro';
 
     <h2>Contact</h2>
     <p><a href="mailto:dk2la@icloud.com">dk2la@icloud.com</a></p>
+    </div>
   </section>
 </Base>

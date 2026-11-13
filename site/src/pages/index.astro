@@ -1,23 +1,25 @@
 ---
-// Landing page. Sections, top to bottom: first screen with the live widget
-// stage, screenshots, price, questions. Buy and Download targets and the
-// prices live in src/config.ts.
+// Landing page. Sections, top to bottom: first screen with the selected
+// widget, the three figures, the sky picture, price, questions. Buy and
+// Download targets and the prices live in src/config.ts.
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
-import Screens from '../components/Screens.astro';
+import Figures from '../components/Figures.astro';
+import Sky from '../components/Sky.astro';
 import Price from '../components/Price.astro';
 import Faq from '../components/Faq.astro';
 ---
 
 <Base>
   <Hero />
-  <Screens />
+  <Figures />
+  <Sky />
   <Price />
   <Faq />
 </Base>
 
 <script>
-  import { initReveal } from '../scripts/reveal';
+  import { initMotion } from '../scripts/motion';
 
-  initReveal();
+  initMotion();
 </script>

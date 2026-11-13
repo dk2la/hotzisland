@@ -7,8 +7,14 @@
 //   </Base>
 //
 // The default slot is rendered inside <main>. Wrap content in `.container`
-// to get the page width and gutter; full-bleed sections can skip it.
+// to get the page width and gutter.
+import '@fontsource-variable/geist/wght.css';
+import '@fontsource-variable/geist-mono/wght.css';
 import '../styles/global.css';
+// The two font files the first screen needs, preloaded so text does not
+// reflow. Self-hosted: the site makes no request to another origin.
+import geistLatin from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url';
+import geistMonoLatin from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url';
 import { checkoutURL, downloadURL, price } from '../config';
 
 interface Props {
@@ -33,7 +39,7 @@ const year = new Date().getFullYear();
 // until the site has its final domain.
 const ogImagePath = '/og.png';
 const ogImage = Astro.site ? new URL(ogImagePath, Astro.site).href : ogImagePath;
-const ogImageAlt = `${tagline}. The Pocket widget on a desktop.`;
+const ogImageAlt = `${tagline}. The Pocket widget on a halftone picture of a room.`;
 ---
 
 <!doctype html>
@@ -43,9 +49,11 @@ const ogImageAlt = `${tagline}. The Pocket widget on a desktop.`;
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>{pageTitle}</title>
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#e9e7e2" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0b0b0a" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e0e0d" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" as="font" type="font/woff2" href={geistLatin} crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href={geistMonoLatin} crossorigin />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={siteName} />
@@ -65,12 +73,10 @@ const ogImageAlt = `${tagline}. The Pocket widget on a desktop.`;
   </head>
   <body>
     <header class="container top">
-      <a class="brand" href="/">
-        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>{siteName}
-      </a>
-      <nav aria-label="Main">
-        <a class="link" href={downloadURL} download>Download</a>
-        <a class="btn btn-buy btn-sm" href={checkoutURL}>Buy <span class="price">{price.launch}</span></a>
+      <a class="brand" href="/" aria-label="Pocket, home">pocket</a>
+      <nav class="top__nav" aria-label="Main">
+        <a class="top__link label" href={downloadURL} download>download</a>
+        <a class="btn btn--light btn--sm" href={checkoutURL}>buy · {price.launch}</a>
       </nav>
     </header>
 
@@ -78,13 +84,13 @@ const ogImageAlt = `${tagline}. The Pocket widget on a desktop.`;
       <slot />
     </main>
 
-    <footer class="site-footer">
-      <div class="container site-footer__inner">
-        <span>{siteName} · &copy; {year} dk2la</span>
-        <nav aria-label="Legal">
-          <a href="/terms">Terms</a>
-          <a href="/privacy">Privacy</a>
-          <a href="/refund">Refund Policy</a>
+    <footer class="container">
+      <div class="foot label">
+        <span>pocket · &copy; {year} dk2la</span>
+        <nav class="foot__nav" aria-label="Legal">
+          <a href="/terms">terms</a>
+          <a href="/privacy">privacy</a>
+          <a href="/refund">refund policy</a>
         </nav>
       </div>
     </footer>
@@ -92,55 +98,34 @@ const ogImageAlt = `${tagline}. The Pocket widget on a desktop.`;
 </html>
 
 <style>
-  /* Header: wordmark, Download link, small Buy button. Not sticky. */
+  /* Header: wordmark, download link, small buy button. One grid unit tall,
+     not sticky. */
   .top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--s-4);
-    padding-block: var(--s-5);
+    gap: var(--s-3);
+    height: var(--u);
+    flex: none;
   }
 
   .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
+    font-size: 20px;
     font-weight: 600;
-    font-size: 17px;
+    line-height: 24px;
     letter-spacing: -0.01em;
     text-decoration: none;
   }
 
-  .brand-mark {
-    width: 14px;
-    height: 24px;
-    border-radius: 5px;
-    background: var(--ink);
-    display: grid;
-    place-content: center;
-    gap: 3px;
-  }
-
-  .brand-mark i {
-    width: 4px;
-    height: 4px;
-    border-radius: 1.5px;
-    background: var(--bg);
-  }
-
-  .brand-mark i:first-child {
-    background: var(--accent);
-  }
-
-  .top nav {
+  .top__nav {
     display: flex;
     align-items: center;
-    gap: var(--s-4);
+    gap: var(--s-5);
   }
 
-  .link {
-    font-size: 14px;
-    color: var(--ink-2);
+  .top__link {
+    line-height: 20px;
+    color: var(--muted);
     text-decoration: none;
   }
 
@@ -148,48 +133,49 @@ const ogImageAlt = `${tagline}. The Pocket widget on a desktop.`;
     flex: 1;
   }
 
-  .site-footer__inner {
+  .foot {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: var(--s-4);
-    padding-block: var(--s-6);
-    border-top: 1px solid var(--hairline);
-    font-size: 14px;
-    color: var(--ink-3);
+    gap: var(--s-3) var(--s-5);
+    min-height: var(--s-9);
+    border-top: 1px solid var(--line);
+    color: var(--muted);
   }
 
-  .site-footer nav {
+  .foot__nav {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--s-5);
+    gap: var(--s-1) var(--s-5);
   }
 
-  .site-footer a {
-    color: var(--ink-2);
+  .foot a {
     text-decoration: none;
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .link:hover,
-    .site-footer a:hover {
-      color: var(--ink);
+    .top__link:hover,
+    .foot a:hover {
+      color: var(--text);
     }
   }
 
-  @media (max-width: 760px) {
-    .top {
-      padding-block: var(--s-4);
-    }
-
-    .link {
+  @media (max-width: 699px) {
+    .top__link {
       display: none;
     }
 
-    .site-footer__inner {
-      flex-direction: column;
+    /* Links first, then the copyright line. */
+    .foot {
+      flex-direction: column-reverse;
       align-items: flex-start;
+      justify-content: flex-end;
+      min-height: 0;
+      padding-block: var(--s-5) var(--s-6);
+    }
+
+    .foot__nav {
+      column-gap: var(--s-4);
     }
   }
 </style>

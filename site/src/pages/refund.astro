@@ -2,15 +2,18 @@
 // Refund Policy. The rule mirrors docs/release-and-licensing.md (Sales) and
 // must match the refund setting in the Lemon Squeezy store.
 import Base from '../layouts/Base.astro';
+import Marker from '../components/Marker.astro';
 ---
 
 <Base
   title="Refund Policy"
   description="When and how you can get a refund for a Pocket License."
 >
-  <section class="container prose">
-    <h1>Refund Policy</h1>
-    <p class="muted">Last updated: November 13, 2026</p>
+  <section class="container page">
+    <Marker shape="square" play />
+    <h1 class="h indent">Refund Policy</h1>
+    <div class="indent prose">
+    <p class="label muted">Last updated: November 13, 2026</p>
 
     <p>
       Pocket has a 3-day Trial with every feature, so you can check that it suits you before
@@ -54,5 +57,6 @@ import Base from '../layouts/Base.astro';
     </p>
 
     <p>See also the <a href="/terms">Terms</a>.</p>
+    </div>
   </section>
 </Base>
