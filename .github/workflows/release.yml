@@ -1,6 +1,7 @@
 name: Release
 
-# Every push to master: run all checks, then publish v<MARKETING_VERSION>.
+# Every push to master: run all checks, then publish v<MARKETING_VERSION> to
+# the Cloudflare R2 bucket (public downloads) and as a GitHub release.
 # If that tag already exists the release is skipped — bump MARKETING_VERSION
 # in project.yml to ship a new one.
 on:
@@ -74,6 +75,63 @@ jobs:
           hdiutil create -volname Pocket -srcfolder "$staging" -ov -format UDZO "dist/$name.dmg"
           rm -rf "$staging"
           (cd dist && shasum -a 256 ./*.zip ./*.dmg > SHA256SUMS.txt)
+
+      # Order matters. The whole job is skipped once the tag exists, and the tag
+      # is created by `gh release create` below. So R2 goes first: if an upload
+      # fails, the run fails with no tag, and a re-run rebuilds and uploads
+      # again (uploads overwrite the same keys, so they are idempotent). Doing
+      # it the other way round would leave a release that a re-run never
+      # uploads to R2.
+      - name: Upload to Cloudflare R2
+        if: steps.version.outputs.exists == 'false'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto # required by the CLI, ignored by R2
+          # aws CLI >= 2.23 adds CRC checksums to every request by default.
+          # Only send and validate them when the operation requires it, so the
+          # upload does not depend on how R2 handles the newer algorithms.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          R2_ENDPOINT: ${{ secrets.CLOUDFLARE_S3_ENDPOINT }}
+          R2_BUCKET: ${{ vars.CLOUDFLARE_R2_BUCKET }}
+          R2_PUBLIC_URL: ${{ vars.CLOUDFLARE_R2_PUBLIC_URL }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          for var in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY R2_ENDPOINT R2_BUCKET R2_PUBLIC_URL; do
+            [[ -n "${!var}" ]] || { echo "::error::$var is empty — check the repository secrets and variables"; exit 1; }
+          done
+
+          name="Pocket-$VERSION"
+          public_url="${R2_PUBLIC_URL%/}"
+          upload() { # upload <file> <key> <content-type> <cache-control>
+            aws s3 cp "$1" "s3://$R2_BUCKET/$2" --endpoint-url "$R2_ENDPOINT" \
+              --content-type "$3" --cache-control "$4" --only-show-errors
+            echo "Uploaded $public_url/$2"
+          }
+
+          # Versioned files. Cached only briefly: a re-run after a failed
+          # release step rebuilds the app and overwrites these keys, so caches
+          # must not pin bytes that no longer match SHA256SUMS.txt.
+          versioned="public, max-age=3600"
+          upload "dist/$name.dmg" "v$VERSION/$name.dmg" application/x-apple-diskimage "$versioned"
+          upload "dist/$name.zip" "v$VERSION/$name.zip" application/zip "$versioned"
+          upload dist/SHA256SUMS.txt "v$VERSION/SHA256SUMS.txt" "text/plain; charset=utf-8" "$versioned"
+
+          # Stable "latest" URL for the website's Download button. Uploaded
+          # last, so it only moves once the versioned files are in place, and
+          # always revalidated, so it never serves a stale version.
+          upload "dist/$name.dmg" Pocket.dmg application/x-apple-diskimage no-cache
+
+          # The stable URL must serve this exact DMG without any login.
+          expected=$(shasum -a 256 "dist/$name.dmg" | cut -d' ' -f1)
+          # Download to a file: piping into shasum would hash a partial body
+          # together with the retried one.
+          check="$RUNNER_TEMP/Pocket-check.dmg"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "$check" "$public_url/Pocket.dmg"
+          actual=$(shasum -a 256 "$check" | cut -d' ' -f1)
+          [[ "$actual" == "$expected" ]] || { echo "::error::$public_url/Pocket.dmg does not match the DMG built by this run"; exit 1; }
 
       - name: Publish GitHub release
         if: steps.version.outputs.exists == 'false'
