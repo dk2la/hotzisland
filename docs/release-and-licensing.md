@@ -15,6 +15,21 @@ Subscription feature) are defined in [GLOSSARY.md](../GLOSSARY.md).
   yet. Until then, do the work that doesn't need one (hardened runtime,
   licensing, site).
 
+## Downloads
+
+- DMGs are hosted in a public Cloudflare R2 bucket, so downloads stay reachable
+  after the repository goes private. The release workflow uploads to it on
+  every release, before it creates the GitHub release.
+- Stable URL, always the latest DMG (for the website's Download button):
+  `https://pub-3c8757d8d4b64f55bbc715c162c7e969.r2.dev/Pocket.dmg`
+- Each version keeps its own files under `v<version>/`:
+  `Pocket-<version>.dmg`, `Pocket-<version>.zip` and `SHA256SUMS.txt`, e.g.
+  `https://pub-3c8757d8d4b64f55bbc715c162c7e969.r2.dev/v0.1.1/Pocket-0.1.1.dmg`
+- The bucket name and public base URL live in the repository variables
+  `CLOUDFLARE_R2_BUCKET` and `CLOUDFLARE_R2_PUBLIC_URL`. The `r2.dev` address
+  is Cloudflare's development URL; move the bucket to a custom domain once the
+  website domain is chosen.
+
 ## Sales
 
 - Store: **Lemon Squeezy** as merchant of record. It handles VAT, chargebacks
@@ -61,13 +76,15 @@ Subscription feature) are defined in [GLOSSARY.md](../GLOSSARY.md).
 - Pages: landing with Buy and Download, Terms, Privacy, Refund Policy.
 - Design: custom, with animations, in the style of the current widget. The
   design isn't discussed yet; a mockup comes later.
-- Privacy policy: email, calendar and notes stay on the Mac. Only a hashed Mac
-  ID and the trial date reach our server, and Lemon Squeezy validates keys.
-  Check the code before writing this, to confirm nothing else leaves the Mac.
+- Privacy policy: states what the network audit (issue #58) found. Our server
+  stores only a hashed Mac ID and the trial start date; Lemon Squeezy gets the
+  License key and the hashed Mac ID. Mail and the Assistant talk to the user's
+  own providers, and Gravatar, Spotify and Apple dictation are disclosed.
+  Re-run the audit whenever a feature adds a network request (e.g. Sparkle).
 
 ## Open questions
 
-- Where DMGs and the Sparkle feed are hosted: an S3 bucket or a public GitHub
-  repository. It must stay reachable after the main repository goes private.
+- Where the Sparkle feed is hosted. It must stay reachable after the main
+  repository goes private. (DMGs are settled, see Downloads.)
 - Website domain.
 - Website design (mockup first).
