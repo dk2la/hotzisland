@@ -1,26 +1,22 @@
 ---
-// The section marker: a 64px box with a dot on each corner and a solid shape
-// inside. Each landing section has its own shape. Styles and the entrance
+// The section marker: a 64px box with a dot on each corner and a letter
+// inside. Down the landing page the letters spell the product name: P, O, C,
+// K, E on the sections and T in the footer. Other pages use P. The marker is
+// decorative and hidden from screen readers. Styles and the entrance
 // animation live in src/styles/global.css (.marker).
 //
 // `play` runs the entrance on load; use it only for a marker that is on the
 // first screen. Markers further down are played by src/scripts/motion.ts.
 interface Props {
-  shape: 'square' | 'circle' | 'triangle' | 'diamond' | 'plus';
+  letter: 'P' | 'O' | 'C' | 'K' | 'E' | 'T';
   play?: boolean;
 }
 
-const { shape, play = false } = Astro.props;
+const { letter, play = false } = Astro.props;
 ---
 
 <div class:list={['marker', { play }]} aria-hidden="true">
   <i class="marker__dot"></i><i class="marker__dot"></i><i class="marker__dot"></i><i
     class="marker__dot"></i>
-  <svg class="marker__shape" viewBox="0 0 44 44">
-    {shape === 'square' && <rect x="3" y="3" width="38" height="38" />}
-    {shape === 'circle' && <circle cx="22" cy="22" r="20" />}
-    {shape === 'triangle' && <path d="M22 4 L42 40 L2 40 Z" />}
-    {shape === 'diamond' && <path d="M22 1 L43 22 L22 43 L1 22 Z" />}
-    {shape === 'plus' && <path d="M16 3 H28 V16 H41 V28 H28 V41 H16 V28 H3 V16 H16 Z" />}
-  </svg>
+  <span class="marker__letter">{letter}</span>
 </div>

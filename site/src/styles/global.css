@@ -226,7 +226,7 @@ svg {
 
 /* ---------- section marker ---------- */
 
-/* A 64px box with a dot on each corner and a solid shape inside. Markup:
+/* A 64px box with a dot on each corner and a letter inside. Markup:
    src/components/Marker.astro. `.play` runs the entrance; src/scripts/motion.ts
    adds `data-wait` (hidden) to markers below the fold and plays them when
    they scroll into view. */
@@ -240,11 +240,14 @@ svg {
   flex: none;
 }
 
-.marker__shape {
+.marker__letter {
   display: block;
-  width: 44px;
-  height: 44px;
-  fill: var(--text);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 60px;
+  font-weight: 500;
+  line-height: 64px;
+  letter-spacing: -0.01em;
 }
 
 .marker__dot {
@@ -294,7 +297,7 @@ svg {
   animation-delay: 120ms;
 }
 
-.marker.play .marker__shape {
+.marker.play .marker__letter {
   animation: rise-8 400ms var(--ease-out) 160ms backwards;
 }
 
@@ -503,7 +506,7 @@ svg {
   }
 
   .marker.play .marker__dot,
-  .marker.play .marker__shape {
+  .marker.play .marker__letter {
     animation: fade-in 300ms ease-out backwards;
   }
 }
