@@ -24,7 +24,7 @@ Subscription feature) are defined in [GLOSSARY.md](../GLOSSARY.md).
   `https://pub-3c8757d8d4b64f55bbc715c162c7e969.r2.dev/Pocket.dmg`
 - Each version keeps its own files under `v<version>/`:
   `Pocket-<version>.dmg`, `Pocket-<version>.zip` and `SHA256SUMS.txt`, e.g.
-  `https://pub-3c8757d8d4b64f55bbc715c162c7e969.r2.dev/v0.1.1/Pocket-0.1.1.dmg`
+  `https://pub-3c8757d8d4b64f55bbc715c162c7e969.r2.dev/v0.1.2/Pocket-0.1.2.dmg`
 - The bucket name and public base URL live in the repository variables
   `CLOUDFLARE_R2_BUCKET` and `CLOUDFLARE_R2_PUBLIC_URL`. The `r2.dev` address
   is Cloudflare's development URL; move the bucket to a custom domain once the
