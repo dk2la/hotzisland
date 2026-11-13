@@ -1,0 +1,27 @@
+---
+// Served by Cloudflare for unknown paths (not_found_handling = "404-page").
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Page not found">
+  <section class="container not-found">
+    <span class="mono eyebrow">404</span>
+    <h1>Page not found</h1>
+    <p class="muted">This page doesn't exist.</p>
+    <a class="btn btn-get" href="/">Go to the home page</a>
+  </section>
+</Base>
+
+<style>
+  .not-found {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-5);
+    padding-block: var(--s-8) var(--s-9);
+  }
+
+  .muted {
+    font-size: 18px;
+  }
+</style>

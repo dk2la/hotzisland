@@ -1,0 +1,128 @@
+---
+// Three real screenshots of the app. No captions and no feature names.
+// Sources are copies of docs/screenshots/*.png; Astro writes resized WebP.
+import { Image } from 'astro:assets';
+import email from '../assets/screens/email.png';
+import calendar from '../assets/screens/calendar.png';
+import notes from '../assets/screens/notes.png';
+
+const shots = [
+  { src: email, alt: 'Pocket open on an inbox' },
+  { src: calendar, alt: "Pocket open on this week's schedule" },
+  { src: notes, alt: 'Pocket open on a list of notes' },
+];
+---
+
+<section class="section">
+  <div class="container">
+    <div class="sec-head" data-reveal>
+      <h2>There when you click. Gone when you're done.</h2>
+      <p>
+        Pocket opens beside whatever you're working on and closes without taking you out of it.
+      </p>
+    </div>
+    <div class="shots">
+      {
+        shots.map((shot) => (
+          <figure class="shot" data-reveal>
+            <Image
+              src={shot.src}
+              alt={shot.alt}
+              width={440}
+              widths={[300, 440, shot.src.width]}
+              sizes="(max-width: 760px) 74vw, 300px"
+              format="webp"
+              quality={82}
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .shots {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: clamp(16px, 3vw, 40px);
+    margin-top: var(--s-7);
+    padding-top: 28px;
+  }
+
+  .shot {
+    flex: 0 1 300px;
+    min-width: 0;
+    margin: 0;
+    filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.28));
+  }
+
+  .shot :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .shot:nth-child(2) {
+    margin-top: -28px;
+  }
+
+  /* A8, screenshots: spring in, staggered left to right. */
+  .shot[data-reveal] {
+    transition:
+      opacity 400ms ease-out,
+      transform var(--spring-state-d) var(--spring-state);
+  }
+
+  .shot[data-reveal]:nth-child(2) {
+    transition-delay: 70ms;
+  }
+
+  .shot[data-reveal]:nth-child(3) {
+    transition-delay: 140ms;
+  }
+
+  .shot:global(.rv-wait) {
+    transform: translateY(28px) scale(0.97);
+  }
+
+  @media (max-width: 760px) {
+    /* A horizontal scroll-snap row; the page itself never scrolls sideways. */
+    .shots {
+      justify-content: flex-start;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      gap: var(--s-4);
+      /* The scroller clips its content, so it bleeds to the screen edges and
+         keeps room below for the drop shadows. */
+      margin: var(--s-3) calc(-1 * var(--page-gutter)) -40px;
+      padding: var(--s-5) var(--page-gutter) 64px;
+      scroll-padding-inline: var(--page-gutter);
+      scrollbar-width: none;
+    }
+
+    .shots::-webkit-scrollbar {
+      display: none;
+    }
+
+    .shot {
+      flex: 0 0 74%;
+      scroll-snap-align: center;
+      /* A tighter shadow that fits inside the scroller's padding. */
+      filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.26));
+    }
+
+    .shot:nth-child(2) {
+      margin-top: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shot:global(.rv-wait) {
+      transform: none;
+    }
+  }
+</style>
