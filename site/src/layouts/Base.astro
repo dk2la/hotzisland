@@ -15,7 +15,6 @@ import '../styles/global.css';
 // reflow. Self-hosted: the site makes no request to another origin.
 import geistLatin from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url';
 import geistMonoLatin from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url';
-import Marker from '../components/Marker.astro';
 import { checkoutURL, downloadURL, price } from '../config';
 
 interface Props {
@@ -87,10 +86,7 @@ const ogImageAlt = `${tagline}. The Pocket widget on a halftone picture of a roo
 
     <footer class="container">
       <div class="foot label">
-        <div class="foot__id">
-          <Marker letter="T" />
-          <span class="foot__copy">pocket · &copy; {year} dk2la</span>
-        </div>
+        <span>pocket · &copy; {year} dk2la</span>
         <nav class="foot__nav" aria-label="Legal">
           <a href="/terms">terms</a>
           <a href="/privacy">privacy</a>
@@ -142,16 +138,9 @@ const ogImageAlt = `${tagline}. The Pocket widget on a halftone picture of a roo
     align-items: center;
     justify-content: space-between;
     gap: var(--s-3) var(--s-5);
-    min-height: calc(3 * var(--u));
+    min-height: var(--s-9);
     border-top: 1px solid var(--line);
     color: var(--muted);
-  }
-
-  /* The last section marker and the copyright line. */
-  .foot__id {
-    display: flex;
-    align-items: center;
-    gap: var(--s-4);
   }
 
   .foot__nav {
@@ -176,30 +165,17 @@ const ogImageAlt = `${tagline}. The Pocket widget on a halftone picture of a roo
       display: none;
     }
 
-    /* Stacked: the marker, the links, then the copyright line. */
+    /* Links first, then the copyright line. */
     .foot {
-      flex-direction: column;
+      flex-direction: column-reverse;
       align-items: flex-start;
-      justify-content: flex-start;
+      justify-content: flex-end;
       min-height: 0;
       padding-block: var(--s-5) var(--s-6);
     }
 
-    .foot__id {
-      display: contents;
-    }
-
-    .foot :global(.marker) {
-      margin-bottom: var(--s-1);
-    }
-
     .foot__nav {
-      order: 1;
       column-gap: var(--s-4);
-    }
-
-    .foot__copy {
-      order: 2;
     }
   }
 </style>
