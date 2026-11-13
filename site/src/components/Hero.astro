@@ -1,0 +1,120 @@
+---
+// First screen: headline, Buy and Download, the Trial and price statement,
+// and the live widget stage.
+import WidgetStage from './WidgetStage.astro';
+import { checkoutURL, downloadURL, price } from '../config';
+---
+
+<div class="container hero">
+  <div class="hero-copy">
+    <h1>One small widget for the whole day.</h1>
+    <p class="lede">
+      Pocket sits at the edge of your screen and opens right where you work. Move it, size it,
+      put it anywhere.
+    </p>
+    <div class="cta">
+      <a class="btn btn-buy" href={checkoutURL}>
+        Buy Pocket <span class="sep" aria-hidden="true"></span>
+        <span class="price">{price.launch}</span>
+        <span class="was" aria-label={`regular price ${price.regular}`}>{price.regular}</span>
+      </a>
+      <a class="btn btn-get" href={downloadURL} download>Download</a>
+    </div>
+    <p class="terms">
+      <b>3-day Trial, every feature.</b> After that Pocket is a one-time purchase: {price.launch}
+      at the launch price, {price.regular} later. For macOS 14 or later.
+    </p>
+  </div>
+
+  <div class="stage-col">
+    <WidgetStage />
+  </div>
+</div>
+
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: var(--s-7);
+    align-items: center;
+    padding-block: var(--s-6) var(--s-8);
+  }
+
+  .hero-copy {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-5);
+    min-width: 0;
+  }
+
+  .lede {
+    font-size: clamp(17px, 1.7vw, 20px);
+    line-height: 1.45;
+    color: var(--ink-2);
+    max-width: 34ch;
+  }
+
+  .terms {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--ink-3);
+    max-width: 40ch;
+  }
+
+  .terms b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* A1 hero entrance. Keyframes with a `backwards` fill, so the page is
+     visible without script. */
+  .hero-copy > * {
+    animation: rise 520ms var(--ease-out) backwards;
+  }
+
+  .hero-copy > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  .hero-copy > :nth-child(3) {
+    animation-delay: 120ms;
+  }
+
+  .hero-copy > :nth-child(4) {
+    animation-delay: 180ms;
+  }
+
+  .stage-col {
+    animation: settle 640ms var(--ease-out) 120ms backwards;
+    min-width: 0;
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .hero {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--s-6);
+      padding-block: var(--s-4) var(--s-7);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-copy > *,
+    .stage-col {
+      animation: fade 200ms ease-out backwards;
+    }
+  }
+</style>

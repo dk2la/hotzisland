@@ -1,0 +1,195 @@
+---
+// Shared layout for every page: document head, header, footer, base styles.
+//
+// Usage:
+//   <Base title="Terms" description="...">
+//     <div class="container">...</div>
+//   </Base>
+//
+// The default slot is rendered inside <main>. Wrap content in `.container`
+// to get the page width and gutter; full-bleed sections can skip it.
+import '../styles/global.css';
+import { checkoutURL, downloadURL, price } from '../config';
+
+interface Props {
+  /** Page name. Rendered as "<title> — Pocket"; omit on the home page. */
+  title?: string;
+  /** Meta description for search engines and link previews. */
+  description?: string;
+}
+
+const siteName = 'Pocket';
+const tagline = 'One small widget for the whole day';
+const {
+  title,
+  description = 'Pocket is a small widget for your Mac that opens right where you work. Move it, size it, put it anywhere. 3-day Trial, then a one-time purchase.',
+} = Astro.props;
+const pageTitle = title ? `${title} — ${siteName}` : `${siteName} — ${tagline}`;
+const year = new Date().getFullYear();
+
+// Link preview image (public/og.png, 1200×630). Link previews need an
+// absolute URL: it becomes one when SITE_URL is set at build time (see
+// astro.config.mjs). There is deliberately no canonical link and no og:url
+// until the site has its final domain.
+const ogImagePath = '/og.png';
+const ogImage = Astro.site ? new URL(ogImagePath, Astro.site).href : ogImagePath;
+const ogImageAlt = `${tagline}. The Pocket widget on a desktop.`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#e9e7e2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0b0a" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogImageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={ogImageAlt} />
+    <slot name="head" />
+  </head>
+  <body>
+    <header class="container top">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>{siteName}
+      </a>
+      <nav aria-label="Main">
+        <a class="link" href={downloadURL} download>Download</a>
+        <a class="btn btn-buy btn-sm" href={checkoutURL}>Buy <span class="price">{price.launch}</span></a>
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="container site-footer__inner">
+        <span>{siteName} · &copy; {year} dk2la</span>
+        <nav aria-label="Legal">
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/refund">Refund Policy</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  /* Header: wordmark, Download link, small Buy button. Not sticky. */
+  .top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+    padding-block: var(--s-5);
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+
+  .brand-mark {
+    width: 14px;
+    height: 24px;
+    border-radius: 5px;
+    background: var(--ink);
+    display: grid;
+    place-content: center;
+    gap: 3px;
+  }
+
+  .brand-mark i {
+    width: 4px;
+    height: 4px;
+    border-radius: 1.5px;
+    background: var(--bg);
+  }
+
+  .brand-mark i:first-child {
+    background: var(--accent);
+  }
+
+  .top nav {
+    display: flex;
+    align-items: center;
+    gap: var(--s-4);
+  }
+
+  .link {
+    font-size: 14px;
+    color: var(--ink-2);
+    text-decoration: none;
+  }
+
+  main {
+    flex: 1;
+  }
+
+  .site-footer__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+    padding-block: var(--s-6);
+    border-top: 1px solid var(--hairline);
+    font-size: 14px;
+    color: var(--ink-3);
+  }
+
+  .site-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-5);
+  }
+
+  .site-footer a {
+    color: var(--ink-2);
+    text-decoration: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .link:hover,
+    .site-footer a:hover {
+      color: var(--ink);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .top {
+      padding-block: var(--s-4);
+    }
+
+    .link {
+      display: none;
+    }
+
+    .site-footer__inner {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

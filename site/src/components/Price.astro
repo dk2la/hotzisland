@@ -1,0 +1,207 @@
+---
+// Price section: the License card with the price, the Trial, the number of
+// Macs, and both buttons again.
+import { checkoutURL, downloadURL, price } from '../config';
+---
+
+<section class="section">
+  <div class="container buy">
+    <div class="sec-head" data-reveal>
+      <span class="mono eyebrow">Price</span>
+      <h2>Pay once. Keep it.</h2>
+      <p>
+        Use Pocket for 3 days with everything switched on. If it earns its place on your screen,
+        buy it once and it's yours.
+      </p>
+    </div>
+    <div class="license" id="license" data-reveal>
+      <div class="l-head">
+        <span class="mono">License</span><span class="dot" aria-hidden="true"></span>
+      </div>
+      <div class="l-price">
+        <span class="now">{price.launch}</span>
+        <span class="was" aria-label={`regular price ${price.regular}`}>{price.regular}</span>
+        <span class="mono tag">Launch price</span>
+      </div>
+      <p class="l-say">One payment, no subscription.</p>
+      <div class="meters">
+        <div class="meter">
+          <div class="cap mono"><span>Trial</span><b>3 days</b></div>
+          <div class="segs" aria-hidden="true"><i></i><i></i><i></i></div>
+          <p>Every feature, from the first time you open Pocket.</p>
+        </div>
+        <div class="meter">
+          <div class="cap mono"><span>Macs</span><b>Up to 3</b></div>
+          <div class="segs" aria-hidden="true"><i></i><i></i><i></i></div>
+          <p>One License key works on three of your Macs.</p>
+        </div>
+      </div>
+      <div class="cta">
+        <a class="btn btn-buy" href={checkoutURL}>
+          Buy Pocket <span class="sep" aria-hidden="true"></span>
+          <span class="price">{price.launch}</span>
+        </a>
+        <a class="btn btn-get" href={downloadURL} download>Download the Trial</a>
+      </div>
+      <p class="fine">Sold by dk2la. Payment is handled by Lemon Squeezy.</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .buy {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: var(--s-7);
+    align-items: center;
+  }
+
+  /* Dark sheet in both appearances, like the app's own License sheet. */
+  .license {
+    background: var(--sheet);
+    color: var(--w-1);
+    border-radius: var(--r-window);
+    border: 1px solid var(--glass-stroke);
+    padding: var(--s-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-5);
+    box-shadow: var(--shadow);
+    min-width: 0;
+  }
+
+  .l-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: var(--s-4);
+    border-bottom: 1px solid var(--w-hair);
+    color: var(--accent);
+  }
+
+  .l-price {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--s-3);
+  }
+
+  .now {
+    font-size: clamp(56px, 8vw, 84px);
+    line-height: 0.9;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+  }
+
+  .l-price .was {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--w-3);
+    text-decoration: line-through;
+  }
+
+  .tag {
+    color: var(--on-accent);
+    background: var(--accent);
+    padding: 5px 8px;
+    border-radius: 6px;
+  }
+
+  .l-say {
+    color: var(--w-2);
+    font-size: 16px;
+    max-width: 34ch;
+  }
+
+  .meters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-3);
+  }
+
+  .meter {
+    background: var(--w-card);
+    border-radius: var(--r-card);
+    padding: var(--s-3);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .cap {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--w-3);
+  }
+
+  .cap b {
+    color: var(--w-1);
+    font-weight: 500;
+  }
+
+  .segs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+
+  /* A9: segments switch on one at a time (src/scripts/reveal.ts). They jump,
+     like the app's readouts; no fade. */
+  .segs i {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--w-2);
+  }
+
+  .segs i:global(.off) {
+    background: var(--w-seg-off);
+  }
+
+  .meter p {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--w-2);
+  }
+
+  .license .btn-get {
+    background: var(--w-raised);
+    color: var(--w-1);
+  }
+
+  .license .btn {
+    flex: 1 1 auto;
+  }
+
+  /* Focus rings sit on the dark sheet here in both appearances. */
+  .license .btn:focus-visible {
+    outline-color: var(--w-1);
+  }
+
+  .fine {
+    font-size: 12.5px;
+    color: var(--w-3);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .license .btn-get:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .buy {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--s-6);
+    }
+
+    .meters {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .license {
+      padding: var(--s-4);
+    }
+  }
+</style>

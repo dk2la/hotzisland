@@ -1,0 +1,9 @@
+name = "pocket-site"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# Static assets only: there is no Worker script. Cloudflare serves the Astro
+# build output directly.
+[assets]
+directory = "./dist"
+not_found_handling = "404-page"
